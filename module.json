@@ -3,7 +3,7 @@
 	"title": "Realm Works Importer",
 	"description": "Imports files from Realm Works campaign management tool",
 	"author": "Farling",
-	"version": "0.0.1",
+	"version": "0.0.3",
 	"minimumCoreVersion": "0.7.9",
 	"compatibleCoreVersion": "0.7.9",
 
@@ -12,7 +12,7 @@
 
     "socket": true,
     "url": "https://github.com/farling42/fvtt-import-realmworks",
-    "manifest": "https://raw.githubusercontent.com/farling42/fvtt-import-realmworks/master/module.json",
-    "download": "https://github.com/farling42/fvtt-import-realmworks/releases/download/v0.0.1/rw2fvtt.zip"
+    "manifest": "https://github.com/farling42/fvtt-import-realmworks/releases/latest/download/module.json",
+    "download": "https://github.com/farling42/fvtt-import-realmworks/releases/download/0.0.3/module.zip"
 
 }
