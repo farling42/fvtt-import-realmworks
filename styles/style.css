@@ -1,0 +1,14 @@
+button.import-cd {
+    flex-shrink: 1 !important; 
+    flex: unset !important;
+    margin: 5px 4px 0px 3px !important;
+    clear: both;
+}
+
+#cd-importer .form-group {
+    margin: 10px
+}
+
+#cd-importer .window-content {
+    overflow: unset
+}

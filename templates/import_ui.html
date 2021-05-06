@@ -1,0 +1,22 @@
+<div>
+    <div class = "form-group-import">
+        <h2>Import Realm Works Output from somewhere</h2>
+
+        <p>Input will be the prefix for the compendiums created</p>
+        <input  id="compendium-input" name="compendium-input" value="rwout"></input>
+        <p>Will create a compendium named <i>input</i>-spells and <i>input</i>-monsters</p>
+
+        <h2>Paste the rwoutput file into the box below and click "Import".</h2>
+
+        <textarea id="all-xml" name="all-xml" rows="10" cols="50"></textarea>
+        <!-- <input class="update-checkbox" type="checkbox" value="0" name="classButton" checked>
+        <label for="classButton">Add Classes?</label> -->
+        <input class="update-checkbox" type="checkbox" value="0" name="spellsButton" checked>
+        <label for="spellsButton">Add Spells?</label>
+        <input class="update-checkbox" type="checkbox" value="0" name="creatureButton" checked>
+        <label for="creatureButton">Add Monsters?</label>
+        <!-- <input class="update-checkbox" type="checkbox" value="1" name="journalButton" checked>
+        <label for="journalButton">Add Journals?</label> -->
+        <input type="submit" class="import-rwoutput" value="Import">
+    </div>
+</div>
