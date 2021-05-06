@@ -19,6 +19,8 @@ A new compendium pack with the supplied name will be created, and it will contai
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
 ## Changlog
+0.0.7 Update the UI to reflect the actual fields which are relevant to the task.
 
 0.0.6 Add MIT LICENSE file and fill in README.md file
+
 0.0.5 First version to support the automatic module.zip creation properly on github
