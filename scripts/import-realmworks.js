@@ -109,20 +109,24 @@ class RealmWorksImporter extends Application
 	//
 	// Write a "contents" element:
 	// Only <contents> can contain <span> which identify links.
-	// Replace '<scan>something</scan>' with '@JournalEntry[world.packname.something]'
+	// Replace '<scan>something</scan>' with '@JournalEntry[world.packname.<topic-for-something>]{something}'
+	// @Compendium is case sensitive when using names!
 	//
-	static writeContents(node, map, packname) {
-		// Ideally we would use replaceAll, but that is a recent JS improvement.
-		// @Compendium is case sensitive when using names!
-		return node.textContent.replace(/<span>([^<]+)<\/span>/g,`@Compendium[${packname}.$1]`);
-		// TODO: replace second parameter with function that will do case-insensitive match against
-		// entries in map, and then use the longer @Compendium[name]{name} syntax.
+	static writeContents(node, topic_array, packname) {
+		return node.textContent.replace(/<span>([^<]+)<\/span>/g, 
+			function(match,p1,offset,string) {
+				let linkname = topic_array.find(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) == 0) );
+				if (linkname == undefined || linkname == p1)
+					return `@Compendium[${packname}.${p1}]`;
+				else
+					return `@Compendium[${packname}.${linkname}]{${p1}}`;
+			});
 	}
 	
 	//
 	// Write one RW section
 	//
-	static writeSection(section, level, map, packname) {
+	static writeSection(section, level, topic_map, topic_array, packname) {
 		// Process all the snippets and sections in order
 		const name = section.getAttribute("name");
 		//console.log(`writeSection(${level}, '${name}'})`);
@@ -135,7 +139,7 @@ class RealmWorksImporter extends Application
 			if (child.nodeName == "section") {
 				// Subsections increase the HEADING number
 				console.log(`nested section ${child.getAttribute("name")}`);
-				result += RealmWorksImporter.writeSection(child, level+1, map, packname);
+				result += RealmWorksImporter.writeSection(child, level+1, topic_map, topic_array, packname);
 			}
 			else if (child.nodeName == "snippet") {
 				// Snippets contain the real information!
@@ -147,7 +151,7 @@ class RealmWorksImporter extends Application
 						const snip = snips[sn];
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += RealmWorksImporter.writeContents(snip, map, packname);
+							result += RealmWorksImporter.writeContents(snip, topic_array, packname);
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
@@ -167,7 +171,7 @@ class RealmWorksImporter extends Application
 						const snip = snips[sn];
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += `<p><b>${label}:</b></p>${RealmWorksImporter.writeContents(snip, map, packname)}`;		// TODO - label needs to be inside first <p>
+							result += `<p><b>${label}:</b></p>${RealmWorksImporter.writeContents(snip, topic_array, packname)}`;		// TODO - label needs to be inside first <p>
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
@@ -186,7 +190,7 @@ class RealmWorksImporter extends Application
 						const snip = snips[sn];
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += `<p><b>${label}:</b> ${RealmWorksImporter.writeContents(snip, map, packname)}</p>`;
+							result += `<p><b>${label}:</b> ${RealmWorksImporter.writeContents(snip, topic_array, packname)}</p>`;
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log('gm_directions');
@@ -283,8 +287,9 @@ class RealmWorksImporter extends Application
 	}
 
 	static writeLink(packname, topic_map, topic_id, topic_name) {
-		if (topic_map.includes(topic_id)) {
-			return `@Compendium[${packname}.${topic_map[topic_id]}]{${topic_name}}`;
+		let tlink = topic_map.get(topic_id);
+		if (tlink) {
+			return `@Compendium[${packname}.${tlink}]{${topic_name}}`;
 		}
 		else {
 			return `@Compendium[${packname}.${topic_name}]`;
@@ -294,7 +299,7 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//pack
-	static async writeTopic(topic, pack, topic_map) {
+	static async writeTopic(topic, pack, topic_map, topic_array) {
 		console.log(`Importing '${topic.getAttribute("public_name")}'`);
 		let html = "";
 		let first_child_topic = true;
@@ -304,10 +309,10 @@ class RealmWorksImporter extends Application
 		for (var n=0; n < kids.length; n++) {
 			const node = kids[n];
 			if (node.nodeName == "section") {
-				html += RealmWorksImporter.writeSection(node, 1, topic_map, pack.collection);		// Start with H1
+				html += RealmWorksImporter.writeSection(node, 1, topic_map, topic_array, pack.collection);		// Start with H1
 			} else if (node.nodeName == "topic") {
 				// No need to handle nested topics, since we found all of them at the start.
-				//await RealmWorksImporter.writeTopic(node, pack, topic_map);
+				//await RealmWorksImporter.writeTopic(node, pack, topic_map, topic_array);
 				
 				// Put link to child topic in original topic
 				if (first_child_topic) {
@@ -337,8 +342,10 @@ class RealmWorksImporter extends Application
 			//console.log({
 			let journal = await JournalEntry.create({
 				name: topic.getAttribute("public_name"),
-				content: html,
+				content: html
 			}, { displaySheet: false, temporary: true });
+			
+			// Add to the requested Compendium pack
 			await pack.importEntity(journal);
 			await pack.getIndex(); // Need to refresh the index to update it
 		} else {
@@ -370,17 +377,19 @@ class RealmWorksImporter extends Application
 		const topics = xmlDoc.getElementsByTagName('topic');  // all descendents, not just direct children
 
 		// Create a mapping from topic_id to public_name for all topic elements, required for creating "@Compendium[<packname>."mapping[linkage:target_id]"]{"linkage:target_name"}" entries.
-		let topic_map = new Array();
+		let topic_map = new Map();
+		let topic_array = new Array();
 		for (var i = 0; i<topics.length; i++) {
 			const child = topics[i];
 			//console.log(`Found topic '${child.getAttribute("topic_id")}' with name '${child.getAttribute("public_name")}'`);
-			topic_map[child.getAttribute("topic_id")] = child.getAttribute("public_name");
+			topic_map.set(child.getAttribute("topic_id"), child.getAttribute("public_name"));
+			topic_array.push(child.getAttribute("public_name"));
 		}
-		//console.log(`topic_map = ${topic_map}`);
+		//console.log(`topic_array = ${topic_array}`);
 
 		// Now process each topic in order
 		for(var t = 0; t < topics.length; t++) {
-			await RealmWorksImporter.writeTopic(topics[t], jpack, topic_map);
+			await RealmWorksImporter.writeTopic(topics[t], jpack, topic_map, topic_array);
 		}
 	}
 
