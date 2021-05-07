@@ -107,9 +107,22 @@ class RealmWorksImporter extends Application
 	}
 
 	//
+	// Write a "contents" element:
+	// Only <contents> can contain <span> which identify links.
+	// Replace '<scan>something</scan>' with '@JournalEntry[world.packname.something]'
+	//
+	static writeContents(node, map, packname) {
+		// Ideally we would use replaceAll, but that is a recent JS improvement.
+		// @Compendium is case sensitive when using names!
+		return node.textContent.replace(/<span>([^<]+)<\/span>/g,`@Compendium[${packname}.$1]`);
+		// TODO: replace second parameter with function that will do case-insensitive match against
+		// entries in map, and then use the longer @Compendium[name]{name} syntax.
+	}
+	
+	//
 	// Write one RW section
 	//
-	static writeSection(section, level, map) {
+	static writeSection(section, level, map, packname) {
 		// Process all the snippets and sections in order
 		const name = section.getAttribute("name");
 		//console.log(`writeSection(${level}, '${name}'})`);
@@ -122,7 +135,7 @@ class RealmWorksImporter extends Application
 			if (child.nodeName == "section") {
 				// Subsections increase the HEADING number
 				console.log(`nested section ${child.getAttribute("name")}`);
-				result += RealmWorksImporter.writeSection(child, level+1, map);
+				result += RealmWorksImporter.writeSection(child, level+1, map, packname);
 			}
 			else if (child.nodeName == "snippet") {
 				// Snippets contain the real information!
@@ -134,7 +147,7 @@ class RealmWorksImporter extends Application
 						const snip = snips[sn];
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += snip.textContent;
+							result += RealmWorksImporter.writeContents(snip, map, packname);
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
@@ -154,7 +167,7 @@ class RealmWorksImporter extends Application
 						const snip = snips[sn];
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += `<p><b>${label}:</b></p>${snip.textContent}`;		// TODO - label needs to be inside first <p>
+							result += `<p><b>${label}:</b></p>${RealmWorksImporter.writeContents(snip, map, packname)}`;		// TODO - label needs to be inside first <p>
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
@@ -173,7 +186,7 @@ class RealmWorksImporter extends Application
 						const snip = snips[sn];
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += `<p><b>${label}:</b> ${snip.textContent}</p>`;
+							result += `<p><b>${label}:</b> ${RealmWorksImporter.writeContents(snip, map, packname)}</p>`;
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log('gm_directions');
@@ -269,18 +282,18 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	static writeLink(pack, topic_map, topic_id, topic_name) {
+	static writeLink(packname, topic_map, topic_id, topic_name) {
 		if (topic_map.includes(topic_id)) {
-			return `@Compendium[${pack.collection}.${topic_map[topic_id]}]{${topic_name}}`;
+			return `@Compendium[${packname}.${topic_map[topic_id]}]{${topic_name}}`;
 		}
 		else {
-			return `@Compendium[${pack.collection}.${topic_name}]`;
+			return `@Compendium[${packname}.${topic_name}]`;
 		}
 	}
 	
 	//
 	// Write one RW topic
-	//
+	//pack
 	static async writeTopic(topic, pack, topic_map) {
 		console.log(`Importing '${topic.getAttribute("public_name")}'`);
 		let html = "";
@@ -291,7 +304,7 @@ class RealmWorksImporter extends Application
 		for (var n=0; n < kids.length; n++) {
 			const node = kids[n];
 			if (node.nodeName == "section") {
-				html += RealmWorksImporter.writeSection(node, 1, topic_map);		// Start with H1
+				html += RealmWorksImporter.writeSection(node, 1, topic_map, pack.collection);		// Start with H1
 			} else if (node.nodeName == "topic") {
 				// No need to handle nested topics, since we found all of them at the start.
 				//await RealmWorksImporter.writeTopic(node, pack, topic_map);
@@ -302,7 +315,7 @@ class RealmWorksImporter extends Application
 					first_child_topic = false;
 				}
 				html += '<p>';
-				html += RealmWorksImporter.writeLink(pack, topic_map, node.getAttribute("topic_id"), node.getAttribute("public_name"));
+				html += RealmWorksImporter.writeLink(pack.collection, topic_map, node.getAttribute("topic_id"), node.getAttribute("public_name"));
 				html += '<\p>';
 			//} else if (!node.nodeName.startsWith('#text')) {
 				// tag_assign
