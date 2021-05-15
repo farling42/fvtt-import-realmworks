@@ -130,7 +130,15 @@ class RealmWorksImporter extends Application
 				return `@Compendium[${packname}.${p1}]`;
 			});
 	}
-	
+
+	// Predefined snippet types have 'facet_name' attribute
+	// User-defined snippets have 'label' attribute
+	static facetNameLabel(node) {
+		let name = node.getAttribute('facet_name');
+		if (name == null || name == "") name = node.getAttribute('label');
+		return name;
+	}
+
 	//
 	// Write one RW section
 	//
@@ -214,7 +222,7 @@ class RealmWorksImporter extends Application
 				else if (sntype == "Tag_Standard") {
 					// <tag_assign tag_name="Manufacturing" domain_name="Commerce Activity" type="Indirect" />
 					const tag = child.getElementsByTagName('tag_assign')[0];	// all descendents not just direct children
-					result += `<p><b>${child.getAttribute('facet_name')}:</b> ${tag.getAttribute('tag_name')}</p>`;
+					result += `<p><b>${RealmWorksImporter.facetNameLabel(child)}:</b> ${tag.getAttribute('tag_name')}</p>`;
 					// annotation
 				}
 				else if (sntype == "Tag_Multi_Domain") {
@@ -230,40 +238,43 @@ class RealmWorksImporter extends Application
 				}
 				else if (sntype == "Date_Game") {
 					const tag = child.getElementsByTagName('game_date')[0];		// all descendents not just direct children
-					result += `<p><b>${child.getAttribute('facet_name')}:</b> ${tag.getAttribute("display")}</p>`;
+					result += `<p><b>${RealmWorksImporter.facetNameLabel(child)}:</b> ${tag.getAttribute("display")}</p>`;
 					// annotation
 				}
 				else if (sntype == "Date_Range") {
 					const tag = child.getElementsByTagName('date_range')[0];		// all descendents not just direct children
-					result += `<p><b>${child.getAttribute('label')}:</b> ${tag.getAttribute("display_start")} to ${tag.getAttribute("display_end")}</p>`;
+					result += `<p><b>${RealmWorksImporter.facetNameLabel(child)}:</b> ${tag.getAttribute("display_start")} to ${tag.getAttribute("display_end")}</p>`;
 					// annotation
 				}
 				else if (sntype == "Portfolio") {
 					 console.log(`Not implemented ${sntype}`);
-				}
-				else if (sntype == "Picture") {
-					const facet_name = child.getAttribute('facet_name');
-					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
-					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset.getElementsByTagName('contents')[0];    // <contents>
-					const format   = asset.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
-					result += `<p><b>${facet_name}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
-				} else if (sntype == "PDF" ||
+					 // Use adm-zip to unpack the .por "file",
+					 // then extract the .html inside the statblocks_html subdirectory.
+				} else if (sntype == "Picture" ||
+					sntype == "PDF" ||
 					sntype == "Audio" ||
 					sntype == "Video" ||
 					sntype == "Statblock" ||
 					sntype == "Foreign" ||
 					sntype == "Rich_Text") {
-					const facet_name = child.getAttribute('facet_name');
+					result += `<h3>${RealmWorksImporter.facetNameLabel(child)}</h3>`;
+					
 					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
-					const asset      = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents   = asset.getElementsByTagName('contents')[0];    // <contents>
-					let format = 'binary/octet-stream';
-					const fileext = asset.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
-					if (fileext == 'pdf') {
-						format = 'application/pdf';
+					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents = asset.getElementsByTagName('contents')[0];    // <contents>
+					const filename = asset.getAttribute('filename');
+					const fileext  = filename.split('.').pop();	// extra suffix from asset filename
+					if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
+						result += `${atob(contents.textContent)}`;
+					else if (sntype == "Picture")
+						result += `<p><img src="data:image/${fileext};base64,${contents.textContent}"></img></p>`;					
+					else {
+						let format = 'binary/octet-stream';
+						if (fileext == 'pdf') {
+							format = 'application/pdf';
+						}
+						result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
 					}
-					result += `<p><b>${facet_name}</b>: <a href="data:${format};base64,${contents.textContent}"></a></p>`;
 					 
 				}
 				else if (sntype == "Smart_Image") {
@@ -273,11 +284,12 @@ class RealmWorksImporter extends Application
 					//      <contents>
 					//	  <map_pin pin_name="Deneb Sector" topic_id="Topic_392" x="330" y="239">	-- topic_id is optional
 					//		<description>Nieklsdia (Zhodani)</description> -- could be empty
-					const facet_name = child.getAttribute('facet_name');
+					
+					// These need to be created as Scenes (and linked from the original topic?)
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents = asset.getElementsByTagName('contents')[0];    // <contents>
 					const format   = asset.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
-					result += `<p><b>${facet_name}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
+					result += `<p><b>${RealmWorksImporter.facetNameLabel(child)}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
 				}
 				else {
 					console.log(`Unsupported snippet type: ${child.getAttribute("type")}`);

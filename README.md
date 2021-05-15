@@ -24,6 +24,8 @@ Any parent topic in the RWoutput file will have a list of children at the end of
 If you like what it does, then contributions can be made at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
+0.0.12 Convert .html assets into inline text. This means that StatBlock snippets will show their information inline.
+
 0.0.11 Get aliases to link properly between topics (and add Patreon information to README)
 
 0.0.10 Update README.md with installation link and Changelog information
