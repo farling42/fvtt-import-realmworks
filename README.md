@@ -21,7 +21,7 @@ A new compendium pack with the supplied name will be created, and it will contai
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
 ## Patreon
-<a href="https://www.patreon.com/bePatron?u=33083103" data-patreon-widget-type="become-patron-button">Become a Patron!</a><script async src="https://c6.patreon.com/becomePatronButton.bundle.js"></script>
+If you like what it does, then contributions can be made at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
 0.0.11 Get aliases to link properly between topics (and add Patreon information to README)
