@@ -306,7 +306,7 @@ class RealmWorksImporter extends Application
 	// Write one RW topic
 	//
 	async writeTopic(topic) {
-		console.log(`Importing '${topic.getAttribute("public_name")}'`);
+		//console.log(`Importing '${topic.getAttribute("public_name")}'`);
 		
 		// Extract only the links that we know are in this topic (if any).
 		// Collect linkage children and create an alias/title-to-topic map:
@@ -320,6 +320,11 @@ class RealmWorksImporter extends Application
 					linkage_names.set(target_id, this.topic_names.get(target_id));
 				}
 			}
+		}
+		// Add self to the mapping (in case a topic links to itself, but differs only in case)
+		const this_topic_id = topic.getAttribute('topic_id');
+		if (this.topic_names.has(this_topic_id)) {
+			linkage_names.set(this_topic_id, this.topic_names.get(this_topic_id));
 		}
 				
 		// Generate the HTML for the sections within the topic
@@ -402,6 +407,8 @@ class RealmWorksImporter extends Application
 	
 		// Now process each topic in order
 		for (const topic of topics) {
+			// Displaying every topic increases processing time for 400 topics
+			// from 45 seconds to 67 seconds!
 			if (ui_label) ui_label.val(topic.getAttribute('public_name'));
 			await this.writeTopic(topic);
 		}
