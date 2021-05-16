@@ -24,7 +24,7 @@ Any parent topic in the RWoutput file will have a list of children at the end of
 If you like what it does, then contributions can be made at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
-0.0.13 Code tidyup for faster processing
+0.0.13 Code tidyup for faster processing; fix linking topic to itself.
 
 0.0.12 Convert .html assets into inline text. This means that StatBlock snippets will show their information inline.
 
