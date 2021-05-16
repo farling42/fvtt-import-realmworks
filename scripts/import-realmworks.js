@@ -73,7 +73,6 @@ class RealmWorksImporter extends Application
 
 			let compendiumName = html.find('[name=compendium-input]').val();
 			let current_topic = html.find('[name=current-topic]');
-			console.log(`**** current_topic = ${current_topic}`);
 			
 			// Do the actual work!
 			this.parseXML(inputRW, compendiumName, current_topic);
@@ -305,7 +304,7 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async writeTopic(topic) {
+	async writeTopic(topic, ui_label) {
 		//console.log(`Importing '${topic.getAttribute("public_name")}'`);
 		
 		// Extract only the links that we know are in this topic (if any).
@@ -354,21 +353,20 @@ class RealmWorksImporter extends Application
 		// Now create the correct journal entry:
 		//    name = prefix + public_name + suffix
 		// Replace if the name already exists
-		let entry = await this.journal_pack.index.find(e => e.name === topic.getAttribute("public_name"));
-		if (entry) {
+		let indices = await this.journal_pack.getIndex();
+		let entity = indices.find(e => e.name === topic.getAttribute("public_name"));
+		if (entity) {
 			//console.log(`*** Deleting old entry for ${topic.getAttribute("public_name")}`);
-			await this.journal_pack.deleteEntity(entry._id);
+			await this.journal_pack.deleteEntity(entity._id);
 		}
 
-		let journal = await JournalEntry.create({
+		await JournalEntry.create({
 			name: topic.getAttribute("public_name"),
 			content: html
-		}, { displaySheet: false, temporary: true });
+		}, { displaySheet: false, temporary: true })
+			.then(journal => this.journal_pack.importEntity(journal))
+			.then(() => { if (ui_label) ui_label.val(topic.getAttribute('public_name'))});
 			
-		// Add to the requested Compendium pack
-		await this.journal_pack.importEntity(journal);
-		await this.journal_pack.getIndex(); // Need to refresh the index to update it
-
 		//console.log(`Finished importing '${topic.getAttribute("public_name")}'`);
 	}
 
@@ -378,7 +376,7 @@ class RealmWorksImporter extends Application
 	//
 	async parseXML(xmlString, compendiumName, ui_label)
 	{
-		console.log(`Starting for ${compendiumName}`);
+		//console.log(`Starting for ${compendiumName}`);
 		this.journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
 
 		if (ui_label) ui_label.val('--- Starting ---');
@@ -404,14 +402,11 @@ class RealmWorksImporter extends Application
 			};
 			this.topic_names.set(child.getAttribute("topic_id"), names);
 		};
-	
-		// Now process each topic in order
-		for (const topic of topics) {
-			// Displaying every topic increases processing time for 400 topics
-			// from 45 seconds to 67 seconds!
-			if (ui_label) ui_label.val(topic.getAttribute('public_name'));
-			await this.writeTopic(topic);
-		}
+
+		// Now convert each topic (in any order),
+		// and wait for the async generation to finish.
+		if (ui_label) ui_label.val('--- Processing Topics ---');
+		await Promise.all(Array.from(topics).map(async (topic) => await this.writeTopic(topic, ui_label)));
 		if (ui_label) ui_label.val('--- Finished ---');
 	}
 } // class
