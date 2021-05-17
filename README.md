@@ -24,6 +24,8 @@ Any parent topic in the RWoutput file will have a list of children at the end of
 If you like what it does, then contributions can be made at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
+0.0.16 Add linkage information at the bottom of each JournalEntry, indicating inbound and/or outbound links, as selected in the import window.
+
 0.0.15 Add registered trademark symbol when mentioning Realm Works. Extract stat blocks from embedded Hero Lab Portfolio files.
 
 0.0.14 Significant speed-up by using the JournalEntry.create promise correctly.

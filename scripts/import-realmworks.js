@@ -61,12 +61,8 @@ class RealmWorksImporter extends Application
 		super.activateListeners(html);
 		html.find(".import-rwoutput").click(async ev => {
 			let inputRW = html.find('[name=all-xml]').val();
-			let adder = {
-				class: html.find('[name=classButton]').is(':checked'),
-				spells: html.find('[name=spellsButton]').is(':checked'),
-				creature: html.find('[name=creatureButton]').is(':checked'),
-				journal: html.find('[name=journalButton]').is(':checked'),
-			}
+			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
+			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			// Read in the file contents here?
 			//const response = await fetch('inputRW');
 			//const xmlString = await response.text();
@@ -383,6 +379,9 @@ class RealmWorksImporter extends Application
 				
 		// Generate the HTML for the sections within the topic
 		let html = "";
+		let inbound = [];
+		let outbound = [];
+		let both = [];
 		let has_child_topics = false;
 		for (const node of topic.childNodes) {
 			if (node.nodeName == "section") {
@@ -399,10 +398,37 @@ class RealmWorksImporter extends Application
 				// tag_assign - no need to include these
 				// linkage - handled above
 				//console.log (`Unexpected node in topic ${node.nodeName}`);
+			} else if (node.nodeName == "linkage") {
+				var dir = node.getAttribute('direction');
+				if (dir == 'Outbound') outbound.push(node);
+				else if (dir == 'Inbound') inbound.push(node);
+				else if (dir == 'Both') both.push(node);
 			}
 		}
 		if (has_child_topics) {
 			html += '</ul>';
+		}
+		if ((this.addInboundLinks || this.addOutboundLinks) && (inbound.length > 0 || outbound.length > 0 || both.length > 0)) {
+			if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
+				html += '<h1>Links From Other Topics</h1><p>';
+				for (const node of inbound) {
+					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+				}
+				for (const node of both) {
+					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+				}
+				html += '<\p>';
+			}
+			if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
+				html += '<h1>Links To Other Topics</h1><p>';
+				for (const node of outbound) {
+					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+				}
+				for (const node of both) {
+					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+				}
+				html += '<\p>';
+			}
 		}
 		
 		// Now create the correct journal entry:
