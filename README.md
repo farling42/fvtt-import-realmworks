@@ -1,5 +1,5 @@
 # Realm-Works-Import
-A module to create a compendium pack from a user's RWoutput from the Realm Works campaign management tool created by LWD.
+A module to create a compendium pack from a user's RWoutput from the Realm Works® campaign management tool created by LWD, available from https://www.wolflair.com/realmworks/
 
 You can install the module by updating your module list with the following additional URL: https://github.com/farling42/fvtt-import-realmworks/releases/latest/download/module.json
 
