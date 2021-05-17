@@ -8,8 +8,8 @@
 	"compatibleCoreVersion": "0.7.9",
 
 	"esmodules": ["scripts/import-realmworks.js"],
+	"scripts": ["scripts/UZIP.js"],
 	"styles": ["styles/style.css"],
-
     "socket": true,
     "url": "https://github.com/farling42/fvtt-import-realmworks",
     "manifest": "https://github.com/farling42/fvtt-import-realmworks/releases/latest/download/module.json",

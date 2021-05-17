@@ -21,6 +21,7 @@
 // Links need to be @Compendium[entity-id]{label}
 // or simply @Compendium[pack-name.entity-name]{label}
 
+import UZIP from "./UZIP.js";
 
 // Provide hook to put the button at the bottom of the COMPENDIUM panel in Foundry VTT
 // Set up the user interface
@@ -28,7 +29,6 @@
 Hooks.on("renderSidebarTab", async (app, html) => {
     if (app.options.id == "compendium") {
       let button = $("<button class='import-cd'><i class='fas fa-file-import'></i> Realm Works Import</button>")
-   
       button.click(function () {
         new RealmWorksImporter().render(true);
       });
@@ -135,6 +135,42 @@ class RealmWorksImporter extends Application
 	}
 
 	//
+	// Convert Utf8Array to UTF-8 string
+	//
+	Utf8ArrayToStr(array) {
+		var out, i, len, c;
+		var char2, char3;
+
+		out = "";
+		len = array.length;
+		i = 0;
+		while(i < len) {
+			c = array[i++];
+			switch(c >> 4)
+			{ 
+			case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
+				// 0xxxxxxx
+				out += String.fromCharCode(c);
+				break;
+			case 12: case 13:
+				// 110x xxxx   10xx xxxx
+				char2 = array[i++];
+				out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
+				break;
+			case 14:
+				// 1110 xxxx  10xx xxxx  10xx xxxx
+				char2 = array[i++];
+				char3 = array[i++];
+				out += String.fromCharCode(((c & 0x0F) << 12) |
+							((char2 & 0x3F) << 6) |
+							((char3 & 0x3F) << 0));
+				break;
+			}
+		}
+		return out;
+	}
+
+	//
 	// Write one RW section
 	//
 	writeSection(section, level, linkage_names) {
@@ -232,9 +268,28 @@ class RealmWorksImporter extends Application
 					// annotation
 				}
 				else if (sntype == "Portfolio") {
-					 console.log(`Not implemented ${sntype}`);
-					 // Use adm-zip to unpack the .por "file",
-					 // then extract the .html inside the statblocks_html subdirectory.
+					result += `<H${level+1}>${this.facetNameLabel(child)}</H${level+1}>`;
+					// Use adm-zip to unpack the .por "file",
+					// then extract the .html inside the statblocks_html subdirectory.
+					// Use memfs to get a memory based file system, then use JSZip to read the file.
+					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents = asset.getElementsByTagName('contents')[0];    // <contents>
+					//const filename = asset.getAttribute('filename');
+					//const fileext  = filename.split('.').pop();	// extra suffix from asset filename
+					var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
+					var files = UZIP.parse(buf);
+					// Now have an object with key : property pairs  (key = String; property = file [Uint8Array])
+					for (let key of Object.keys(files)) {
+						if (key.startsWith("statblocks_html")) {
+							console.log(`Found Portfolio statblock ${key}`);
+							result += this.Utf8ArrayToStr(files[key]);
+						}
+					}
+					//var zip = await JSZip.loadAsync(buf);
+				//	zip.folder('statblocks_html').forEach( (path,file) => { 
+				//		console.log(`Portfolio ${file} from ${path}`);
+				//		result += await file.async('string');
+				//	});
 				} else if (sntype == "Picture" ||
 					sntype == "PDF" ||
 					sntype == "Audio" ||
@@ -242,7 +297,7 @@ class RealmWorksImporter extends Application
 					sntype == "Statblock" ||
 					sntype == "Foreign" ||
 					sntype == "Rich_Text") {
-					result += `<h3>${this.facetNameLabel(child)}</h3>`;
+					result += `<H${level+1}>${this.facetNameLabel(child)}</H${level+1}>`;
 					
 					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
