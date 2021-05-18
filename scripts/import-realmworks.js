@@ -60,13 +60,21 @@ class RealmWorksImporter extends Application
 	activateListeners(html) {
 		super.activateListeners(html);
 		html.find(".import-rwoutput").click(async ev => {
-			let inputRW = html.find('[name=all-xml]').val();
+			let inputRW;
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
-			// Read in the file contents here?
-			//const response = await fetch('inputRW');
-			//const xmlString = await response.text();
+			// If a file has been selected, then load that instead of the file
+			let fileinput = html.find('[name=rwoutputFile]');
+			if (fileinput) fileinput = fileinput[0];
+			if (fileinput && fileinput.files && fileinput.files.length > 0) {
+				console.log(`Reading contents of ${fileinput.files[0].name}`);
+				inputRW = await fileinput.files[0].text();
+				console.log(`Read total file size of ${inputRW.length}`);
+			} else {
+				console.log(`Using pasted contents`);
+				inputRW = html.find('[name=all-xml]').val();
+			}
 
 			let compendiumName = html.find('[name=compendium-input]').val();
 			let current_topic = html.find('[name=current-topic]');
@@ -244,13 +252,16 @@ class RealmWorksImporter extends Application
 				else if (sntype == "Tag_Standard") {
 					// <tag_assign tag_name="Manufacturing" domain_name="Commerce Activity" type="Indirect" />
 					const tag = child.getElementsByTagName('tag_assign')[0];	// all descendents not just direct children
-					result += `<p><b>${this.facetNameLabel(child)}:</b> ${tag.getAttribute('tag_name')}</p>`;
+					if (tag && tag.hasAttribute('tag_name'))
+					{
+						result += `<p><b>${this.facetNameLabel(child)}:</b> ${tag.getAttribute('tag_name')}</p>`;
+					}
 					// annotation
 				}
 				else if (sntype == "Tag_Multi_Domain") {
 					let items = [];
 					for (const snip of child.childNodes) {
-						if (snip.nodeName == "tag_assign") {
+						if (snip.nodeName == "tag_assign" && snip.hasAttribute('tag_name')) {
 							items.push(`${snip.getAttribute('domain_name')}:${snip.getAttribute('tag_name')}`);
 						}
 					}
@@ -272,16 +283,18 @@ class RealmWorksImporter extends Application
 					// then extract the .html inside the statblocks_html subdirectory.
 					// Use memfs to get a memory based file system, then use JSZip to read the file.
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset.getElementsByTagName('contents')[0];    // <contents>
-					//const filename = asset.getAttribute('filename');
-					//const fileext  = filename.split('.').pop();	// extra suffix from asset filename
-					var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
-					var files = UZIP.parse(buf);
-					// Now have an object with key : property pairs  (key = String; property = file [Uint8Array])
-					for (let key of Object.keys(files)) {
-						if (key.startsWith("statblocks_html")) {
-							console.log(`Found Portfolio statblock ${key}`);
-							result += this.Utf8ArrayToStr(files[key]);
+					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
+					if (contents) {
+						//const filename = asset.getAttribute('filename');
+						//const fileext  = filename.split('.').pop();	// extra suffix from asset filename
+						var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
+						var files = UZIP.parse(buf);
+						// Now have an object with key : property pairs  (key = String; property = file [Uint8Array])
+						for (let key of Object.keys(files)) {
+							if (key.startsWith("statblocks_html")) {
+								//console.log(`Found Portfolio statblock ${key}`);
+								result += this.Utf8ArrayToStr(files[key]);
+							}
 						}
 					}
 					//var zip = await JSZip.loadAsync(buf);
@@ -300,19 +313,21 @@ class RealmWorksImporter extends Application
 					
 					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset.getElementsByTagName('contents')[0];    // <contents>
-					const filename = asset.getAttribute('filename');
-					const fileext  = filename.split('.').pop();	// extra suffix from asset filename
-					if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
-						result += `${atob(contents.textContent)}`;
-					else if (sntype == "Picture")
-						result += `<p><img src="data:image/${fileext};base64,${contents.textContent}"></img></p>`;					
-					else {
-						let format = 'binary/octet-stream';
-						if (fileext == 'pdf') {
-							format = 'application/pdf';
+					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
+					if (contents) {
+						const filename = asset.getAttribute('filename');
+						const fileext  = filename.split('.').pop();	// extra suffix from asset filename
+						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
+							result += `${atob(contents.textContent)}`;
+						else if (sntype == "Picture")
+							result += `<p><img src="data:image/${fileext};base64,${contents.textContent}"></img></p>`;					
+						else {
+							let format = 'binary/octet-stream';
+							if (fileext == 'pdf') {
+								format = 'application/pdf';
+							}
+							result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
 						}
-						result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
 					}
 					 
 				}
@@ -326,9 +341,9 @@ class RealmWorksImporter extends Application
 					
 					// These need to be created as Scenes (and linked from the original topic?)
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset.getElementsByTagName('contents')[0];    // <contents>
-					const format   = asset.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
-					result += `<p><b>${this.facetNameLabel(child)}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
+					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
+					const format   = contents ? asset.getAttribute('filename').split('.').pop() : undefined;	// extra suffix from asset filename
+					if (format) result += `<p><b>${this.facetNameLabel(child)}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
 				}
 				else {
 					console.log(`Unsupported snippet type: ${child.getAttribute("type")}`);
@@ -447,7 +462,22 @@ class RealmWorksImporter extends Application
 	async parseXML(xmlString, compendiumName, ui_label)
 	{
 		//console.log(`Starting for ${compendiumName}`);
-		this.pack_name = compendiumName;
+		
+		//
+		// Maybe delete the old compendium before creating a new one?
+		// (This has to be done now so that we can get journal_pack.collection name for links)
+		if (this.deleteCompendium) {
+			let pack = game.packs.find(p => p.metadata.name === compendiumName);
+			if (pack) {
+				if (ui_label) ui_label.val('Deleting old compendium');
+				console.log(`Deleting compendium pack ${compendiumName}`);
+				await pack.delete();
+			}
+		}
+
+		// If we got this far, we can now decide if we want to delete the old compendium
+		let journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
+		this.pack_name = journal_pack.collection;	// the full name of the compendium
 		
 		if (ui_label) ui_label.val('--- Starting ---');
 
@@ -481,17 +511,6 @@ class RealmWorksImporter extends Application
 		//
 		// Now we can get the data into Foundry
 		//
-		if (this.deleteCompendium) {
-			let pack = game.packs.find(p => p.metadata.name === compendiumName);
-			if (pack) {
-				if (ui_label) ui_label.val('Deleting old compendium');
-				console.log(`Deleting compendium pack ${compendiumName}`);
-				await pack.delete();
-			}
-		}
-
-		// If we got this far, we can now decide if we want to delete the old compendium
-		let journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
 		
 		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
 		if (ui_label) ui_label.val('Deleting old entries');	
