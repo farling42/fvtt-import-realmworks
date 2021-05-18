@@ -5,21 +5,23 @@
         <p>Compendium Name: <input  id="compendium-input" name="compendium-input" value="Realm Works"></input></p>
         <!-- <p>Will create a compendium named <i>input</i>-spells and <i>input</i>-monsters</p> -->
 
-        <h3>Paste the rwoutput file into the box below and click "Import".</h3>
+        <h3>Paste the rwoutput file from Realm Works&reg; into the box below and click "Import".</h3>
 
         <textarea id="all-xml" name="all-xml" rows="10" cols="50"></textarea>
         <!-- <input class="update-checkbox" type="checkbox" value="0" name="classButton" checked>
         <label for="classButton">Add Classes?</label>
         <input class="update-checkbox" type="checkbox" value="0" name="spellsButton" checked>
-        <label for="spellsButton">Add Spells?</label>
-        <input class="update-checkbox" type="checkbox" value="0" name="creatureButton" checked>
-        <label for="creatureButton">Add Monsters?</label> -->
+        <label for="spellsButton">Add Spells?</label> -->
+		<p>
+        <input class="update-checkbox" type="checkbox" value="1" name="deleteCompendium">
+        <label for="deleteCompendium">Delete compendium before starting?</label>
+		<p>
         <input class="update-checkbox" type="checkbox" value="1" name="inboundLinks" checked>
-        <label for="inboundLinks">Inbound Links?</label>
+        <label for="inboundLinks">Add Inbound Links?</label>
         <input class="update-checkbox" type="checkbox" value="1" name="outboundLinks" checked>
-        <label for="outboundLinks">Outbound Links?</label>
+        <label for="outboundLinks">Add Outbound Links?</label>
 		
-        <p>Current Topic: <input readonly="true" id="current-topic" name="current-topic" value="----"></input></p>
+        <p>Progress: <input readonly="true" id="current-topic" name="current-topic" value="----" size="40"></input></p>
         <input type="submit" class="import-rwoutput" value="Import"></input>
     </div>
 </div>

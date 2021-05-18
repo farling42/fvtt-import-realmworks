@@ -63,6 +63,7 @@ class RealmWorksImporter extends Application
 			let inputRW = html.find('[name=all-xml]').val();
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
+			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
 			// Read in the file contents here?
 			//const response = await fetch('inputRW');
 			//const xmlString = await response.text();
@@ -72,8 +73,10 @@ class RealmWorksImporter extends Application
 			
 			// Do the actual work!
 			this.parseXML(inputRW, compendiumName, current_topic);
+			
+			// Automatically close the window after the import is finished
+			//this.close();
 		});
-		this.close();
 	}
 
 	// Foundry VTT: find either an existing compendium, or create a new one.
@@ -444,8 +447,7 @@ class RealmWorksImporter extends Application
 	async parseXML(xmlString, compendiumName, ui_label)
 	{
 		//console.log(`Starting for ${compendiumName}`);
-		let journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
-		this.pack_name = journal_pack.collection;
+		this.pack_name = compendiumName;
 		
 		if (ui_label) ui_label.val('--- Starting ---');
 
@@ -476,12 +478,29 @@ class RealmWorksImporter extends Application
 		let results = await Promise.all(Array.from(topics).map(async (topic) => await this.writeTopic(topic, ui_label) ));
 		console.log(`Found ${results.length} topics`);
 		
+		//
+		// Now we can get the data into Foundry
+		//
+		if (this.deleteCompendium) {
+			let pack = game.packs.find(p => p.metadata.name === compendiumName);
+			if (pack) {
+				if (ui_label) ui_label.val('Deleting old compendium');
+				console.log(`Deleting compendium pack ${compendiumName}`);
+				await pack.delete();
+			}
+		}
+
+		// If we got this far, we can now decide if we want to delete the old compendium
+		let journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
+		
 		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
-		if (ui_label) ui_label.val(`Deleting old entries`);		
+		if (ui_label) ui_label.val('Deleting old entries');	
+		console.log('Deleting old entries');
 		let indices = await journal_pack.getIndex();
 		for (const item of results) {
 			let entity = indices.find(e => e.name === item.name);
 			if (entity) {
+				console.log(`Deleting old ${item.name}`);
 				await journal_pack.deleteEntity(entity._id);
 				// Regenerate the index
 				indices = await journal_pack.getIndex();
@@ -489,11 +508,13 @@ class RealmWorksImporter extends Application
 		}
 		
 		// Create all the journal entries
-		if (ui_label) ui_label.val(`Creating journal entries`);		
+		if (ui_label) ui_label.val('Creating journal entries');
+		console.log('Creating journal entries');
 		let entries = await Promise.all(Array.from(results).map(async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
 		
 		// Add all the journal entries to the compendium pack
-		if (ui_label) ui_label.val(`Adding to compendium pack`);
+		if (ui_label) ui_label.val('Adding to compendium pack');
+		console.log('Adding to compendium pack');
 		await Promise.all(Array.from(entries).map(async (journal) => await journal_pack.importEntity(journal) ));
 		
 		// Synchronously create a JournalEntry for each topic.
@@ -513,6 +534,7 @@ class RealmWorksImporter extends Application
 //				console.log(`JournalEntry.create slower ${t1 - t0}`);
 //		}
 		
+		console.log('Finished');
 		if (ui_label) ui_label.val('--- Finished ---');
 	}
 } // class
