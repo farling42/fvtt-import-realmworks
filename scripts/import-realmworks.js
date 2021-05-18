@@ -60,14 +60,17 @@ class RealmWorksImporter extends Application
 	activateListeners(html) {
 		super.activateListeners(html);
 		html.find(".import-rwoutput").click(async ev => {
-			let inputRW;
+			let compendiumName = html.find('[name=compendium-input]').val();
+			let current_topic = html.find('[name=current-topic]');
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
+			let inputRW;
 			// If a file has been selected, then load that instead of the file
 			let fileinput = html.find('[name=rwoutputFile]');
 			if (fileinput) fileinput = fileinput[0];
 			if (fileinput && fileinput.files && fileinput.files.length > 0) {
+				if (current_topic) current_topic.val(`Loading ${fileinput.files[0].name}`);
 				console.log(`Reading contents of ${fileinput.files[0].name}`);
 				inputRW = await fileinput.files[0].text();
 				console.log(`Read total file size of ${inputRW.length}`);
@@ -75,12 +78,13 @@ class RealmWorksImporter extends Application
 				console.log(`Using pasted contents`);
 				inputRW = html.find('[name=all-xml]').val();
 			}
-
-			let compendiumName = html.find('[name=compendium-input]').val();
-			let current_topic = html.find('[name=current-topic]');
 			
 			// Do the actual work!
-			this.parseXML(inputRW, compendiumName, current_topic);
+			if (inputRW && inputRW.length > 0) {
+				this.parseXML(inputRW, compendiumName, current_topic);
+			} else {
+				if (current_topic) current_topic.val('Please enter some data.');
+			}
 			
 			// Automatically close the window after the import is finished
 			//this.close();
@@ -190,7 +194,7 @@ class RealmWorksImporter extends Application
 		for (const child of section.childNodes) {
 			if (child.nodeName == "section") {
 				// Subsections increase the HEADING number
-				console.log(`nested section ${child.getAttribute("name")}`);
+				//console.log(`nested section ${child.getAttribute("name")}`);
 				result += this.writeSection(child, level+1, linkage_names);
 			}
 			else if (child.nodeName == "snippet") {
