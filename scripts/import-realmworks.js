@@ -104,7 +104,7 @@ class RealmWorksImporter extends Application
 	writeContents(node, linkage_names) {
 		// Replace '<scan>something</scan>' with '@Compendium[world.packname.<topic-for-something>]{something}'
 		// @Compendium is case sensitive when using names!
-		const pack_name = this.journal_pack.collection;
+		const pack_name = this.pack_name;
 		return node.textContent.replace(/<span>([^<]+)<\/span>/g, 
 			function(match,p1,offset,string) {
 				for (const [key, labels] of linkage_names) {
@@ -393,7 +393,7 @@ class RealmWorksImporter extends Application
 					html += "<H1>Child Topics</H1><ul>";
 					has_child_topics = true;
 				}
-				html += `<li>${this.writeLink(this.journal_pack.collection, linkage_names, node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
+				html += `<li>${this.writeLink(this.pack_name, linkage_names, node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
 			//} else if (!node.nodeName.startsWith('#text')) {
 				// tag_assign - no need to include these
 				// linkage - handled above
@@ -412,43 +412,29 @@ class RealmWorksImporter extends Application
 			if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
 				html += '<h1>Links From Other Topics</h1><p>';
 				for (const node of inbound) {
-					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				for (const node of both) {
-					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				html += '<\p>';
 			}
 			if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
 				html += '<h1>Links To Other Topics</h1><p>';
 				for (const node of outbound) {
-					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				for (const node of both) {
-					html += this.writeLink(this.journal_pack.collection, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				html += '<\p>';
 			}
 		}
-		
-		// Now create the correct journal entry:
-		//    name = prefix + public_name + suffix
-		// Replace if the name already exists
-		let indices = await this.journal_pack.getIndex();
-		let entity = indices.find(e => e.name === topic.getAttribute("public_name"));
-		if (entity) {
-			//console.log(`*** Deleting old entry for ${topic.getAttribute("public_name")}`);
-			await this.journal_pack.deleteEntity(entity._id);
-		}
 
-		await JournalEntry.create({
-			name: topic.getAttribute("public_name"),
-			content: html
-		}, { displaySheet: false, temporary: true })
-			.then(journal => this.journal_pack.importEntity(journal))
-			.then(() => { if (ui_label) ui_label.val(topic.getAttribute('public_name'))});
-			
-		//console.log(`Finished importing '${topic.getAttribute("public_name")}'`);
+		return {
+				name:    topic.getAttribute("public_name"),
+				content: html
+			};
 	}
 
 	//
@@ -458,8 +444,9 @@ class RealmWorksImporter extends Application
 	async parseXML(xmlString, compendiumName, ui_label)
 	{
 		//console.log(`Starting for ${compendiumName}`);
-		this.journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
-
+		let journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
+		this.pack_name = journal_pack.collection;
+		
 		if (ui_label) ui_label.val('--- Starting ---');
 
 		let parser = new DOMParser();
@@ -484,10 +471,48 @@ class RealmWorksImporter extends Application
 			this.topic_names.set(child.getAttribute("topic_id"), names);
 		};
 
-		// Now convert each topic (in any order),
-		// and wait for the async generation to finish.
-		if (ui_label) ui_label.val('--- Processing Topics ---');
-		await Promise.all(Array.from(topics).map(async (topic) => await this.writeTopic(topic, ui_label)));
+		// Asynchronously generate the HTML for all the topics
+		if (ui_label) ui_label.val(`Generating journal contents`);		
+		let results = await Promise.all(Array.from(topics).map(async (topic) => await this.writeTopic(topic, ui_label) ));
+		console.log(`Found ${results.length} topics`);
+		
+		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
+		if (ui_label) ui_label.val(`Deleting old entries`);		
+		let indices = await journal_pack.getIndex();
+		for (const item of results) {
+			let entity = indices.find(e => e.name === item.name);
+			if (entity) {
+				await journal_pack.deleteEntity(entity._id);
+				// Regenerate the index
+				indices = await journal_pack.getIndex();
+			}
+		}
+		
+		// Create all the journal entries
+		if (ui_label) ui_label.val(`Creating journal entries`);		
+		let entries = await Promise.all(Array.from(results).map(async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
+		
+		// Add all the journal entries to the compendium pack
+		if (ui_label) ui_label.val(`Adding to compendium pack`);
+		await Promise.all(Array.from(entries).map(async (journal) => await journal_pack.importEntity(journal) ));
+		
+		// Synchronously create a JournalEntry for each topic.
+//		for (const item of results) {
+//			if (ui_label) ui_label.val(item.name);
+//			// Now create the correct journal entry:
+//			//    name = prefix + public_name + suffix
+//			// Create a journal entry, and add it to the compendium pack
+//			let t0 = performance.now();
+//			let journal = await JournalEntry.create(item, { displaySheet: false, temporary: true });
+//			let t1 = performance.now();
+//			await journal_pack.importEntity(journal);
+//			let t2 = performance.now();
+//			if (t2 - t1 > t1 - t0)
+//				console.log(`importEntity slower ${t2 - t1}`);
+//			else
+//				console.log(`JournalEntry.create slower ${t1 - t0}`);
+//		}
+		
 		if (ui_label) ui_label.val('--- Finished ---');
 	}
 } // class
