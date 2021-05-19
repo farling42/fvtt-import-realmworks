@@ -101,7 +101,6 @@ class RealmWorksImporter extends Application
 	async getCompendiumWithType(compendiumName, type){
 		// Look for compendium
 		let pack = game.packs.find(p => p.metadata.name === compendiumName);
-
 		if (pack == null) {
 			console.log(`Creating new compendium called ${compendiumName}`);
 			// Create a new compendium
@@ -118,6 +117,14 @@ class RealmWorksImporter extends Application
 		return pack;
 	}
 
+	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
+	static formatLink(pack_name, remote_link, link_name) {
+		if (remote_link && remote_link != link_name)
+			return `@Compendium[${pack_name}.${remote_link}]{${link_name}}`;
+		else
+			return `@Compendium[${pack_name}.${link_name}]`;
+	}
+	
 	//
 	// Write a "contents" element:
 	// Only <contents> can contain <span> which identify links.
@@ -131,21 +138,16 @@ class RealmWorksImporter extends Application
 				for (const [key, labels] of linkage_names) {
 					// case insensitive search across all entries in the Array() stored in the map.
 					if (labels.some(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) == 0) )) {
-						const result = labels[0];
-						if (p1 == result)
-							return `@Compendium[${pack_name}.${result}]`;
-						else
-							return `@Compendium[${pack_name}.${result}]{${p1}}`;
+						return RealmWorksImporter.formatLink(pack_name, labels[0], p1);
 					}
 				};
 				// Not found in map, so just create a broken link.
-				return `@Compendium[${pack_name}.${p1}]`;
+				return RealmWorksImporter.formatLink(pack_name, undefined, p1);
 			});
 	}
 
-	// Predefined snippet types have 'facet_name' attribute
-	// User-defined snippets have 'label' attribute
-	facetNameLabel(node) {
+	// The label for a snippet is either the 'facet_name' attribute (for predefined categories) or 'label' attribute (for user-defined categories)
+	getSnippetLabel(node) {
 		let name = node.getAttribute('facet_name');
 		if (name == null || name == "") name = node.getAttribute('label');
 		return name;
@@ -196,7 +198,7 @@ class RealmWorksImporter extends Application
 		//console.log(`writeSection(${level}, '${name}'})`);
 		let result = `<H${level}>${name}</H${level}>`;
 		
-		// Process all child nodes in this section
+		// Process all child (not descendent) nodes in this section
 		for (const child of section.childNodes) {
 			if (child.nodeName == "section") {
 				// Subsections increase the HEADING number
@@ -220,7 +222,7 @@ class RealmWorksImporter extends Application
 							//
 						}
 						else if (!snip.nodeName.startsWith("#text")) {
-							console.log (`Unknown node in Multi_Line snippet '${snip.nodeName}'`);	// GM-DIR style
+							console.log (`Unknown node in Multi_Line snippet: '${snip.nodeName}'`);	// GM-DIR style
 						}
 					}
 				} // else do other snippet types
@@ -236,7 +238,7 @@ class RealmWorksImporter extends Application
 							result += `<p><b>${label}:</b></p>${snip.textContent}`;		// GM-DIR style
 						}
 						else if (!snip.nodeName.startsWith("#text")) {
-							console.log (`Unknown node in Labeled_Text snippet '${snip.nodeName}'`);
+							console.log (`Unknown node in Labeled_Text snippet: '${snip.nodeName}'`);
 						}
 					}
 				}
@@ -255,7 +257,7 @@ class RealmWorksImporter extends Application
 							result += `; ${snip.textContent}`;
 							
 						} else if (!snip.nodeName.startsWith("#text")) {
-							console.log (`Unknown node in Numeric snippet '${snip.nodeName}'`);	// GM-DIR style
+							console.log (`Unknown node in Numeric snippet: '${snip.nodeName}'`);	// GM-DIR style
 						}
 					}
 				}
@@ -264,7 +266,7 @@ class RealmWorksImporter extends Application
 					const tag = child.getElementsByTagName('tag_assign')[0];	// all descendents not just direct children
 					if (tag && tag.hasAttribute('tag_name'))
 					{
-						result += `<p><b>${this.facetNameLabel(child)}:</b> ${tag.getAttribute('tag_name')}</p>`;
+						result += `<p><b>${this.getSnippetLabel(child)}:</b> ${tag.getAttribute('tag_name')}</p>`;
 					}
 					// annotation
 				}
@@ -279,27 +281,22 @@ class RealmWorksImporter extends Application
 				}
 				else if (sntype == "Date_Game") {
 					const tag = child.getElementsByTagName('game_date')[0];		// all descendents not just direct children
-					result += `<p><b>${this.facetNameLabel(child)}:</b> ${tag.getAttribute("display")}</p>`;
+					result += `<p><b>${this.getSnippetLabel(child)}:</b> ${tag.getAttribute("display")}</p>`;
 					// annotation
 				}
 				else if (sntype == "Date_Range") {
 					const tag = child.getElementsByTagName('date_range')[0];		// all descendents not just direct children
-					result += `<p><b>${this.facetNameLabel(child)}:</b> ${tag.getAttribute("display_start")} to ${tag.getAttribute("display_end")}</p>`;
+					result += `<p><b>${this.getSnippetLabel(child)}:</b> ${tag.getAttribute("display_start")} to ${tag.getAttribute("display_end")}</p>`;
 					// annotation
 				}
 				else if (sntype == "Portfolio") {
-					result += `<H${level+1}>${this.facetNameLabel(child)}</H${level+1}>`;
-					// Use adm-zip to unpack the .por "file",
-					// then extract the .html inside the statblocks_html subdirectory.
-					// Use memfs to get a memory based file system, then use JSZip to read the file.
+					result += `<H${level+1}>${this.getSnippetLabel(child)}</H${level+1}>`;
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
 					if (contents) {
-						//const filename = asset.getAttribute('filename');
-						//const fileext  = filename.split('.').pop();	// extra suffix from asset filename
 						var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
 						var files = UZIP.parse(buf);
-						// Now have an object with key : property pairs  (key = String; property = file [Uint8Array])
+						// Now have an object with key : property pairs  (key = filename [String]; property = file data [Uint8Array])
 						for (let key of Object.keys(files)) {
 							if (key.startsWith("statblocks_html")) {
 								//console.log(`Found Portfolio statblock ${key}`);
@@ -307,11 +304,6 @@ class RealmWorksImporter extends Application
 							}
 						}
 					}
-					//var zip = await JSZip.loadAsync(buf);
-				//	zip.folder('statblocks_html').forEach( (path,file) => { 
-				//		console.log(`Portfolio ${file} from ${path}`);
-				//		result += await file.async('string');
-				//	});
 				} else if (sntype == "Picture" ||
 					sntype == "PDF" ||
 					sntype == "Audio" ||
@@ -319,7 +311,7 @@ class RealmWorksImporter extends Application
 					sntype == "Statblock" ||
 					sntype == "Foreign" ||
 					sntype == "Rich_Text") {
-					result += `<H${level+1}>${this.facetNameLabel(child)}</H${level+1}>`;
+					result += `<H${level+1}>${this.getSnippetLabel(child)}</H${level+1}>`;
 					
 					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
@@ -353,10 +345,10 @@ class RealmWorksImporter extends Application
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
 					const format   = contents ? asset.getAttribute('filename').split('.').pop() : undefined;	// extra suffix from asset filename
-					if (format) result += `<p><b>${this.facetNameLabel(child)}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
+					if (format) result += `<p><b>${this.getSnippetLabel(child)}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
 				}
 				else {
-					console.log(`Unsupported snippet type: ${child.getAttribute("type")}`);
+					console.log(`Unsupported snippet type: ${sntype}`);
 				}
 			}
 			else if (!child.nodeName.startsWith('#text')) {
@@ -370,22 +362,18 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	writeLink(packname, linkage_names, topic_id, topic_name) {
-		let tlink = linkage_names.get(topic_id);
-		if (tlink && tlink[0] != topic_name) {
-			return `@Compendium[${packname}.${tlink[0]}]{${topic_name}}`;
-		}
-		else {
-			return `@Compendium[${packname}.${topic_name}]`;
-		}
+	// At the topic (not section) level, create a link to another topic
+	writeTopicLink(topic_id, topic_name) {
+		let topic_list = this.topic_names.get(topic_id);
+		return RealmWorksImporter.formatLink(this.pack_name, topic_list ? topic_list[0] : undefined, topic_name);
 	}
 	
 	//
 	// Write one RW topic
 	//
-	async writeTopic(topic, ui_label) {
+	async formatOneTopic(topic, ui_label) {
 		//console.log(`Importing '${topic.getAttribute("public_name")}'`);
-		
+
 		// Extract only the links that we know are in this topic (if any).
 		// Collect linkage children and create an alias/title-to-topic map:
 		//   <linkage target_id="Topic_345" target_name="Air/Raft" direction="Outbound" />
@@ -404,7 +392,6 @@ class RealmWorksImporter extends Application
 		if (this.topic_names.has(this_topic_id)) {
 			linkage_names.set(this_topic_id, this.topic_names.get(this_topic_id));
 		}
-				
 		// Generate the HTML for the sections within the topic
 		let html = "";
 		let inbound = [];
@@ -421,11 +408,7 @@ class RealmWorksImporter extends Application
 					html += "<H1>Child Topics</H1><ul>";
 					has_child_topics = true;
 				}
-				html += `<li>${this.writeLink(this.pack_name, linkage_names, node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
-			//} else if (!node.nodeName.startsWith('#text')) {
-				// tag_assign - no need to include these
-				// linkage - handled above
-				//console.log (`Unexpected node in topic ${node.nodeName}`);
+				html += `<li>${this.writeTopicLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
 			} else if (node.nodeName == "linkage") {
 				var dir = node.getAttribute('direction');
 				if (dir == 'Outbound') outbound.push(node);
@@ -436,33 +419,34 @@ class RealmWorksImporter extends Application
 		if (has_child_topics) {
 			html += '</ul>';
 		}
+		// Add inbound and/or outbound link information (if requested)
 		if ((this.addInboundLinks || this.addOutboundLinks) && (inbound.length > 0 || outbound.length > 0 || both.length > 0)) {
 			if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
 				html += '<h1>Links From Other Topics</h1><p>';
 				for (const node of inbound) {
-					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				for (const node of both) {
-					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				html += '<\p>';
 			}
 			if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
 				html += '<h1>Links To Other Topics</h1><p>';
 				for (const node of outbound) {
-					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				for (const node of both) {
-					html += this.writeLink(this.pack_name, this.topic_names, node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				html += '<\p>';
 			}
 		}
-
+		// Format as a data block usable by JournalEntry.create
 		return {
-				name:    topic.getAttribute("public_name"),
-				content: html
-			};
+			name:    topic.getAttribute("public_name"),
+			content: html
+		};
 	}
 
 	//
@@ -515,7 +499,7 @@ class RealmWorksImporter extends Application
 
 		// Asynchronously generate the HTML for all the topics
 		if (ui_label) ui_label.val(`Generating journal contents`);		
-		let results = await Promise.all(Array.from(topics).map(async (topic) => await this.writeTopic(topic, ui_label) ));
+		let results = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic, ui_label) ));
 		console.log(`Found ${results.length} topics`);
 		
 		//
