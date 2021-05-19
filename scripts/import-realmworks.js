@@ -74,6 +74,12 @@ class RealmWorksImporter extends Application
 				console.log(`Reading contents of ${fileinput.files[0].name}`);
 				inputRW = await fileinput.files[0].text();
 				console.log(`Read total file size of ${inputRW.length}`);
+				if (inputRW.length == 0) {
+					if (current_topic) {
+						current_topic.val(`Failed to read the file (too big, or empty?)`);
+						return;
+					}
+				}
 			} else {
 				console.log(`Using pasted contents`);
 				inputRW = html.find('[name=all-xml]').val();
