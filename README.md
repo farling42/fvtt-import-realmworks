@@ -20,10 +20,14 @@ A new compendium pack with the supplied name will be created, and it will contai
 
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
+There is a file limit size of 512 MB for importing (due to a limitation on the maximum allowed size of a string in Javascript).
+
 ## Patreon
 If you like what it does, then contributions can be made at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
+0.1.2 Fix a problem with UZIP.js not working on Firefox. Add a better error message if the file fails to get loaded (e.g. > 512 MB)
+
 0.1.1 Add option to read contents directly from a file, and add better error checking.
 
 0.0.16 Add linkage information at the bottom of each JournalEntry, indicating inbound and/or outbound links, as selected in the import window.
