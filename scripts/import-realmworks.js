@@ -123,11 +123,11 @@ class RealmWorksImporter extends Application
 	// Write a "contents" element:
 	// Only <contents> can contain <span> which identify links.
 	//
-	writeContents(node, linkage_names) {
+	replaceLinks(original, linkage_names) {
 		// Replace '<scan>something</scan>' with '@Compendium[world.packname.<topic-for-something>]{something}'
 		// @Compendium is case sensitive when using names!
 		const pack_name = this.pack_name;
-		return node.textContent.replace(/<span>([^<]+)<\/span>/g, 
+		return original.replace(/<span>([^<]+)<\/span>/g, 
 			function(match,p1,offset,string) {
 				for (const [key, labels] of linkage_names) {
 					// case insensitive search across all entries in the Array() stored in the map.
@@ -182,6 +182,7 @@ class RealmWorksImporter extends Application
 		}
 		return out;
 	}
+	// If the paragraph contains only a single Realm Works paragraph+span, then replace with a simple paragraph
 	// Strip <p class="RWDefault"><span class="RWSnippet">...</span></p> from the supplied text
 	stripPara(original) {
 		const prefix = '<p class="RWDefault"><span class="RWSnippet">';
@@ -193,7 +194,7 @@ class RealmWorksImporter extends Application
 		}
 		return original;
 	}
-	// If the paragraph contains only a single Realm Works paragraph+span, then replace with a simple paragraph
+	// Remove the default class information from the RW formatting to reduce the size of the final HTML.
 	simplifyPara(original) {
 		// Too much effort to remove <span> and </span> tags, so just simplify.
 		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
@@ -224,11 +225,11 @@ class RealmWorksImporter extends Application
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += this.simplifyPara(this.writeContents(snip, linkage_names));
+							result += this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
-							result += '<b>GMDIR: </b>' + this.simplifyPara(this.writeContents(snip, linkage_names));
+							result += '<b>GMDIR: </b>' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
 						//} else if (snip.nodeName == "annotation") {
 							//
 						} else if (!snip.nodeName.startsWith("#text")) {
@@ -245,7 +246,7 @@ class RealmWorksImporter extends Application
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
 							// TODO: need text on same line as label!
-							result += this.stripPara(this.writeContents(snip, linkage_names));		// TODO - label needs to be inside first <p>
+							result += this.stripPara(this.replaceLinks(snip.textContent, linkage_names));		// TODO - label needs to be inside first <p>
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
@@ -268,7 +269,7 @@ class RealmWorksImporter extends Application
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += this.writeContents(snip, linkage_names);
+							result += this.replaceLinks(snip.textContent, linkage_names);
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log('gm_directions');
