@@ -26,6 +26,8 @@ There is a file limit size of 512 MB for importing (due to a limitation on the m
 If you like what it does, then contributions can be made at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
+0.1.3 Initial support for annotations on various fields. Improve layout of tag snippets. Attempt to remove 'null' field titles.
+
 0.1.2 Fix a problem with UZIP.js not working on Firefox. Add a better error message if the file fails to get loaded (e.g. > 512 MB)
 
 0.1.1 Add option to read contents directly from a file, and add better error checking.

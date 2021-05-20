@@ -149,7 +149,7 @@ class RealmWorksImporter extends Application
 	// The label for a snippet is either the 'facet_name' attribute (for predefined categories) or 'label' attribute (for user-defined categories)
 	getSnippetLabel(node) {
 		let name = node.getAttribute('facet_name');
-		if (name == null || name == "") name = node.getAttribute('label');
+		if (!name || name == "") name = node.getAttribute('label');
 		return name;
 	}
 
@@ -188,6 +188,22 @@ class RealmWorksImporter extends Application
 		}
 		return out;
 	}
+	// Strip <p class="RWDefault"><span class="RWSnippet">...</span></p> from the supplied text
+	stripPara(original) {
+		const prefix = '<p class="RWDefault"><span class="RWSnippet">';
+		const suffix = '</span></p>';
+		if (original.startsWith(prefix) && original.endsWith(suffix)) {
+			const result = original.slice(prefix.length, -suffix.length);
+			// Don't do it if there is another paragraph in the middle
+			if (!result.includes('<p')) return result;
+		}
+		return original;
+	}
+	// If the paragraph contains only a single Realm Works paragraph+span, then replace with a simple paragraph
+	simplifyPara(original) {
+		// Too much effort to remove <span> and </span> tags, so just simplify.
+		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
+	}
 
 	//
 	// Write one RW section
@@ -204,93 +220,146 @@ class RealmWorksImporter extends Application
 				// Subsections increase the HEADING number
 				//console.log(`nested section ${child.getAttribute("name")}`);
 				result += this.writeSection(child, level+1, linkage_names);
-			}
-			else if (child.nodeName == "snippet") {
+			} else if (child.nodeName == "snippet") {
 				// Snippets contain the real information!
+				let annotation;
 				const sntype = child.getAttribute("type");
+				const label = this.getSnippetLabel(child);
 				
 				if (sntype == "Multi_Line") {
+					for (const snip of child.childNodes) {
+						if (snip.nodeName == "contents") {
+							// contents child (it will already be in encoded-HTML)
+							result += this.simplifyPara(this.writeContents(snip, linkage_names));
+						} else if (snip.nodeName == "gm_directions") {
+							// contents child (it will already be in encoded-HTML)
+							//console.log("gm_directions");
+							result += this.simplifyPara(this.writeContents(snip, linkage_names));
+						//} else if (snip.nodeName == "annotation") {
+							//
+						} else if (!snip.nodeName.startsWith("#text")) {
+							// 'other_spans'
+							// 'tag_assign'  <-- tag assigned to this specific snippet by the user.
+							console.log (`Unknown node in Multi_Line snippet: '${snip.nodeName}'`);	// GM-DIR style
+						}
+					}
+				} // else do other snippet types
+				else if (sntype == "Labeled_Text") {
+					// TODO: Put label on left, and text on the right (indented)
+					result += `<p><b>${label}:</b> `;
+					for (const snip of child.childNodes) {
+						if (snip.nodeName == "contents") {
+							// contents child (it will already be in encoded-HTML)
+							// TODO: need text on same line as label!
+							result += this.stripPara(this.writeContents(snip, linkage_names));		// TODO - label needs to be inside first <p>
+						} else if (snip.nodeName == "gm_directions") {
+							// contents child (it will already be in encoded-HTML)
+							//console.log("gm_directions");
+							// TODO: need text on same line as label!
+							result += this.stripPara(snip.textContent);		// GM-DIR style
+						} else if (snip.nodeName == "annotation") {
+							annotation = snip.textContent;
+						} else if (!snip.nodeName.startsWith("#text")) {
+							// 'other_spans'
+							// 'tag_assign'  <-- tag assigned to this specific snippet by the user.
+							console.log (`Unknown node in Labeled_Text snippet: '${snip.nodeName}'`);
+						}
+					}
+					if (annotation) result += `; <i>${this.stripPara(annotation)}</i>`;
+					result += `</p>`;
+				}
+				else if (sntype == "Numeric") {
+					// contents will hold just a number
+					result += `<p><b>${label}:</b> `;
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
 							result += this.writeContents(snip, linkage_names);
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
-							//console.log("gm_directions");
-							result += snip.textContent;
-						} else if (snip.nodeName == "annotation") {
-							//
-						}
-						else if (!snip.nodeName.startsWith("#text")) {
-							console.log (`Unknown node in Multi_Line snippet: '${snip.nodeName}'`);	// GM-DIR style
-						}
-					}
-				} // else do other snippet types
-				else if (sntype == "Labeled_Text") {
-					const label = child.getAttribute("label");
-					for (const snip of child.childNodes) {
-						if (snip.nodeName == "contents") {
-							// contents child (it will already be in encoded-HTML)
-							result += `<p><b>${label}:</b></p>${this.writeContents(snip, linkage_names)}`;		// TODO - label needs to be inside first <p>
-						} else if (snip.nodeName == "gm_directions") {
-							// contents child (it will already be in encoded-HTML)
-							//console.log("gm_directions");
-							result += `<p><b>${label}:</b></p>${snip.textContent}`;		// GM-DIR style
-						}
-						else if (!snip.nodeName.startsWith("#text")) {
-							console.log (`Unknown node in Labeled_Text snippet: '${snip.nodeName}'`);
-						}
-					}
-				}
-				else if (sntype == "Numeric") {
-					// contents will hold just a number
-					const label = child.getAttribute('label');
-					for (const snip of child.childNodes) {
-						if (snip.nodeName == "contents") {
-							// contents child (it will already be in encoded-HTML)
-							result += `<p><b>${label}:</b> ${this.writeContents(snip, linkage_names)}</p>`;
-						} else if (snip.nodeName == "gm_directions") {
-							// contents child (it will already be in encoded-HTML)
 							//console.log('gm_directions');
-							result += snip.textContent;
+							result += stripPara(snip.textContent);
 						} else if (snip.nodeName == "annotation") {
-							result += `; ${snip.textContent}`;
-							
+							annotation = snip.textContent;
 						} else if (!snip.nodeName.startsWith("#text")) {
 							console.log (`Unknown node in Numeric snippet: '${snip.nodeName}'`);	// GM-DIR style
 						}
 					}
+					if (annotation) result += `; <i>${this.stripPara(annotation)}</i>`;
+					result += `</p>`;
 				}
 				else if (sntype == "Tag_Standard") {
 					// <tag_assign tag_name="Manufacturing" domain_name="Commerce Activity" type="Indirect" />
-					const tag = child.getElementsByTagName('tag_assign')[0];	// all descendents not just direct children
-					if (tag && tag.hasAttribute('tag_name'))
-					{
-						result += `<p><b>${this.getSnippetLabel(child)}:</b> ${tag.getAttribute('tag_name')}</p>`;
-					}
-					// annotation
-				}
-				else if (sntype == "Tag_Multi_Domain") {
-					let items = [];
+					let first = true;
+					result += `<p><b>${label}:</b> `;
 					for (const snip of child.childNodes) {
-						if (snip.nodeName == "tag_assign" && snip.hasAttribute('tag_name')) {
-							items.push(`${snip.getAttribute('domain_name')}:${snip.getAttribute('tag_name')}`);
+						if (snip.nodeName == 'tag_assign') {
+							if (snip.hasAttribute('tag_name')) {
+								if (first)
+									first = false;
+								else
+									result += ', ';
+								result += snip.getAttribute('tag_name');
+							}
+						} else if (snip.nodeName == "annotation") {
+							annotation = snip.textContent;
+						} else if (!snip.nodeName.startsWith("#text")) {
+							console.log (`Unknown node in Tag_Standard snippet: '${snip.nodeName}'`);	// GM-DIR style
 						}
 					}
-					result += `<p><b>${child.getAttribute('label')}:</b> ${items.join('; ')}</p>`;
+					if (annotation) result += `; <i>${this.stripPara(annotation)}</i>`;
+					result += `</p>`;
+				}
+				else if (sntype == "Tag_Multi_Domain") {
+					let first = true;
+					result += `<p><b>${label}:</b> `;
+					for (const snip of child.childNodes) {
+						if (snip.nodeName == "tag_assign") {
+							if (snip.hasAttribute('tag_name')) {
+								if (first)
+									first = false;
+								else
+									result += ', ';
+								result += `${snip.getAttribute('domain_name')}:${snip.getAttribute('tag_name')}`;
+							}
+						} else if (snip.nodeName == "annotation") {
+							// annotation appears before tag_assign elements, so save it for later
+							annotation = snip.textContent;
+						} else if (!snip.nodeName.startsWith("#text")) {
+							console.log (`Unknown node in Tag_Multi_Domain snippet: '${snip.nodeName}'`);	// GM-DIR style
+						}
+					}
+					if (annotation) result += `; <i>${this.stripPara(annotation)}</i>`;
+					result += `</p>`;
 				}
 				else if (sntype == "Date_Game") {
-					const tag = child.getElementsByTagName('game_date')[0];		// all descendents not just direct children
-					result += `<p><b>${this.getSnippetLabel(child)}:</b> ${tag.getAttribute("display")}</p>`;
+					result += `<p><b>${label}:</b> `;
+					for (const snip of child.childNodes) {
+						if (snip.nodeName == 'game_date') {
+							result += snip.getAttribute("display");
+						} else if (snip.nodeName == "annotation") {
+							annotation = snip.textContent;
+						}
+					}
+					if (annotation) result += `; <i>${this.stripPara(annotation)}</i>`;
+					result += `</p>`;
 					// annotation
 				}
 				else if (sntype == "Date_Range") {
-					const tag = child.getElementsByTagName('date_range')[0];		// all descendents not just direct children
-					result += `<p><b>${this.getSnippetLabel(child)}:</b> ${tag.getAttribute("display_start")} to ${tag.getAttribute("display_end")}</p>`;
+					result += `<p><b>${label}:</b> `;
+					for (const snip of child.childNodes) {
+						if (snip.nodeName == "date_range") {
+							result += `${snip.getAttribute("display_start")} to ${snip.getAttribute("display_end")}`;
+						} else if (snip.nodeName == "annotation") {
+							annotation = snip.textContent;
+						}
+					}
+					if (annotation) result += `; <i>${this.stripPara(annotation)}</i>`;
+					result += `</p>`;
 					// annotation
 				}
 				else if (sntype == "Portfolio") {
-					result += `<H${level+1}>${this.getSnippetLabel(child)}</H${level+1}>`;
+					result += `<H${level+1}>${label}</H${level+1}>`;
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
 					if (contents) {
@@ -311,12 +380,13 @@ class RealmWorksImporter extends Application
 					sntype == "Statblock" ||
 					sntype == "Foreign" ||
 					sntype == "Rich_Text") {
-					result += `<H${level+1}>${this.getSnippetLabel(child)}</H${level+1}>`;
 					
 					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
-					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const ext_object = child.getElementsByTagName('ext_object')[0];
+					const asset    = ext_object.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
 					if (contents) {
+						result += `<H${level+1}>${ext_object.getAttribute('name')}</H${level+1}>`;
 						const filename = asset.getAttribute('filename');
 						const fileext  = filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
@@ -331,9 +401,7 @@ class RealmWorksImporter extends Application
 							result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
 						}
 					}
-					 
-				}
-				else if (sntype == "Smart_Image") {
+				} else if (sntype == "Smart_Image") {
 					//<snippet facet_name="Map" type="Smart_Image" search_text="">
 					//  <smart_image name="Map">
 					//    <asset filename="n5uvmpam.eb4.png">
@@ -342,16 +410,20 @@ class RealmWorksImporter extends Application
 					//		<description>Nieklsdia (Zhodani)</description> -- could be empty
 					
 					// These need to be created as Scenes (and linked from the original topic?)
-					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const smart_image = child.getElementsByTagName('smart_image')[0];
+					const asset    = smart_image.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
 					const format   = contents ? asset.getAttribute('filename').split('.').pop() : undefined;	// extra suffix from asset filename
-					if (format) result += `<p><b>${this.getSnippetLabel(child)}</b>: <img src="data:image/${format};base64,${contents.textContent}"></img></p>`;					
-				}
-				else {
+					if (format) {
+						result += `<H${level+1}>${smart_image.getAttribute('name')}</H${level+1}>`;
+						result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
+					}
+				} else if (sntype == "tag_assign") {
+					// Nothing to done for these
+				} else {
 					console.log(`Unsupported snippet type: ${sntype}`);
 				}
-			}
-			else if (!child.nodeName.startsWith('#text')) {
+			} else if (!child.nodeName.startsWith('#text')) {
 				// We can safely ignore whitespace at this level.
 				// Some other element type which we haven't implemented yet
 				console.log(`Unsupported element type: ${child.nodeName}`);
@@ -521,13 +593,15 @@ class RealmWorksImporter extends Application
 		}
 		
 		// Create all the journal entries
-		if (ui_label) ui_label.val('Creating journal entries');
-		console.log('Creating journal entries');
+		if (ui_label) ui_label.val(`Creating ${results.length} journal entries`);
+		console.log(`Creating ${results.length} journal entries`);
 		let entries = await Promise.all(Array.from(results).map(async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
+		// A single call to create from an array - but there is a size limit!
+		//let entries = await JournalEntry.create(results, { displaySheet: false, temporary: true });
 		
 		// Add all the journal entries to the compendium pack
-		if (ui_label) ui_label.val('Adding to compendium pack');
-		console.log('Adding to compendium pack');
+		if (ui_label) ui_label.val(`Adding ${entries.length} to compendium pack`);
+		console.log(`Adding ${entries.length} to compendium pack`);
 		await Promise.all(Array.from(entries).map(async (journal) => await journal_pack.importEntity(journal) ));
 		
 		// Synchronously create a JournalEntry for each topic.
