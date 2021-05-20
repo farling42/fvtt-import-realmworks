@@ -200,6 +200,16 @@ class RealmWorksImporter extends Application
 		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
 	}
 
+	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
+	getChild(node,name) {
+		if (!node) return node;
+		for (let i=0; i<node.children.length; i++) {
+			if (node.children[i].nodeName == name) return node.children[i];
+		}
+		return undefined;
+	}
+		
+		
 	//
 	// Write one RW section
 	//
@@ -213,7 +223,6 @@ class RealmWorksImporter extends Application
 		for (const child of section.childNodes) {
 			if (child.nodeName == "section") {
 				// Subsections increase the HEADING number
-				//console.log(`nested section ${child.getAttribute("name")}`);
 				result += this.writeSection(child, level+1, linkage_names);
 			} else if (child.nodeName == "snippet") {
 				// Snippets contain the real information!
@@ -228,7 +237,6 @@ class RealmWorksImporter extends Application
 							result += this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
-							//console.log("gm_directions");
 							result += '<b>GMDIR: </b>' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
 						//} else if (snip.nodeName == "annotation") {
 							//
@@ -245,12 +253,9 @@ class RealmWorksImporter extends Application
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							// TODO: need text on same line as label!
-							result += this.stripPara(this.replaceLinks(snip.textContent, linkage_names));		// TODO - label needs to be inside first <p>
+							result += this.stripPara(this.replaceLinks(snip.textContent, linkage_names));
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
-							//console.log("gm_directions");
-							// TODO: need text on same line as label!
 							result += '<b>GMDIR: </b>' + this.stripPara(snip.textContent);		// GM-DIR style
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
@@ -272,7 +277,6 @@ class RealmWorksImporter extends Application
 							result += this.replaceLinks(snip.textContent, linkage_names);
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
-							//console.log('gm_directions');
 							result += '<b>GMDIR: </b>' + stripPara(snip.textContent);
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
@@ -355,8 +359,9 @@ class RealmWorksImporter extends Application
 				}
 				else if (sntype == "Portfolio") {
 					result += `<h${level+1}>${label}</h${level+1}>`;
-					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset?.getElementsByTagName('contents')[0];    // <contents>
+					const ext_object = this.getChild(child,      'ext_object');
+					const asset      = this.getChild(ext_object, 'asset');  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents   = this.getChild(asset,      'contents');    // <contents>
 					if (contents) {
 						var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
 						var files = UZIP.parse(buf);
@@ -377,9 +382,9 @@ class RealmWorksImporter extends Application
 					sntype == "Rich_Text") {
 					
 					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
-					const ext_object = child.getElementsByTagName('ext_object')[0];
-					const asset      = ext_object?.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents   = asset?.getElementsByTagName('contents')[0];    // <contents>
+					const ext_object = this.getChild(child,      'ext_object');
+					const asset      = this.getChild(ext_object, 'asset');     // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents   = this.getChild(asset,      'contents');  // <contents>
 					if (contents) {
 						result += `<h${level+1}>${ext_object.getAttribute('name')}</h${level+1}>`;
 						const filename = asset.getAttribute('filename');
@@ -405,10 +410,10 @@ class RealmWorksImporter extends Application
 					//		<description>Nieklsdia (Zhodani)</description> -- could be empty
 					
 					// These need to be created as Scenes (and linked from the original topic?)
-					const smart_image = child.getElementsByTagName('smart_image')[0];
-					const asset    = smart_image.getElementsByTagName('asset')[0]; 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset?.getElementsByTagName('contents')[0];  	    // <contents>
-					const format   = asset?.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
+					const smart_image = this.getChild(child,       'smart_image');
+					const asset       = this.getChild(smart_image, 'asset'); 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents    = this.getChild(asset,       'contents');  	// <contents>
+					const format      = asset?.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
 					if (format && contents) {
 						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
 						result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
