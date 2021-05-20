@@ -2,28 +2,16 @@
     <div class = "form-group-import">
         <h2>Import RWOutput file</h2>
 
-		<p>Enter a name for the Foundry Compendium pack,
-        <p>Choose an rwoutput file from Realm Works&reg; (or paste text below)
+        <p>Choose an rwoutput file from Realm Works&reg;.
+		<p>Enter a name for the Foundry Compendium pack.
 		<p>Then click "Import File".</h4>
 		<hr>
-        <p><b>Compendium Name:</b> <input  id="compendium-input" name="compendium-input" value="Realm Works"></input></p>
-
-		<p><input type="file" name="rwoutputFile" accept=".rwoutput">
-        <h4>OR paste text of file below:</h4><textarea id="all-xml" name="all-xml" rows="5" cols="50"></textarea>
-        <!-- <input class="update-checkbox" type="checkbox" value="0" name="classButton" checked>
-        <label for="classButton">Add Classes?</label>
-        <input class="update-checkbox" type="checkbox" value="0" name="spellsButton" checked>
-        <label for="spellsButton">Add Spells?</label> -->
-		<p>
-        <input class="update-checkbox" type="checkbox" value="1" name="deleteCompendium">
-        <label for="deleteCompendium">Delete compendium before starting?</label>
-		<p>
-        <input class="update-checkbox" type="checkbox" value="1" name="inboundLinks" checked>
-        <label for="inboundLinks">Add Inbound Links?</label>
-        <input class="update-checkbox" type="checkbox" value="1" name="outboundLinks" checked>
-        <label for="outboundLinks">Add Outbound Links?</label>
-		
-        <p><input type="submit" class="import-rwoutput" value="Import File"></input>
-        <p>Progress: <input readonly="true" id="current-topic" name="current-topic" value="----" size="40"></input></p>
+		<p><input type="file" name="rwoutputFile" accept=".rwoutput" size="40">
+        <p><label>Compendium Name:</b> <input  id="compendium-input" name="compendium-input" value="Realm Works"></label>
+		<p><label><input class="update-checkbox" type="checkbox" value="1" name="deleteCompendium">Delete compendium before starting?</label>
+		<p><label><input class="update-checkbox" type="checkbox" value="1" name="inboundLinks" checked>Add Inbound Links?</label>
+        <label><input class="update-checkbox" type="checkbox" value="1" name="outboundLinks" checked>Add Outbound Links?</label>
+        <p><input type="submit" class="import-rwoutput" value="Import File">
+        <p><label>Progress: <input readonly id="message-area" name="message-area" value="----" size="40"></label>
     </div>
 </div>

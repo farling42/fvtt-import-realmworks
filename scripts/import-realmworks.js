@@ -61,36 +61,30 @@ class RealmWorksImporter extends Application
 		super.activateListeners(html);
 		html.find(".import-rwoutput").click(async ev => {
 			let compendiumName = html.find('[name=compendium-input]').val();
-			let current_topic = html.find('[name=current-topic]');
+			this.ui_message = html.find('[name=message-area]');
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
-			let inputRW;
-			// If a file has been selected, then load that instead of the file
-			let fileinput = html.find('[name=rwoutputFile]');
-			if (fileinput) fileinput = fileinput[0];
-			if (fileinput && fileinput.files && fileinput.files.length > 0) {
-				if (current_topic) current_topic.val(`Loading ${fileinput.files[0].name}`);
-				console.log(`Reading contents of ${fileinput.files[0].name}`);
-				inputRW = await fileinput.files[0].text();
-				console.log(`Read total file size of ${inputRW.length}`);
-				if (inputRW.length == 0) {
-					if (current_topic) {
-						current_topic.val(`Failed to read the file (too big, or empty?)`);
-						return;
-					}
-				}
-			} else {
-				console.log(`Using pasted contents`);
-				inputRW = html.find('[name=all-xml]').val();
+			// Try to load the file
+			let fileinput = html.find('[name=rwoutputFile]')?.[0];
+			if (!fileinput?.files || fileinput.files.length == 0)
+			{
+				this.ui_message.val(`Please select a file.`);
+				return;
+			}
+			let file = fileinput.files[0];
+			
+			this.ui_message.val(`Loading ${file.name}`);
+			console.log(`Reading contents of ${file.name}`);
+			const inputRW = await file.text();
+			console.log(`Read total file size of ${inputRW.length}`);
+			if (inputRW.length == 0) {
+				this.ui_message.val(`Failed to read the file (too big, or empty?)`);
+				return;
 			}
 			
 			// Do the actual work!
-			if (inputRW && inputRW.length > 0) {
-				this.parseXML(inputRW, compendiumName, current_topic);
-			} else {
-				if (current_topic) current_topic.val('Please enter some data.');
-			}
+			this.parseXML(inputRW, compendiumName);
 			
 			// Automatically close the window after the import is finished
 			//this.close();
@@ -212,7 +206,7 @@ class RealmWorksImporter extends Application
 		// Process all the snippets and sections in order
 		const name = section.getAttribute("name");
 		//console.log(`writeSection(${level}, '${name}'})`);
-		let result = `<H${level}>${name}</H${level}>`;
+		let result = `<h${level}>${name}</h${level}>`;
 		
 		// Process all child (not descendent) nodes in this section
 		for (const child of section.childNodes) {
@@ -359,9 +353,9 @@ class RealmWorksImporter extends Application
 					// annotation
 				}
 				else if (sntype == "Portfolio") {
-					result += `<H${level+1}>${label}</H${level+1}>`;
+					result += `<h${level+1}>${label}</h${level+1}>`;
 					const asset    = child.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
+					const contents = asset?.getElementsByTagName('contents')[0];    // <contents>
 					if (contents) {
 						var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
 						var files = UZIP.parse(buf);
@@ -383,10 +377,10 @@ class RealmWorksImporter extends Application
 					
 					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
 					const ext_object = child.getElementsByTagName('ext_object')[0];
-					const asset    = ext_object.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
+					const asset      = ext_object?.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents   = asset?.getElementsByTagName('contents')[0];    // <contents>
 					if (contents) {
-						result += `<H${level+1}>${ext_object.getAttribute('name')}</H${level+1}>`;
+						result += `<h${level+1}>${ext_object.getAttribute('name')}</h${level+1}>`;
 						const filename = asset.getAttribute('filename');
 						const fileext  = filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
@@ -411,11 +405,11 @@ class RealmWorksImporter extends Application
 					
 					// These need to be created as Scenes (and linked from the original topic?)
 					const smart_image = child.getElementsByTagName('smart_image')[0];
-					const asset    = smart_image.getElementsByTagName('asset')[0];  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents = asset ? asset.getElementsByTagName('contents')[0] : undefined;    // <contents>
-					const format   = contents ? asset.getAttribute('filename').split('.').pop() : undefined;	// extra suffix from asset filename
-					if (format) {
-						result += `<H${level+1}>${smart_image.getAttribute('name')}</H${level+1}>`;
+					const asset    = smart_image.getElementsByTagName('asset')[0]; 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents = asset?.getElementsByTagName('contents')[0];  	    // <contents>
+					const format   = asset?.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
+					if (format && contents) {
+						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
 						result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
 					}
 				} else if (sntype == "tag_assign") {
@@ -443,7 +437,7 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async formatOneTopic(topic, ui_label) {
+	async formatOneTopic(topic) {
 		//console.log(`Importing '${topic.getAttribute("public_name")}'`);
 
 		// Extract only the links that we know are in this topic (if any).
@@ -470,14 +464,18 @@ class RealmWorksImporter extends Application
 		let outbound = [];
 		let both = [];
 		let has_child_topics = false;
+		let has_connections = false;
 		for (const node of topic.childNodes) {
-			if (node.nodeName == "section") {
+			if (node.nodeName == "alias") {
+				// These come first
+				html += `<p><b>Aliases: </b><i>${node.getAttribute('name')}</i></p>`;
+			} else if (node.nodeName == "section") {
 				html += this.writeSection(node, 1, linkage_names);		// Start with H1
 			} else if (node.nodeName == "topic") {
 				// No need to handle nested topics, since we found all of them at the start.
 				// Put link to child topic in original topic
 				if (!has_child_topics) {
-					html += "<H1>Child Topics</H1><ul>";
+					html += '<h1>Child Topics</h1><ul>';
 					has_child_topics = true;
 				}
 				html += `<li>${this.writeTopicLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
@@ -486,7 +484,19 @@ class RealmWorksImporter extends Application
 				if (dir == 'Outbound') outbound.push(node);
 				else if (dir == 'Inbound') inbound.push(node);
 				else if (dir == 'Both') both.push(node);
+			} else if (node.nodeName == "connection") {
+				// <connection target_id="Topic_2" target_name="Child Feat 1" nature="Master_To_Minion" qualifier="Owner / Subsidiary"/>
+				if (!has_connections)
+				{
+					has_connections = true;
+					html += '<h1>Connections</h1>';
+				}
+				html += `<p>${this.writeTopicLink(node.getAttribute('target_id'), node.getAttribute('target_name'))} = ${node.getAttribute('nature')}`;
+				if (node.hasAttribute('qualifier')) html += `:${node.getAttribute('qualifier')}`;
+				if (node.hasAttribute('rating'))    html += `, ${node.getAttribute('rating')} rating`;
+				if (node.hasAttribute('attitude'))  html += `, ${node.getAttribute('attitude')} attitude`;
 			}
+			// and ignore tag_assign at this point.
 		}
 		if (has_child_topics) {
 			html += '</ul>';
@@ -525,17 +535,16 @@ class RealmWorksImporter extends Application
 	// Parse the entire Realm Works file supplied in 'xmlString'
 	// and put each individual topic into the compendium named '<compendiumName>-journal'
 	//
-	async parseXML(xmlString, compendiumName, ui_label)
+	async parseXML(xmlString, compendiumName)
 	{
 		//console.log(`Starting for ${compendiumName}`);
 		
-		//
 		// Maybe delete the old compendium before creating a new one?
 		// (This has to be done now so that we can get journal_pack.collection name for links)
 		if (this.deleteCompendium) {
 			let pack = game.packs.find(p => p.metadata.name === compendiumName);
 			if (pack) {
-				if (ui_label) ui_label.val('Deleting old compendium');
+				this.ui_message.val('Deleting old compendium');
 				console.log(`Deleting compendium pack ${compendiumName}`);
 				await pack.delete();
 			}
@@ -545,11 +554,11 @@ class RealmWorksImporter extends Application
 		let journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
 		this.pack_name = journal_pack.collection;	// the full name of the compendium
 		
-		if (ui_label) ui_label.val('--- Starting ---');
+		this.ui_message.val('--- Decording XML ---');
 
 		let parser = new DOMParser();
 		let xmlDoc = parser.parseFromString(xmlString,"text/xml");
-		
+	
 		const topics = xmlDoc.getElementsByTagName('topic');  // all descendents, not just direct children
 
 		// Create a mapping from topic_id to public_name for all topic elements, required for creating "@Compendium[<packname>."mapping[linkage:target_id]"]{"linkage:target_name"}" entries.
@@ -570,8 +579,8 @@ class RealmWorksImporter extends Application
 		};
 
 		// Asynchronously generate the HTML for all the topics
-		if (ui_label) ui_label.val(`Generating journal contents`);		
-		let results = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic, ui_label) ));
+		this.ui_message.val(`Generating journal contents`);		
+		let results = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic) ));
 		console.log(`Found ${results.length} topics`);
 		
 		//
@@ -579,7 +588,7 @@ class RealmWorksImporter extends Application
 		//
 		
 		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
-		if (ui_label) ui_label.val('Deleting old entries');	
+		this.ui_message.val('Deleting old entries');	
 		console.log('Deleting old entries');
 		let indices = await journal_pack.getIndex();
 		for (const item of results) {
@@ -593,20 +602,20 @@ class RealmWorksImporter extends Application
 		}
 		
 		// Create all the journal entries
-		if (ui_label) ui_label.val(`Creating ${results.length} journal entries`);
+		this.ui_message.val(`Creating ${results.length} journal entries`);
 		console.log(`Creating ${results.length} journal entries`);
 		let entries = await Promise.all(Array.from(results).map(async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
 		// A single call to create from an array - but there is a size limit!
 		//let entries = await JournalEntry.create(results, { displaySheet: false, temporary: true });
 		
 		// Add all the journal entries to the compendium pack
-		if (ui_label) ui_label.val(`Adding ${entries.length} to compendium pack`);
+		this.ui_message.val(`Adding ${entries.length} to compendium pack`);
 		console.log(`Adding ${entries.length} to compendium pack`);
 		await Promise.all(Array.from(entries).map(async (journal) => await journal_pack.importEntity(journal) ));
 		
 		// Synchronously create a JournalEntry for each topic.
 //		for (const item of results) {
-//			if (ui_label) ui_label.val(item.name);
+//			this.ui_message.val(item.name);
 //			// Now create the correct journal entry:
 //			//    name = prefix + public_name + suffix
 //			// Create a journal entry, and add it to the compendium pack
@@ -622,6 +631,6 @@ class RealmWorksImporter extends Application
 //		}
 		
 		console.log('Finished');
-		if (ui_label) ui_label.val('--- Finished ---');
+		this.ui_message.val('--- Finished ---');
 	}
 } // class
