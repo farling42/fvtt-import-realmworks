@@ -228,7 +228,7 @@ class RealmWorksImporter extends Application
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
-							result += this.simplifyPara(this.writeContents(snip, linkage_names));
+							result += '<b>GMDIR: </b>' + this.simplifyPara(this.writeContents(snip, linkage_names));
 						//} else if (snip.nodeName == "annotation") {
 							//
 						} else if (!snip.nodeName.startsWith("#text")) {
@@ -250,7 +250,7 @@ class RealmWorksImporter extends Application
 							// contents child (it will already be in encoded-HTML)
 							//console.log("gm_directions");
 							// TODO: need text on same line as label!
-							result += this.stripPara(snip.textContent);		// GM-DIR style
+							result += '<b>GMDIR: </b>' + this.stripPara(snip.textContent);		// GM-DIR style
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
 						} else if (!snip.nodeName.startsWith("#text")) {
@@ -272,7 +272,7 @@ class RealmWorksImporter extends Application
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							//console.log('gm_directions');
-							result += stripPara(snip.textContent);
+							result += '<b>GMDIR: </b>' + stripPara(snip.textContent);
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
 						} else if (!snip.nodeName.startsWith("#text")) {

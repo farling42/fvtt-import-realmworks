@@ -10,9 +10,11 @@ In the Compendium panel of the game you will find a new button at the bottom.
 
 Press the button to open a simple dialogue window.
 
-Open up the RWoutput file in your favourite text editor and copy and paste the text contents into the box in the Foundry window.
+Select an .rwoutput file using the file selector.
 
-Wait, possibly a long time, for the paste into the window to complete.
+Enter the name of the compendium into which the journal entries will be placed (default: "Realm Works").
+
+Maybe modify which options you want to work with.
 
 Press the IMPORT button at the bottom of the window and wait for the contents to be imported.
 
@@ -23,7 +25,7 @@ Any parent topic in the RWoutput file will have a list of children at the end of
 There is a file limit size of 512 MB for importing (due to a limitation on the maximum allowed size of a string in Javascript).
 
 ## Patreon
-If you like what it does, then contributions can be made at [Patreon](https://www.patreon.com/amusingtime)
+If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
 0.1.4 Improve layout of window (remove paste box). Add output of topic aliases, connections. Simplify code with ?.
