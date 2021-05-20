@@ -96,6 +96,7 @@ class RealmWorksImporter extends Application
 		// Look for compendium
 		let pack = game.packs.find(p => p.metadata.name === compendiumName);
 		if (pack == null) {
+			this.ui_message.val(`Creating '${compendiumName}' compendium`);
 			console.log(`Creating new compendium called ${compendiumName}`);
 			// Create a new compendium
 			pack = await Compendium.create({
@@ -203,8 +204,8 @@ class RealmWorksImporter extends Application
 	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
 	getChild(node,name) {
 		if (!node) return node;
-		for (let i=0; i<node.children.length; i++) {
-			if (node.children[i].nodeName == name) return node.children[i];
+		for (const child of node.childNodes) {
+			if (child.nodeName == name) return child;
 		}
 		return undefined;
 	}
@@ -358,11 +359,11 @@ class RealmWorksImporter extends Application
 					// annotation
 				}
 				else if (sntype == "Portfolio") {
-					result += `<h${level+1}>${label}</h${level+1}>`;
 					const ext_object = this.getChild(child,      'ext_object');
 					const asset      = this.getChild(ext_object, 'asset');  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents   = this.getChild(asset,      'contents');    // <contents>
 					if (contents) {
+						result += `<h${level+1}>Portfolio: ${ext_object.getAttribute('name')}</h${level+1}>`;
 						var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
 						var files = UZIP.parse(buf);
 						// Now have an object with key : property pairs  (key = filename [String]; property = file data [Uint8Array])
@@ -381,10 +382,9 @@ class RealmWorksImporter extends Application
 					sntype == "Foreign" ||
 					sntype == "Rich_Text") {
 					
-					//const ext_object = child.childNodes[0];  // <ext_object name="Portrait" type="Picture">
-					const ext_object = this.getChild(child,      'ext_object');
-					const asset      = this.getChild(ext_object, 'asset');     // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents   = this.getChild(asset,      'contents');  // <contents>
+					const ext_object = this.getChild(child,      'ext_object');  // <ext_object name="Portrait" type="Picture">
+					const asset      = this.getChild(ext_object, 'asset');       // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const contents   = this.getChild(asset,      'contents');    // <contents>
 					if (contents) {
 						result += `<h${level+1}>${ext_object.getAttribute('name')}</h${level+1}>`;
 						const filename = asset.getAttribute('filename');
