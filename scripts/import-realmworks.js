@@ -60,7 +60,8 @@ class RealmWorksImporter extends Application
 	activateListeners(html) {
 		super.activateListeners(html);
 		html.find(".import-rwoutput").click(async ev => {
-			let compendiumName = html.find('[name=compendium-input]').val();
+			this.journalCompendiumName = html.find('[name=journal-compendium]').val();
+			this.actorCompendiumName = html.find('[name=actor-compendium]').val();
 			this.ui_message = html.find('[name=message-area]');
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
@@ -84,7 +85,7 @@ class RealmWorksImporter extends Application
 			}
 			
 			// Do the actual work!
-			this.parseXML(inputRW, compendiumName);
+			this.parseXML(inputRW);
 			
 			// Automatically close the window after the import is finished
 			//this.close();
@@ -127,7 +128,7 @@ class RealmWorksImporter extends Application
 	replaceLinks(original, linkage_names) {
 		// Replace '<scan>something</scan>' with '@Compendium[world.packname.<topic-for-something>]{something}'
 		// @Compendium is case sensitive when using names!
-		const pack_name = this.pack_name;
+		const pack_name = this.journal_pack_name;
 		return original.replace(/<span>([^<]+)<\/span>/g, 
 			function(match,p1,offset,string) {
 				for (const [key, labels] of linkage_names) {
@@ -209,8 +210,41 @@ class RealmWorksImporter extends Application
 		}
 		return undefined;
 	}
+
+	// base64 is the base64 string containing the .por file
+	// format is one of the character formats in the .por file: 'html', 'text', 'xml'
+	// Returns an array of [ name , data ] for each character/minion in the portfolio.
+	
+	readPortfolio(base64, format) {
+		let result = [];
+		const buf = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+		const files = UZIP.parse(buf);
+		// Now have an object with "key : property" pairs  (key = filename [String]; property = file data [Uint8Array])
+
+		// Process the index.xml in the root of the portfolio file.
+		let parser = new DOMParser();
+		const xmlDoc = parser.parseFromString(this.Utf8ArrayToStr(files['index.xml']),"text/xml");
+		// <document><characters>
+		//   <character name="Fantastic">
+		//    <statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
+		//    <images>
+		//    <minions><character name="Flappy" summar><statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
 		
-		
+		// For each character in the POR, extract the statblock with the corresponding format, and any minions with the corresponding statblock
+		for (const statblocks of xmlDoc.getElementsByTagName('statblocks')) {
+			for (const statblock of statblocks.getElementsByTagName('statblock')) {
+				if (statblock.getAttribute('format') == format) {
+					result.push({
+						name: statblocks.parentNode.getAttribute('name'),
+						data: this.Utf8ArrayToStr(files[`${statblock.getAttribute('folder')}/${statblock.getAttribute('filename')}`])
+					});
+				}
+			}
+		}
+		//console.log(`...found ${result.length} sheets`);
+		return result;
+	}
+
 	//
 	// Write one RW section
 	//
@@ -363,15 +397,11 @@ class RealmWorksImporter extends Application
 					const asset      = this.getChild(ext_object, 'asset');  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents   = this.getChild(asset,      'contents');    // <contents>
 					if (contents) {
-						result += `<h${level+1}>Portfolio: ${ext_object.getAttribute('name')}</h${level+1}>`;
-						var buf = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
-						var files = UZIP.parse(buf);
-						// Now have an object with key : property pairs  (key = filename [String]; property = file data [Uint8Array])
-						for (let key of Object.keys(files)) {
-							if (key.startsWith("statblocks_html")) {
-								//console.log(`Found Portfolio statblock ${key}`);
-								result += this.Utf8ArrayToStr(files[key]);
-							}
+						let characters = this.readPortfolio(contents.textContent, 'html');
+						for (let i=0; i<characters.length; i++) {
+							if (i > 0) result += '<hr>';
+							result += `<h${level+1}>Portfolio: ${characters[i].name}</h${level+1}>`;
+							result += characters[i].data;
 						}
 					}
 				} else if (sntype == "Picture" ||
@@ -437,7 +467,35 @@ class RealmWorksImporter extends Application
 	// At the topic (not section) level, create a link to another topic
 	writeTopicLink(topic_id, topic_name) {
 		let topic_list = this.topic_names.get(topic_id);
-		return RealmWorksImporter.formatLink(this.pack_name, topic_list ? topic_list[0] : undefined, topic_name);
+		return RealmWorksImporter.formatLink(this.journal_pack_name, topic_list ? topic_list[0] : undefined, topic_name);
+	}
+	
+	// Examine each topic within topics to see if it should be converted into an actor:
+	// i.e. it contains a Portfolio or Statblock snippet type directly, not in a child topic.
+	getActorSnippet(node) {
+		for (const child of node.childNodes) {
+			if (child.nodeName == 'snippet' && 
+				(child.getAttribute('type') == 'Portfolio' || 
+				 child.getAttribute('type') == 'Statblock')) {
+				return child;
+			} else if (child.nodeName != 'topic' && child.childNodes.length > 0) {
+				// Don't check nested topics
+				let result = this.getActorSnippet(child);
+				if (result) return result;
+			}
+		}
+		return undefined;
+	}
+	
+	getActorTopics(topics) {
+		// This should return an HTMLCollection
+		let result = [];
+		for (const topic of topics) {
+			if (this.getActorSnippet(topic)) {
+				result.push(topic);
+			}
+		}
+		return result;
 	}
 	
 	//
@@ -538,27 +596,93 @@ class RealmWorksImporter extends Application
 	}
 
 	//
+	// Convert a TOPIC into an ACTOR
+	//
+	async formatOneActor(topic) {
+		console.log(`Formatting actor for ${topic.getAttribute('public_name')}`);
+		const snippet = this.getActorSnippet(topic);
+		if (!snippet) return;
+		
+		const sntype = snippet.getAttribute('type');
+		const ext_object = this.getChild(snippet,    'ext_object');  // <ext_object name="Portrait" type="Picture">
+		const asset      = this.getChild(ext_object, 'asset');       // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+		const contents   = this.getChild(asset,      'contents');    // <contents>
+		if (!contents) return;
+		const filename = asset.getAttribute('filename');
+
+		let html = "";
+		if (sntype == 'Portfolio') {
+			if (!filename.endsWith('.por')) return;	// consistency check
+			
+			let characters = this.readPortfolio(contents.textContent, 'html');
+			for (let i=0; i<characters.length; i++) {
+				// We actually need one actor for each entry in this array !!!
+				html += characters[i].data;
+			}
+		} else if (sntype == 'Statblock') {
+			if (!filename.endsWith('.html')) return;	// consistency check
+			html = `${atob(contents.textContent)}`;
+		}
+
+		// TODO - call the ACTOR creator for the specific GAME SYSTEM that is installed
+		
+		//console.log(`ACTOR ${topic.getAttribute('public_name')} = '${html}'`);
+		let actor = { 
+			name: topic.getAttribute("public_name"),
+			type: 'character',	// npc ?
+		};
+		
+		if (game.system.id == 'pf1') {
+			// Test, put all the information into data.details.notes.value
+			actor.type = 'character';	// 'npc' ?
+			actor.data = { details : { notes : { value : html }}};
+		} else if (game.system.id == 'dnd5e') {
+			actor.type = 'Player Character';
+			actor.data = { details : { biography : { value : html }}};
+		}
+		
+		return actor;
+	}
+	
+	//
 	// Parse the entire Realm Works file supplied in 'xmlString'
 	// and put each individual topic into the compendium named '<compendiumName>-journal'
 	//
-	async parseXML(xmlString, compendiumName)
+	async parseXML(xmlString)
 	{
-		//console.log(`Starting for ${compendiumName}`);
+		//console.log(`Starting for ${this.journalCompendiumName}`);
 		
 		// Maybe delete the old compendium before creating a new one?
 		// (This has to be done now so that we can get journal_pack.collection name for links)
 		if (this.deleteCompendium) {
-			let pack = game.packs.find(p => p.metadata.name === compendiumName);
-			if (pack) {
-				this.ui_message.val('Deleting old compendium');
-				console.log(`Deleting compendium pack ${compendiumName}`);
-				await pack.delete();
+			if (this.journalCompendiumName.length > 0) {
+				let pack = game.packs.find(p => p.metadata.name === this.journalCompendiumName);
+				if (pack) {
+					this.ui_message.val(`Deleting old compendium ${this.journalCompendiumName}`);
+					console.log(`Deleting journal compendium pack ${this.journalCompendiumName}`);
+					await pack.delete();
+				}
+			}
+			if (this.actorCompendiumName.length > 0) {
+				let pack = game.packs.find(p => p.metadata.name === this.actorCompendiumName);
+				if (pack) {
+					this.ui_message.val(`Deleting old compendium ${this.actorCompendiumName}`);
+					console.log(`Deleting journal compendium pack ${this.actorCompendiumName}`);
+					await pack.delete();
+				}
 			}
 		}
 
-		// If we got this far, we can now decide if we want to delete the old compendium
-		let journal_pack = await this.getCompendiumWithType(compendiumName, "JournalEntry");
-		this.pack_name = journal_pack.collection;	// the full name of the compendium
+		// Get/Create the compendium pack into which we are adding journal entries
+		let journal_pack;
+		journal_pack = await this.getCompendiumWithType(this.journalCompendiumName, "JournalEntry");
+		this.journal_pack_name = journal_pack.collection;	// the full name of the compendium
+
+		let actor_pack;
+		if (this.actorCompendiumName.length > 0) {
+			actor_pack = await this.getCompendiumWithType(this.actorCompendiumName, "Actor");
+			this.actor_pack_name = actor_pack.collection;	// the full name of the compendium
+		}
 		
 		this.ui_message.val('--- Decording XML ---');
 
@@ -586,8 +710,17 @@ class RealmWorksImporter extends Application
 
 		// Asynchronously generate the HTML for all the topics
 		this.ui_message.val(`Generating journal contents`);		
-		let results = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic) ));
-		console.log(`Found ${results.length} topics`);
+		let journals = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic) ));
+		console.log(`Found ${journals.length} topics`);
+		
+		
+		// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
+		let actors;
+		if (actor_pack) {
+			this.ui_message.val(`Generating content for Actors`);
+			actors = await Promise.all(Array.from(this.getActorTopics(topics)).map(async (actor_topic) => await this.formatOneActor(actor_topic) ));
+			console.log(`Found ${actors.length} actors`);
+		}
 		
 		//
 		// Now we can get the data into Foundry
@@ -597,7 +730,7 @@ class RealmWorksImporter extends Application
 		this.ui_message.val('Deleting old entries');	
 		console.log('Deleting old entries');
 		let indices = await journal_pack.getIndex();
-		for (const item of results) {
+		for (const item of journals) {
 			let entity = indices.find(e => e.name === item.name);
 			if (entity) {
 				console.log(`Deleting old ${item.name}`);
@@ -607,20 +740,46 @@ class RealmWorksImporter extends Application
 			}
 		}
 		
-		// Create all the journal entries
-		this.ui_message.val(`Creating ${results.length} journal entries`);
-		console.log(`Creating ${results.length} journal entries`);
-		let entries = await Promise.all(Array.from(results).map(async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
-		// A single call to create from an array - but there is a size limit!
-		//let entries = await JournalEntry.create(results, { displaySheet: false, temporary: true });
+		if (actor_pack) {
+			let indices = await actor_pack.getIndex();
+			for (const item of actors) {
+				let entity = indices.find(e => e.name === item.name);
+				if (entity) {
+					console.log(`Deleting old ${item.name}`);
+					await actor_pack.deleteEntity(entity._id);
+					// Regenerate the index
+					indices = await actor_pack.getIndex();
+				}
+			}
+		}
 		
+		// Create all the journal entries
+		this.ui_message.val(`Creating ${journals.length} journal entries`);
+		console.log(`Creating ${journals.length} journal entries`);
+		let journal_entries = await Promise.all(Array.from(journals).map(async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
+		// A single call to create from an array - but there is a size limit!
+		//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
+
 		// Add all the journal entries to the compendium pack
-		this.ui_message.val(`Adding ${entries.length} to compendium pack`);
-		console.log(`Adding ${entries.length} to compendium pack`);
-		await Promise.all(Array.from(entries).map(async (journal) => await journal_pack.importEntity(journal) ));
+		this.ui_message.val(`Adding ${journal_entries.length} to compendium pack`);
+		console.log(`Adding ${journal_entries.length} to compendium pack`);
+		await Promise.all(Array.from(journal_entries).map(async (journal) => await journal_pack.importEntity(journal) ));
+		
+		if (actor_pack) {
+			this.ui_message.val(`Creating ${actors.length} journal entries`);
+			console.log(`Creating ${actors.length} journal entries`);
+			let actor_entries = await Promise.all(Array.from(actors).map(async (item) => await Actor.create(item, { displaySheet: false, temporary: true }) ));
+			// A single call to create from an array - but there is a size limit!
+			//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
+
+			// Add all the journal entries to the compendium pack
+			this.ui_message.val(`Adding ${actor_entries.length} to compendium pack`);
+			console.log(`Adding ${actor_entries.length} to compendium pack`);
+			await Promise.all(Array.from(actor_entries).map(async (journal) => await actor_pack.importEntity(journal) ));
+		}
 		
 		// Synchronously create a JournalEntry for each topic.
-//		for (const item of results) {
+//		for (const item of journals) {
 //			this.ui_message.val(item.name);
 //			// Now create the correct journal entry:
 //			//    name = prefix + public_name + suffix
