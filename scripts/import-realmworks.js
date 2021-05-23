@@ -22,6 +22,7 @@
 // or simply @Compendium[pack-name.entity-name]{label}
 
 import UZIP from "./UZIP.js";
+import { RWPF1Actor } from "./pf1-actor.js";
 
 // Provide hook to put the button at the bottom of the COMPENDIUM panel in Foundry VTT
 // Set up the user interface
@@ -599,7 +600,7 @@ class RealmWorksImporter extends Application
 	// Convert a TOPIC into an ACTOR
 	//
 	async formatOneActor(topic) {
-		console.log(`Formatting actor for ${topic.getAttribute('public_name')}`);
+		//console.log(`Formatting actor for ${topic.getAttribute('public_name')}`);
 		const snippet = this.getActorSnippet(topic);
 		if (!snippet) return;
 		
@@ -611,6 +612,7 @@ class RealmWorksImporter extends Application
 		const filename = asset.getAttribute('filename');
 
 		let html = "";
+		let xml;
 		if (sntype == 'Portfolio') {
 			if (!filename.endsWith('.por')) return;	// consistency check
 			
@@ -619,6 +621,7 @@ class RealmWorksImporter extends Application
 				// We actually need one actor for each entry in this array !!!
 				html += characters[i].data;
 			}
+			xml = this.readPortfolio(contents.textContent, 'xml')[0].data;
 		} else if (sntype == 'Statblock') {
 			if (!filename.endsWith('.html')) return;	// consistency check
 			html = `${atob(contents.textContent)}`;
@@ -629,15 +632,20 @@ class RealmWorksImporter extends Application
 		//console.log(`ACTOR ${topic.getAttribute('public_name')} = '${html}'`);
 		let actor = { 
 			name: topic.getAttribute("public_name"),
-			type: 'character',	// npc ?
+			type: 'npc',
 		};
 		
 		if (game.system.id == 'pf1') {
 			// Test, put all the information into data.details.notes.value
-			actor.type = 'character';	// 'npc' ?
-			actor.data = { details : { notes : { value : html }}};
+			if (xml) {
+				actor = await RWPF1Actor.createActorData(xml);
+				actor.data.details.notes = { value : html };
+			} else {
+				actor.data = { details : { notes : { value : html }}};
+			}
 		} else if (game.system.id == 'dnd5e') {
 			actor.type = 'Player Character';
+			//if (xml) actor.data = await RWDND5EActor.createActorData(xml);
 			actor.data = { details : { biography : { value : html }}};
 		}
 		
@@ -712,20 +720,21 @@ class RealmWorksImporter extends Application
 		this.ui_message.val(`Generating journal contents`);		
 		let journals = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic) ));
 		console.log(`Found ${journals.length} topics`);
-		
-		
-		// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
+
+		// PARTIAL IMPLEMENTATION OF ACTOR GENERATION ONLY FOR PF1
 		let actors;
-		if (actor_pack) {
-			this.ui_message.val(`Generating content for Actors`);
-			actors = await Promise.all(Array.from(this.getActorTopics(topics)).map(async (actor_topic) => await this.formatOneActor(actor_topic) ));
-			console.log(`Found ${actors.length} actors`);
+		if (game.system.id == 'pf1') {
+			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
+			if (actor_pack) {
+				this.ui_message.val(`Generating content for Actors`);
+				actors = await Promise.all(Array.from(this.getActorTopics(topics)).map(async(actor_topic) => await this.formatOneActor(actor_topic)));
+				console.log(`Found ${actors.length} actors`);
+			}
 		}
-		
 		//
 		// Now we can get the data into Foundry
 		//
-		
+
 		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
 		this.ui_message.val('Deleting old entries');	
 		console.log('Deleting old entries');
@@ -739,8 +748,8 @@ class RealmWorksImporter extends Application
 				indices = await journal_pack.getIndex();
 			}
 		}
-		
-		if (actor_pack) {
+
+		if (actors && actor_pack) {
 			let indices = await actor_pack.getIndex();
 			for (const item of actors) {
 				let entity = indices.find(e => e.name === item.name);
@@ -752,32 +761,36 @@ class RealmWorksImporter extends Application
 				}
 			}
 		}
-		
+
 		// Create all the journal entries
 		this.ui_message.val(`Creating ${journals.length} journal entries`);
 		console.log(`Creating ${journals.length} journal entries`);
-		let journal_entries = await Promise.all(Array.from(journals).map(async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
+		let create_results = await Promise.allSettled(Array.from(journals).map(
+			async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
 		// A single call to create from an array - but there is a size limit!
 		//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
 
 		// Add all the journal entries to the compendium pack
-		this.ui_message.val(`Adding ${journal_entries.length} to compendium pack`);
-		console.log(`Adding ${journal_entries.length} to compendium pack`);
-		await Promise.all(Array.from(journal_entries).map(async (journal) => await journal_pack.importEntity(journal) ));
-		
-		if (actor_pack) {
-			this.ui_message.val(`Creating ${actors.length} journal entries`);
-			console.log(`Creating ${actors.length} journal entries`);
-			let actor_entries = await Promise.all(Array.from(actors).map(async (item) => await Actor.create(item, { displaySheet: false, temporary: true }) ));
+		this.ui_message.val(`Adding ${create_results.length} to JE compendium pack`);
+		console.log(`Adding ${create_results.length} to JE compendium pack`);
+		await Promise.allSettled(Array.from(create_results).map(
+			async (result) => { if (result.status == 'fulfilled') await journal_pack.importEntity(journal.value)} ));
+
+		if (actors && actor_pack) {
+			this.ui_message.val(`Creating ${actors.length} actors`);
+			console.log(`Creating ${actors.length} actors`);
+			create_results = await Promise.allSettled(Array.from(actors).map(
+				async (item) => await Actor.create(item, { displaySheet: false, temporary: true }) ));
 			// A single call to create from an array - but there is a size limit!
 			//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
 
 			// Add all the journal entries to the compendium pack
-			this.ui_message.val(`Adding ${actor_entries.length} to compendium pack`);
-			console.log(`Adding ${actor_entries.length} to compendium pack`);
-			await Promise.all(Array.from(actor_entries).map(async (journal) => await actor_pack.importEntity(journal) ));
+			this.ui_message.val(`Adding ${create_results.length} to Actors compendium pack`);
+			console.log(`Adding ${create_results.length} to Actors compendium pack`);
+			await Promise.allSettled(Array.from(create_results).map(
+				async (result) => { if (result.status == 'fulfilled') await actor_pack.importEntity(result.value)} ));
 		}
-		
+
 		// Synchronously create a JournalEntry for each topic.
 //		for (const item of journals) {
 //			this.ui_message.val(item.name);
