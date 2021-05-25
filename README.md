@@ -29,7 +29,7 @@ If you like what it does, then contributions will be gratefully received at [Pat
 
 ## Changelog
 0.1.4 Improve layout of window (remove paste box). Add output of topic aliases, connections. Simplify code with ?. Correct title for extracted portfolio. Prefix for GM directions.
-Initial creation of Actors for PF1 and DND5E (all information stored in biography/notes section of sheet).
+Initial creation of Actors for PF1 and DND5E (all information stored in biography/notes section of sheet). Some decoding of PF1 individual fields.
 
 0.1.3 Initial support for annotations on various fields. Improve layout of tag snippets. Attempt to remove 'null' field titles.
 

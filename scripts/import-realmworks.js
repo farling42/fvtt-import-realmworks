@@ -78,16 +78,39 @@ class RealmWorksImporter extends Application
 			
 			this.ui_message.val(`Loading ${file.name}`);
 			console.log(`Reading contents of ${file.name}`);
+
+			//
+			// This version loads the entire file into a string, and then parses it (limit of 512 MB)			
+			//
 			const inputRW = await file.text();
 			console.log(`Read total file size of ${inputRW.length}`);
 			if (inputRW.length == 0) {
 				this.ui_message.val(`Failed to read the file (too big, or empty?)`);
 				return;
 			}
-			
+			this.ui_message.val(`--- Decording XML from ${file.name}---`);
+
+			let parser = new DOMParser();
+			let xmlDoc = parser.parseFromString(inputRW,"text/xml");
 			// Do the actual work!
-			this.parseXML(inputRW);
-			
+			this.parseXML(xmlDoc);
+/*
+			//
+			// Try to get XMLHttpRequest to read the file and create a DOM nicely
+			//
+			***WEB SECURITY prevents XMLHttpRequest from accessing local files ***
+			const xhr = new XMLHttpRequest();
+			xhr.onload = function() {
+				parseXML(xhr.responseXML); // This is the response.
+			}
+			xhr.onerror = function() {
+				console.log("Error while getting XML.");
+			}
+			//let filepath;
+			xhr.open("GET", "file:///D:/Documents/Realm Works/Output/" + file.name);
+			xhr.responseType = "document";
+			xhr.send();
+*/
 			// Automatically close the window after the import is finished
 			//this.close();
 		});
@@ -101,12 +124,16 @@ class RealmWorksImporter extends Application
 			this.ui_message.val(`Creating '${compendiumName}' compendium`);
 			console.log(`Creating new compendium called ${compendiumName}`);
 			// Create a new compendium
-			pack = await Compendium.create({
+			let packdata = {
 				name: compendiumName,
 				label: compendiumName,
 				collection: compendiumName,
 				entity: type
-			  });
+			};
+			if (isNewerVersion(game.data.version, "0.8.0"))
+				pack = await createCompendium(packdata);
+			else
+				pack = await Compendium.create(packdata);
 		}
 		if (!pack){
 		  throw "Could not find/make pack";
@@ -203,6 +230,117 @@ class RealmWorksImporter extends Application
 		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
 	}
 
+	async uploadFile(filename, destination, data) {
+		// data = uint8array
+		const file = new File([data], filename);
+		let source = 'data';		// or 'core' or 's3'
+		let options = new FormData();
+		
+		const request = await FilePicker.upload(source, destination, file, options)
+			.then(console.log(`Found file ${filename}`))
+			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
+		//if (request.status === 413) {
+		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorTooLarge"));
+		//} else if (request.status !== 200) {
+		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorSomethingWrong"));
+		//}
+	}
+
+	// Convert a Smart_Image into a scene
+	async createScene(smart_image) {
+		//<snippet facet_name="Map" type="Smart_Image" search_text="">
+		//  <smart_image name="Map">
+		//    <asset filename="n5uvmpam.eb4.png">
+		//      <contents>
+		//	  <map_pin pin_name="Deneb Sector" topic_id="Topic_392" x="330" y="239">	-- topic_id is optional
+		//		<description>Nieklsdia (Zhodani)</description> -- could be empty
+
+		// These need to be created as Scenes (and linked from the original topic?)
+		//const scenename = smart_image.parentElement?.getAttribute('facet_name');
+		const asset = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+		const contents = this.getChild(asset, 'contents'); // <contents>
+		if (!asset || !contents) return;
+		
+		// Name comes from topic name + facet_name
+		let node = smart_image;
+		let scenename;
+		let topic_id;
+		while (!scenename && node) {
+			if (node.nodeName == 'topic') {
+				scenename = node.getAttribute('public_name') + ':' + smart_image.parentElement.getAttribute('facet_name');
+				topic_id = node.getAttribute('topic_id');
+			} else {
+				node = node.parentElement;
+			}
+		}
+		//console.log(`smart_image: scene name = ${scenename} from topic_id ${topic_id}`);
+		
+		const filename = asset.getAttribute('filename');
+
+		// Firstly, put the file into the files area.
+		let file_contents = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
+		//let path = `worlds/${game.world.name}/realmworksimport/${adventurePath}/${targetPath}`
+		let imgpath = `worlds/${game.world.name}/realmworksimport`;
+		this.uploadFile(filename, imgpath, file_contents);
+
+		const imgname = imgpath + '/' + filename;
+		const tex = await loadTexture(imgname);
+		
+		let scenedata = {
+			name   : scenename,
+			img    : imgname,
+			//folder : foldername,
+			//compendium : name,
+			active: false,
+			navigation: false,
+			width: tex.baseTexture.width,
+			height: tex.baseTexture.height,
+			padding: 0,
+		};
+		if (topic_id) scenedata.journal = this.topic_id_to_entity[topic_id];
+		
+		// Delete the old scene by the same name
+		let oldscene = game.scenes.find(p => p.name === scenename);
+		if (oldscene) {
+			this.ui_message.val(`Deleting old scene ${scenename}`);
+			//console.log(`Deleting old scene ${scenename}`);
+			await oldscene.delete();
+		}
+
+		let scene = await Scene.create(scenedata)
+			.catch(e => console.log(`Failed to created scene for ${scenename} due to ${e}`));
+		//if (scene) console.log(`Successfully created scene for ${scenename}`);
+
+		
+		// Add some notes
+		for (const pin of smart_image.getElementsByTagName('map_pin')) {
+			const pinname = pin.getAttribute('pin_name');
+			let desc = pin.getElementsByTagName('description')[0];
+			let notedata = {
+				name: pinname,
+				entryId: this.topic_id_to_entity[pin.getAttribute('topic_id')],		// can't link to COMPENDIUM !!!
+				x: pin.getAttribute('x'),
+				y: pin.getAttribute('y'),
+				icon: "icons/my-journal-icon.svg",
+				iconSize: 32,		// minimum size 32
+				iconTint: "#00FF00",
+				text: (desc.textContent.length > 0 ) ? desc.textContent : pinname,
+				//fontSize: 48,
+				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
+				//textColor: "#00FFFF",
+				scene: scene._id
+			};
+			
+			//let note = await Note.create(notedata)
+			//	.catch(console.log(`Failed to create map pin ${pinname}`));
+			// As per Note.create, but adding it to a different scene, not canvas.scene
+			let newnote = new Note(notedata, scene);
+			const note = await scene.createEmbeddedEntity('Note', newnote.data);
+			
+			//if (note) console.log(`Created map pin ${notedata.name}`);
+		}
+	}
+		
 	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
 	getChild(node,name) {
 		if (!node) return node;
@@ -449,6 +587,7 @@ class RealmWorksImporter extends Application
 						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
 						result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
 					}
+					this.createScene(smart_image);
 				} else if (sntype == "tag_assign") {
 					// Nothing to done for these
 				} else {
@@ -591,8 +730,10 @@ class RealmWorksImporter extends Application
 		}
 		// Format as a data block usable by JournalEntry.create
 		return {
-			name:    topic.getAttribute("public_name"),
-			content: html
+			_id:      this.topic_id_to_entity[this_topic_id],
+			name:     topic.getAttribute("public_name"),
+			topic_id: this_topic_id,
+			content:  html
 		};
 	}
 
@@ -656,10 +797,8 @@ class RealmWorksImporter extends Application
 	// Parse the entire Realm Works file supplied in 'xmlString'
 	// and put each individual topic into the compendium named '<compendiumName>-journal'
 	//
-	async parseXML(xmlString)
+	async parseXML(xmlDoc)
 	{
-		//console.log(`Starting for ${this.journalCompendiumName}`);
-		
 		// Maybe delete the old compendium before creating a new one?
 		// (This has to be done now so that we can get journal_pack.collection name for links)
 		if (this.deleteCompendium) {
@@ -691,31 +830,56 @@ class RealmWorksImporter extends Application
 			actor_pack = await this.getCompendiumWithType(this.actorCompendiumName, "Actor");
 			this.actor_pack_name = actor_pack.collection;	// the full name of the compendium
 		}
-		
-		this.ui_message.val('--- Decording XML ---');
-
-		let parser = new DOMParser();
-		let xmlDoc = parser.parseFromString(xmlString,"text/xml");
-	
+			
 		const topics = xmlDoc.getElementsByTagName('topic');  // all descendents, not just direct children
-
+		
 		// Create a mapping from topic_id to public_name for all topic elements, required for creating "@Compendium[<packname>."mapping[linkage:target_id]"]{"linkage:target_name"}" entries.
 		// Also collect aliases for each topic:
 		// <alias alias_id="Alias_1" name="Barracks Emperors" />
+		//let indices = await journal_pack.getIndex();
 		this.topic_names = new Map();
+		//this.topic_entities = new Map();
 		for (const child of topics) {
-			//console.log(`Found topic '${child.getAttribute("topic_id")}' with name '${child.getAttribute("public_name")}'`);
+			const topic_name = child.getAttribute("public_name");
+			//console.log(`Found topic '${child.getAttribute("topic_id")}' with name '${topic_name}'`);
 			let names = new Array();
-			names.push(child.getAttribute("public_name"));
+			names.push(topic_name);
 			
 			for (const alias of child.childNodes) {
 				if (alias.nodeName == "alias") {
 					names.push(alias.getAttribute('name'));
 				}
 			};
-			this.topic_names.set(child.getAttribute("topic_id"), names);
+			const topic_id = child.getAttribute("topic_id");
+			this.topic_names.set(topic_id, names);
 		};
 
+		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
+		this.ui_message.val('Deleting old entries');	
+		console.log('Deleting old entries');
+		let indices = await journal_pack.getIndex();
+		for (const topic of topics) {
+			const topic_name = topic.getAttribute("public_name");
+			let entity = indices.find(e => e.name === topic_name);
+			if (entity) {
+				console.log(`Deleting old ${topic_name}`);
+				await journal_pack.deleteEntity(entity._id);
+				// Regenerate the index
+				indices = await journal_pack.getIndex();
+			}
+		}
+
+		// Create empty topics in the compendium
+		this.topic_id_to_entity = new Map();
+		for (const topic of topics) {
+			const topic_name = topic.getAttribute("public_name");
+			let je = await JournalEntry.create({ name : topic_name}, { displaySheet: false, temporary: true });
+			let item = je ? await journal_pack.importEntity(je) : undefined;
+			//console.log(`Item ${topic_name} has _id = ${item.data._id}`);
+			this.topic_id_to_entity[topic.getAttribute("topic_id")] = item.data._id;
+		}
+		//console.log(this.topic_id_to_entity);
+		
 		// Asynchronously generate the HTML for all the topics
 		this.ui_message.val(`Generating journal contents`);		
 		let journals = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic) ));
@@ -735,20 +899,6 @@ class RealmWorksImporter extends Application
 		// Now we can get the data into Foundry
 		//
 
-		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
-		this.ui_message.val('Deleting old entries');	
-		console.log('Deleting old entries');
-		let indices = await journal_pack.getIndex();
-		for (const item of journals) {
-			let entity = indices.find(e => e.name === item.name);
-			if (entity) {
-				console.log(`Deleting old ${item.name}`);
-				await journal_pack.deleteEntity(entity._id);
-				// Regenerate the index
-				indices = await journal_pack.getIndex();
-			}
-		}
-
 		if (actors && actor_pack) {
 			let indices = await actor_pack.getIndex();
 			for (const item of actors) {
@@ -766,23 +916,34 @@ class RealmWorksImporter extends Application
 		this.ui_message.val(`Creating ${journals.length} journal entries`);
 		console.log(`Creating ${journals.length} journal entries`);
 		let create_results = await Promise.allSettled(Array.from(journals).map(
-			async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
+			async (item) => {
+				let temp = item;
+				item._id = this.topic_id_to_entity[item.topic_id];
+				await journal_pack.updateEntity(temp).catch(p => console.log(`Update JE failed for '${item.name}' because ${p}`));
+			}));
+			//async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
 		// A single call to create from an array - but there is a size limit!
 		//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
-
+/*
 		// Add all the journal entries to the compendium pack
 		this.ui_message.val(`Adding ${create_results.length} to JE compendium pack`);
 		console.log(`Adding ${create_results.length} to JE compendium pack`);
 		await Promise.allSettled(Array.from(create_results).map(
-			async (result) => { if (result.status == 'fulfilled') await journal_pack.importEntity(journal.value)} ));
-
+			async (result) => { 
+				if (result.status == 'fulfilled') {
+					let item = await journal_pack.importEntity(result.value);
+					console.log(`Item id = _id = ${item.data._id} for topic_id ${item.data.topic_id}`);
+				} else
+					console.log(`Creation failed`)
+				} ));
+*/
 		if (actors && actor_pack) {
 			this.ui_message.val(`Creating ${actors.length} actors`);
 			console.log(`Creating ${actors.length} actors`);
 			create_results = await Promise.allSettled(Array.from(actors).map(
 				async (item) => await Actor.create(item, { displaySheet: false, temporary: true }) ));
 			// A single call to create from an array - but there is a size limit!
-			//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
+			//let entries = await JournalEntry.create(actors, { displaySheet: false, temporary: true });	
 
 			// Add all the journal entries to the compendium pack
 			this.ui_message.val(`Adding ${create_results.length} to Actors compendium pack`);
@@ -790,24 +951,7 @@ class RealmWorksImporter extends Application
 			await Promise.allSettled(Array.from(create_results).map(
 				async (result) => { if (result.status == 'fulfilled') await actor_pack.importEntity(result.value)} ));
 		}
-
-		// Synchronously create a JournalEntry for each topic.
-//		for (const item of journals) {
-//			this.ui_message.val(item.name);
-//			// Now create the correct journal entry:
-//			//    name = prefix + public_name + suffix
-//			// Create a journal entry, and add it to the compendium pack
-//			let t0 = performance.now();
-//			let journal = await JournalEntry.create(item, { displaySheet: false, temporary: true });
-//			let t1 = performance.now();
-//			await journal_pack.importEntity(journal);
-//			let t2 = performance.now();
-//			if (t2 - t1 > t1 - t0)
-//				console.log(`importEntity slower ${t2 - t1}`);
-//			else
-//				console.log(`JournalEntry.create slower ${t1 - t0}`);
-//		}
-		
+	
 		console.log('Finished');
 		this.ui_message.val('--- Finished ---');
 	}
