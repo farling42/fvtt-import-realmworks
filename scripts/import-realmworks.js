@@ -41,6 +41,8 @@ Hooks.on("renderSidebarTab", async (app, html) => {
 
 class RealmWorksImporter extends Application
 {
+	// entity_for_topic is a map: key = topic_id, value = JournalEntry
+	
 	// Foundry VTT default options for the dialogue window,
 	// note that we supply the HTML file that will show the window.
 	static get defaultOptions()
@@ -67,6 +69,7 @@ class RealmWorksImporter extends Application
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
+			this.storeInCompendium = true;
 			// Try to load the file
 			let fileinput = html.find('[name=rwoutputFile]')?.[0];
 			if (!fileinput?.files || fileinput.files.length == 0)
@@ -93,7 +96,7 @@ class RealmWorksImporter extends Application
 			let parser = new DOMParser();
 			let xmlDoc = parser.parseFromString(inputRW,"text/xml");
 			// Do the actual work!
-			this.parseXML(xmlDoc);
+			await this.parseXML(xmlDoc);
 /*
 			//
 			// Try to get XMLHttpRequest to read the file and create a DOM nicely
@@ -142,11 +145,20 @@ class RealmWorksImporter extends Application
 	}
 
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
-	static formatLink(pack_name, remote_link, link_name) {
-		if (remote_link && remote_link != link_name)
-			return `@Compendium[${pack_name}.${remote_link}]{${link_name}}`;
-		else
-			return `@Compendium[${pack_name}.${link_name}]`;
+	formatLink(topic_id, link_name) {
+		const id = this.entity_for_topic[topic_id]?.data._id;
+		if (this.storeInCompendium) {
+			// pack_name included when referencing an item in a compendium
+			if (id)
+				return `@Compendium[${this.journal_pack_name}.${id}]{${link_name}}`;
+			else
+				return `@Compendium[${this.journal_pack_name}.${link_name}]`;
+		} else {
+			if (id)
+				return `@JournalEntry[${id}]{${link_name}}`;
+			else
+				return `@JournalEntry[${link_name}]`;
+		}
 	}
 	
 	//
@@ -156,17 +168,21 @@ class RealmWorksImporter extends Application
 	replaceLinks(original, linkage_names) {
 		// Replace '<scan>something</scan>' with '@Compendium[world.packname.<topic-for-something>]{something}'
 		// @Compendium is case sensitive when using names!
-		const pack_name = this.journal_pack_name;
+		
+		// We can't access "this" inside the replace function
+		let formatLink = this.formatLink;
+		let functhis = this;
+		
 		return original.replace(/<span>([^<]+)<\/span>/g, 
 			function(match,p1,offset,string) {
-				for (const [key, labels] of linkage_names) {
+				for (const [topic_id, labels] of linkage_names) {
 					// case insensitive search across all entries in the Array() stored in the map.
 					if (labels.some(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) == 0) )) {
-						return RealmWorksImporter.formatLink(pack_name, labels[0], p1);
+						return formatLink.call(functhis, topic_id, p1);
 					}
 				};
 				// Not found in map, so just create a broken link.
-				return RealmWorksImporter.formatLink(pack_name, undefined, p1);
+				return formatLink.call(functhis, undefined, p1);
 			});
 	}
 
@@ -237,7 +253,7 @@ class RealmWorksImporter extends Application
 		let options = new FormData();
 		
 		const request = await FilePicker.upload(source, destination, file, options)
-			.then(console.log(`Found file ${filename}`))
+			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
 		//if (request.status === 413) {
 		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorTooLarge"));
@@ -259,6 +275,7 @@ class RealmWorksImporter extends Application
 		//const scenename = smart_image.parentElement?.getAttribute('facet_name');
 		const asset = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 		const contents = this.getChild(asset, 'contents'); // <contents>
+		//console.log(`createScene: asset = ${asset}, contents = ${contents}`);
 		if (!asset || !contents) return;
 		
 		// Name comes from topic name + facet_name
@@ -297,7 +314,7 @@ class RealmWorksImporter extends Application
 			height: tex.baseTexture.height,
 			padding: 0,
 		};
-		if (topic_id) scenedata.journal = this.topic_id_to_entity[topic_id];
+		if (topic_id) scenedata.journal = this.entity_for_topic[topic_id].data._id;
 		
 		// Delete the old scene by the same name
 		let oldscene = game.scenes.find(p => p.name === scenename);
@@ -318,13 +335,13 @@ class RealmWorksImporter extends Application
 			let desc = pin.getElementsByTagName('description')[0];
 			let notedata = {
 				name: pinname,
-				entryId: this.topic_id_to_entity[pin.getAttribute('topic_id')],		// can't link to COMPENDIUM !!!
+				entryId: this.entity_for_topic[pin.getAttribute('topic_id')]?.data._id,		// can't link to COMPENDIUM !!!
 				x: pin.getAttribute('x'),
 				y: pin.getAttribute('y'),
-				icon: "icons/my-journal-icon.svg",
+				icon: "icons/svg/up.svg",		// Where do we get a good icon?
 				iconSize: 32,		// minimum size 32
 				iconTint: "#00FF00",
-				text: (desc.textContent.length > 0 ) ? desc.textContent : pinname,
+				text: (desc.textContent.length > 0 ) ? desc.textContent.replace('&#xd;\n','\n') : pinname,
 				//fontSize: 48,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
@@ -339,6 +356,8 @@ class RealmWorksImporter extends Application
 			
 			//if (note) console.log(`Created map pin ${notedata.name}`);
 		}
+		this.ui_message.val(`Created scene ${scenename}`);
+		//console.log(`Created scene ${scenename}`);
 	}
 		
 	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
@@ -451,7 +470,7 @@ class RealmWorksImporter extends Application
 							result += this.replaceLinks(snip.textContent, linkage_names);
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
-							result += '<b>GMDIR: </b>' + stripPara(snip.textContent);
+							result += '<b>GMDIR: </b>' + this.stripPara(snip.textContent);
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
 						} else if (!snip.nodeName.startsWith("#text")) {
@@ -587,7 +606,6 @@ class RealmWorksImporter extends Application
 						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
 						result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
 					}
-					this.createScene(smart_image);
 				} else if (sntype == "tag_assign") {
 					// Nothing to done for these
 				} else {
@@ -604,12 +622,6 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	// At the topic (not section) level, create a link to another topic
-	writeTopicLink(topic_id, topic_name) {
-		let topic_list = this.topic_names.get(topic_id);
-		return RealmWorksImporter.formatLink(this.journal_pack_name, topic_list ? topic_list[0] : undefined, topic_name);
-	}
-	
 	// Examine each topic within topics to see if it should be converted into an actor:
 	// i.e. it contains a Portfolio or Statblock snippet type directly, not in a child topic.
 	getActorSnippet(node) {
@@ -637,12 +649,26 @@ class RealmWorksImporter extends Application
 		}
 		return result;
 	}
+
+	getScenes(topic) {
+		let result = [];
+		function checkSnippets(node) {
+			for (const child of node.childNodes) {
+				if (child.nodeName == 'smart_image')
+					result.push(child);
+				else if (child.nodeName != 'topic' && child.childNodes.length > 0)
+					checkSnippets(child);
+			}
+		}
+		checkSnippets(topic);
+		return result;
+	}
 	
 	//
 	// Write one RW topic
 	//
 	async formatOneTopic(topic) {
-		//console.log(`Importing '${topic.getAttribute("public_name")}'`);
+		//console.log(`Formatting topic '${topic.getAttribute("public_name")}'`);
 
 		// Extract only the links that we know are in this topic (if any).
 		// Collect linkage children and create an alias/title-to-topic map:
@@ -682,7 +708,7 @@ class RealmWorksImporter extends Application
 					html += '<h1>Child Topics</h1><ul>';
 					has_child_topics = true;
 				}
-				html += `<li>${this.writeTopicLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
+				html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
 			} else if (node.nodeName == "linkage") {
 				var dir = node.getAttribute('direction');
 				if (dir == 'Outbound') outbound.push(node);
@@ -695,7 +721,7 @@ class RealmWorksImporter extends Application
 					has_connections = true;
 					html += '<h1>Connections</h1>';
 				}
-				html += `<p>${this.writeTopicLink(node.getAttribute('target_id'), node.getAttribute('target_name'))} = ${node.getAttribute('nature')}`;
+				html += `<p>${this.formatLink(node.getAttribute('target_id'), node.getAttribute('target_name'))} = ${node.getAttribute('nature')}`;
 				if (node.hasAttribute('qualifier')) html += `:${node.getAttribute('qualifier')}`;
 				if (node.hasAttribute('rating'))    html += `, ${node.getAttribute('rating')} rating`;
 				if (node.hasAttribute('attitude'))  html += `, ${node.getAttribute('attitude')} attitude`;
@@ -710,27 +736,35 @@ class RealmWorksImporter extends Application
 			if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
 				html += '<h1>Links From Other Topics</h1><p>';
 				for (const node of inbound) {
-					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				for (const node of both) {
-					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				html += '<\p>';
 			}
 			if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
 				html += '<h1>Links To Other Topics</h1><p>';
 				for (const node of outbound) {
-					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				for (const node of both) {
-					html += this.writeTopicLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
+					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
 				html += '<\p>';
 			}
 		}
+
+		// Create all the scenes now
+		await Promise.allSettled(Array.from(this.getScenes(topic)).map( async(smart_image) => {
+			await this.createScene(smart_image);
+		}));
+		
+		//console.log(`Finished topic '${topic.getAttribute("public_name")}'`);
+
 		// Format as a data block usable by JournalEntry.create
 		return {
-			_id:      this.topic_id_to_entity[this_topic_id],
+			_id:      this.entity_for_topic[this_topic_id].data._id,
 			name:     topic.getAttribute("public_name"),
 			topic_id: this_topic_id,
 			content:  html
@@ -870,19 +904,22 @@ class RealmWorksImporter extends Application
 		}
 
 		// Create empty topics in the compendium
-		this.topic_id_to_entity = new Map();
+		this.entity_for_topic = new Map();
 		for (const topic of topics) {
 			const topic_name = topic.getAttribute("public_name");
-			let je = await JournalEntry.create({ name : topic_name}, { displaySheet: false, temporary: true });
-			let item = je ? await journal_pack.importEntity(je) : undefined;
+			let item = await JournalEntry.create({ name : topic_name}, { displaySheet: false, temporary: this.storeInCompendium });
+			if (this.storeInCompendium && item) item = await journal_pack.importEntity(item);
 			//console.log(`Item ${topic_name} has _id = ${item.data._id}`);
-			this.topic_id_to_entity[topic.getAttribute("topic_id")] = item.data._id;
+			this.entity_for_topic[topic.getAttribute("topic_id")] = item;
 		}
-		//console.log(this.topic_id_to_entity);
+		//console.log(this.entity_for_topic);
 		
 		// Asynchronously generate the HTML for all the topics
 		this.ui_message.val(`Generating journal contents`);		
-		let journals = await Promise.all(Array.from(topics).map(async (topic) => await this.formatOneTopic(topic) ));
+		let journals = await Promise.allSettled(Array.from(topics).map(async (topic) =>
+			await this.formatOneTopic(topic)
+				.catch(e => console.log(`Failed to create topic ${topic.getAttribute("public_name")} due to ${e}`))
+			));
 		console.log(`Found ${journals.length} topics`);
 
 		// PARTIAL IMPLEMENTATION OF ACTOR GENERATION ONLY FOR PF1
@@ -891,7 +928,7 @@ class RealmWorksImporter extends Application
 			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
 			if (actor_pack) {
 				this.ui_message.val(`Generating content for Actors`);
-				actors = await Promise.all(Array.from(this.getActorTopics(topics)).map(async(actor_topic) => await this.formatOneActor(actor_topic)));
+				actors = await Promise.allSettled(Array.from(this.getActorTopics(topics)).map(async(actor_topic) => await this.formatOneActor(actor_topic)));
 				console.log(`Found ${actors.length} actors`);
 			}
 		}
@@ -901,8 +938,8 @@ class RealmWorksImporter extends Application
 
 		if (actors && actor_pack) {
 			let indices = await actor_pack.getIndex();
-			for (const item of actors) {
-				let entity = indices.find(e => e.name === item.name);
+			for (const prom of actors) {
+				let entity = indices.find(e => e.name === prom.value.name);
 				if (entity) {
 					console.log(`Deleting old ${item.name}`);
 					await actor_pack.deleteEntity(entity._id);
@@ -915,44 +952,44 @@ class RealmWorksImporter extends Application
 		// Create all the journal entries
 		this.ui_message.val(`Creating ${journals.length} journal entries`);
 		console.log(`Creating ${journals.length} journal entries`);
-		let create_results = await Promise.allSettled(Array.from(journals).map(
-			async (item) => {
-				let temp = item;
-				item._id = this.topic_id_to_entity[item.topic_id];
-				await journal_pack.updateEntity(temp).catch(p => console.log(`Update JE failed for '${item.name}' because ${p}`));
-			}));
-			//async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
-		// A single call to create from an array - but there is a size limit!
-		//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
-/*
-		// Add all the journal entries to the compendium pack
-		this.ui_message.val(`Adding ${create_results.length} to JE compendium pack`);
-		console.log(`Adding ${create_results.length} to JE compendium pack`);
-		await Promise.allSettled(Array.from(create_results).map(
-			async (result) => { 
-				if (result.status == 'fulfilled') {
-					let item = await journal_pack.importEntity(result.value);
-					console.log(`Item id = _id = ${item.data._id} for topic_id ${item.data.topic_id}`);
-				} else
-					console.log(`Creation failed`)
-				} ));
-*/
+		if (this.storeInCompendium) {
+			await Promise.allSettled(Array.from(journals).map(
+				async (prom) => {
+					if (prom.status == 'fulfilled')
+						await journal_pack.updateEntity(prom.value).catch(p => console.log(`Update JE failed for '${prom.value.name}' because ${p}`));
+				}));
+				//async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
+			// A single call to create from an array - but there is a size limit!
+			//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
+		} else {
+			await Promise.allSettled(Array.from(journals).map(
+				async (prom) => {
+					if (prom.status == 'fulfilled')
+						await this.entity_for_topic[item.topic_id].update(prom.value).catch(p => console.log(`Update JE failed for '${prom.value.name}' because ${p}`))
+				}));
+		}
+		
 		if (actors && actor_pack) {
 			this.ui_message.val(`Creating ${actors.length} actors`);
 			console.log(`Creating ${actors.length} actors`);
-			create_results = await Promise.allSettled(Array.from(actors).map(
-				async (item) => await Actor.create(item, { displaySheet: false, temporary: true }) ));
+			let create_results = await Promise.allSettled(Array.from(actors).map(
+				async (prom) => {
+					if (prom.status == 'fulfilled')
+						await Actor.create(prom.value, { displaySheet: false, temporary: this.storeInCompendium })}
+				));
 			// A single call to create from an array - but there is a size limit!
 			//let entries = await JournalEntry.create(actors, { displaySheet: false, temporary: true });	
 
 			// Add all the journal entries to the compendium pack
-			this.ui_message.val(`Adding ${create_results.length} to Actors compendium pack`);
-			console.log(`Adding ${create_results.length} to Actors compendium pack`);
-			await Promise.allSettled(Array.from(create_results).map(
-				async (result) => { if (result.status == 'fulfilled') await actor_pack.importEntity(result.value)} ));
+			if (this.storeInCompendium) {
+				this.ui_message.val(`Adding ${create_results.length} to Actors compendium pack`);
+				console.log(`Adding ${create_results.length} to Actors compendium pack`);
+				await Promise.allSettled(Array.from(create_results).map(
+					async (prom) => { if (prom.status == 'fulfilled') await actor_pack.importEntity(prom.value)} ));
+			}
 		}
 	
-		console.log('Finished');
+		console.log('******  Finished  ******');
 		this.ui_message.val('--- Finished ---');
 	}
 } // class
