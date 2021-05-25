@@ -65,11 +65,12 @@ class RealmWorksImporter extends Application
 		html.find(".import-rwoutput").click(async ev => {
 			this.journalCompendiumName = html.find('[name=journal-compendium]').val();
 			this.actorCompendiumName = html.find('[name=actor-compendium]').val();
+			this.folderName = html.find('[name=folder-name]').val();
 			this.ui_message = html.find('[name=message-area]');
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
-			this.storeInCompendium = true;
+			this.storeInCompendium = (this.folderName == 0);
 			// Try to load the file
 			let fileinput = html.find('[name=rwoutputFile]')?.[0];
 			if (!fileinput?.files || fileinput.files.length == 0)
@@ -275,7 +276,6 @@ class RealmWorksImporter extends Application
 		//const scenename = smart_image.parentElement?.getAttribute('facet_name');
 		const asset = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 		const contents = this.getChild(asset, 'contents'); // <contents>
-		//console.log(`createScene: asset = ${asset}, contents = ${contents}`);
 		if (!asset || !contents) return;
 		
 		// Name comes from topic name + facet_name
@@ -306,7 +306,7 @@ class RealmWorksImporter extends Application
 		let scenedata = {
 			name   : scenename,
 			img    : imgname,
-			//folder : foldername,
+			//folder : this.scene_folder.id,
 			//compendium : name,
 			active: false,
 			navigation: false,
@@ -314,21 +314,22 @@ class RealmWorksImporter extends Application
 			height: tex.baseTexture.height,
 			padding: 0,
 		};
-		if (topic_id) scenedata.journal = this.entity_for_topic[topic_id].data._id;
+		if (this.scene_folder) scenedata.folder = this.scene_folder.id;
+		if (topic_id) scenedata.journal = this.entity_for_topic[topic_id]?.data._id;
 		
 		// Delete the old scene by the same name
 		let oldscene = game.scenes.find(p => p.name === scenename);
 		if (oldscene) {
 			this.ui_message.val(`Deleting old scene ${scenename}`);
-			//console.log(`Deleting old scene ${scenename}`);
+			console.log(`Deleting old scene ${scenename}`);
 			await oldscene.delete();
 		}
 
+		console.log(`Creating scene in folder ${scenedata.folder}`);
 		let scene = await Scene.create(scenedata)
 			.catch(e => console.log(`Failed to created scene for ${scenename} due to ${e}`));
-		//if (scene) console.log(`Successfully created scene for ${scenename}`);
+		if (scene) console.log(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
 
-		
 		// Add some notes
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
 			const pinname = pin.getAttribute('pin_name');
@@ -759,16 +760,20 @@ class RealmWorksImporter extends Application
 		await Promise.allSettled(Array.from(this.getScenes(topic)).map( async(smart_image) => {
 			await this.createScene(smart_image);
 		}));
-		
-		//console.log(`Finished topic '${topic.getAttribute("public_name")}'`);
 
 		// Format as a data block usable by JournalEntry.create
-		return {
+		let result = {
 			_id:      this.entity_for_topic[this_topic_id].data._id,
 			name:     topic.getAttribute("public_name"),
 			topic_id: this_topic_id,
+			//folder: this.journal_folder.id,
 			content:  html
 		};
+		if (this.journal_folder) result.folder = this.journal_folder.id;
+
+		//console.log(`Finished topic '${topic.getAttribute("public_name")}' in folder ${result.folder}`);
+		
+		return result;
 	}
 
 	//
@@ -808,6 +813,7 @@ class RealmWorksImporter extends Application
 		let actor = { 
 			name: topic.getAttribute("public_name"),
 			type: 'npc',
+			//folder: this.actor_folder.id
 		};
 		
 		if (game.system.id == 'pf1') {
@@ -823,6 +829,8 @@ class RealmWorksImporter extends Application
 			//if (xml) actor.data = await RWDND5EActor.createActorData(xml);
 			actor.data = { details : { biography : { value : html }}};
 		}
+		
+		if (this.actor_folder) actor.folder = this.actor_folder.id;
 		
 		return actor;
 	}
@@ -852,6 +860,19 @@ class RealmWorksImporter extends Application
 					await pack.delete();
 				}
 			}
+			if (this.folderName) {
+				for (let folder of game.folders.filter(e => e.name == this.folderName)) {
+					console.log(`Deleting a folder`);
+					folder.delete();
+				}
+			}
+		}
+		
+		if (this.folderName) {
+			this.actor_folder = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
+			this.journal_folder = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
+			this.scene_folder = await Folder.create({name: this.folderName, type: 'Scene', parent: null})
+			console.log(`folder-ids: actor ${this.actor_folder.id}, journal ${this.journal_folder.id}, scene ${this.scene_folder.id}`);
 		}
 
 		// Get/Create the compendium pack into which we are adding journal entries
@@ -941,7 +962,7 @@ class RealmWorksImporter extends Application
 			for (const prom of actors) {
 				let entity = indices.find(e => e.name === prom.value.name);
 				if (entity) {
-					console.log(`Deleting old ${item.name}`);
+					console.log(`Deleting old ${prom.value.name}`);
 					await actor_pack.deleteEntity(entity._id);
 					// Regenerate the index
 					indices = await actor_pack.getIndex();
@@ -964,18 +985,25 @@ class RealmWorksImporter extends Application
 		} else {
 			await Promise.allSettled(Array.from(journals).map(
 				async (prom) => {
-					if (prom.status == 'fulfilled')
-						await this.entity_for_topic[item.topic_id].update(prom.value).catch(p => console.log(`Update JE failed for '${prom.value.name}' because ${p}`))
+					if (prom.status == 'fulfilled') {
+						return await JournalEntry.update(prom.value)
+							.catch(p => console.log(`Update JE failed for '${prom.value.name}' because ${p}`))
+					}
 				}));
 		}
 		
-		if (actors && actor_pack) {
+		if (actors) {
 			this.ui_message.val(`Creating ${actors.length} actors`);
 			console.log(`Creating ${actors.length} actors`);
 			let create_results = await Promise.allSettled(Array.from(actors).map(
 				async (prom) => {
-					if (prom.status == 'fulfilled')
-						await Actor.create(prom.value, { displaySheet: false, temporary: this.storeInCompendium })}
+					if (prom.status == 'fulfilled') {
+						console.log(`Creating Actor in folder ${prom.value.folder}`);
+						let result = await Actor.create(prom.value, { displaySheet: false, temporary: this.storeInCompendium });
+						console.log(`Created Actor in folder ${prom.value.folder}`);
+						return result;
+					}
+				}
 				));
 			// A single call to create from an array - but there is a size limit!
 			//let entries = await JournalEntry.create(actors, { displaySheet: false, temporary: true });	
@@ -988,7 +1016,7 @@ class RealmWorksImporter extends Application
 					async (prom) => { if (prom.status == 'fulfilled') await actor_pack.importEntity(prom.value)} ));
 			}
 		}
-	
+		
 		console.log('******  Finished  ******');
 		this.ui_message.val('--- Finished ---');
 	}
