@@ -391,15 +391,16 @@ export class RWPF1Actor {
 		// data.token (leave empty)
 		
 		// data.items (includes feats)
-		let pack = await game.packs.find(p => p.metadata.name === 'feats');
-		const index = await pack.getIndex();
+		const pack = await game.packs.find(p => p.metadata.name === 'feats');
+		//const index = await pack.getIndex();
+		const index = pack.index;		// We are never modifying this pack, so it should remain current.
 		for (const feat of character.feats.feat) {
-			let entry = index.find(e => e.name === feat.name);
+			const entry = index.find(e => e.name === feat.name);
 			if (entry) {
 				actor.items.push(await pack.getEntry(entry._id));
 			} else {
 				// Create our own placemarker feat.
-				let item = {
+				const item = {
 						name: feat.name,
 						type: 'feat',
 						data: { description : { value : addParas(feat.description['#text']) }}

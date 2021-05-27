@@ -71,7 +71,9 @@ class RealmWorksImporter extends Application
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
 			this.storeInCompendium = (this.folderName == 0);
+			// Where image files should be stored...
 			this.filedirectory = 'worlds/' + game.world.name + '/realmworksimport';		// no trailing "/"
+			this.filesource = 'data';	// or 'core' or 's3'
 			
 			// Try to load the file
 			let fileinput = html.find('[name=rwoutputFile]')?.[0];
@@ -249,17 +251,21 @@ class RealmWorksImporter extends Application
 		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
 	}
 
+	imageFilename(filename) {
+		return this.filedirectory + '/' + filename;
+	}
+	
 	// Convert a string in base64 format into binary and upload to this.filedirectory,
 	// @return The full path and filename of the created file.
-	uploadFile(filename, base64) {
+	async uploadFile(filename, base64) {
 		// data = base64 string
 		const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 		const file = new File([data], filename);
-		let source = 'data';		// or 'core' or 's3'
 		let options = new FormData();
 		
 		//const request = await FilePicker.upload(source, this.filedirectory, file, options)
-		FilePicker.upload(source, this.filedirectory, file, options)
+		//console.log(`Uploading ${filename} to ${this.filedirectory}`);
+		await FilePicker.upload(this.filesource, this.filedirectory, file, options)
 			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
 		//if (request.status === 413) {
@@ -267,7 +273,6 @@ class RealmWorksImporter extends Application
 		//} else if (request.status !== 200) {
 		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorSomethingWrong"));
 		//}
-		return this.filedirectory + '/' + filename;
 	}
 
 	// Convert a Smart_Image into a scene
@@ -281,9 +286,12 @@ class RealmWorksImporter extends Application
 
 		// These need to be created as Scenes (and linked from the original topic?)
 		//const scenename = smart_image.parentElement?.getAttribute('facet_name');
-		const asset = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+		const asset    = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 		const contents = this.getChild(asset, 'contents'); // <contents>
-		if (!asset || !contents) return;
+		const filename = asset?.getAttribute('filename');
+		if (!asset)	throw('<smart_image> is missing <asset>');
+		if (!contents) throw('<smart_image> is missing <contents>');
+		if (!filename) throw('<smart_image><asset> is missing filename attribute');
 		
 		// Name comes from topic name + facet_name
 		let node = smart_image;
@@ -291,8 +299,8 @@ class RealmWorksImporter extends Application
 		let topic_id;
 		while (!scenename && node) {
 			if (node.nodeName == 'topic') {
-				scenename = node.getAttribute('public_name') + ':' + smart_image.parentElement.getAttribute('facet_name');
-				topic_id = node.getAttribute('topic_id');
+				scenename = node.getAttribute('public_name') + ':' + smart_image.getAttribute('name');
+				topic_id  = node.getAttribute('topic_id');
 			} else {
 				node = node.parentElement;
 			}
@@ -300,11 +308,14 @@ class RealmWorksImporter extends Application
 		//console.log(`smart_image: scene name = ${scenename} from topic_id ${topic_id}`);
 	
 		// Firstly, put the file into the files area.
-		const imgname = await this.uploadFile(asset.getAttribute('filename'), contents.textContent);
-		const tex = await loadTexture(imgname);
+		//const imgname = await this.uploadFile(asset.getAttribute('filename'), contents.textContent);
+		
+		// The file was uploaded when the TOPIC was processed, so can simply read it here.
+		const imagename = this.imageFilename(filename);
+		const tex = await loadTexture(imagename);
 		let scenedata = {
 			name   : scenename,
-			img    : imgname,
+			img    : imagename,
 			//folder : this.scene_folder.id,
 			//compendium : name,
 			active: false,
@@ -324,10 +335,10 @@ class RealmWorksImporter extends Application
 			await oldscene.delete();
 		}
 
-		console.log(`Creating scene in folder ${scenedata.folder}`);
+		//console.log(`Creating scene in folder ${scenedata.folder}`);
 		let scene = await Scene.create(scenedata)
 			.catch(e => console.log(`Failed to created scene for ${scenename} due to ${e}`));
-		if (scene) console.log(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
+		//if (scene) console.log(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
 
 		// Add some notes
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
@@ -407,7 +418,7 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW section
 	//
-	writeSection(section, level, linkage_names) {
+	async writeSection(section, level, linkage_names) {
 		// Process all the snippets and sections in order
 		const name = section.getAttribute("name");
 		//console.log(`writeSection(${level}, '${name}'})`);
@@ -417,7 +428,7 @@ class RealmWorksImporter extends Application
 		for (const child of section.childNodes) {
 			if (child.nodeName == "section") {
 				// Subsections increase the HEADING number
-				result += this.writeSection(child, level+1, linkage_names);
+				result += await this.writeSection(child, level+1, linkage_names);
 			} else if (child.nodeName == "snippet") {
 				// Snippets contain the real information!
 				let annotation;
@@ -574,24 +585,24 @@ class RealmWorksImporter extends Application
 					const ext_object = this.getChild(child,      'ext_object');  // <ext_object name="Portrait" type="Picture">
 					const asset      = this.getChild(ext_object, 'asset');       // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents   = this.getChild(asset,      'contents');    // <contents>
+					const filename   = asset.getAttribute('filename');
 					if (contents) {
 						result += `<h${level+1}>${ext_object.getAttribute('name')}</h${level+1}>`;
-						const filename = asset.getAttribute('filename');
 						const fileext  = filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
 							result += `${atob(contents.textContent)}`;
 						else if (sntype == "Picture") {
 							//result += `<p><img src="data:image/${fileext};base64,${contents.textContent}"></img></p>`;
-							let imgpath = this.uploadFile(filename, contents.textContent);
-							result += `<p><img src='${imgpath}'></img></p>`;
+							await this.uploadFile(filename, contents.textContent);
+							result += `<p><img src='${this.imageFilename(filename)}'></img></p>`;
 						} else {
 							let format = 'binary/octet-stream';
 							if (fileext == 'pdf') {
 								format = 'application/pdf';
 							}
 							//result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
-							let imgpath = this.uploadFile(filename, contents.textContent);
-							result += `<p><a href='${imgpath}'></a></p>`;
+							await this.uploadFile(filename, contents.textContent);
+							result += `<p><a href='${this.imageFilename(filename)}'></a></p>`;
 						}
 					}
 				} else if (sntype == "Smart_Image") {
@@ -606,12 +617,13 @@ class RealmWorksImporter extends Application
 					const smart_image = this.getChild(child,       'smart_image');
 					const asset       = this.getChild(smart_image, 'asset'); 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents    = this.getChild(asset,       'contents');  	// <contents>
-					const format      = asset?.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
+					const filename    = asset?.getAttribute('filename');
+					const format      = filename?.split('.').pop();	// extra suffix from asset filename
 					if (format && contents) {
 						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
 						//result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
-						let imgpath = this.uploadFile(filename, contents.textContent);
-						result += `<p><img src='${imgpath}'></img></p>`;
+						await this.uploadFile(filename, contents.textContent);
+						result += `<p><img src='${this.imageFilename(filename)}'></img></p>`;
 					}
 				} else if (sntype == "tag_assign") {
 					// Nothing to done for these
@@ -626,34 +638,6 @@ class RealmWorksImporter extends Application
 		}
 		
 		//console.log(`writeSection(${name}) returning ${result}`);
-		return result;
-	}
-
-	// Examine each topic within topics to see if it should be converted into an actor:
-	// i.e. it contains a Portfolio or Statblock snippet type directly, not in a child topic.
-	getActorSnippet(node) {
-		for (const child of node.childNodes) {
-			if (child.nodeName == 'snippet' && 
-				(child.getAttribute('type') == 'Portfolio' || 
-				 child.getAttribute('type') == 'Statblock')) {
-				return child;
-			} else if (child.nodeName != 'topic' && child.childNodes.length > 0) {
-				// Don't check nested topics
-				let result = this.getActorSnippet(child);
-				if (result) return result;
-			}
-		}
-		return undefined;
-	}
-	
-	getActorTopics(topics) {
-		// This should return an HTMLCollection
-		let result = [];
-		for (const topic of topics) {
-			if (this.getActorSnippet(topic)) {
-				result.push(topic);
-			}
-		}
 		return result;
 	}
 
@@ -707,7 +691,7 @@ class RealmWorksImporter extends Application
 				// These come first
 				html += `<p><b>Aliases: </b><i>${node.getAttribute('name')}</i></p>`;
 			} else if (node.nodeName == "section") {
-				html += this.writeSection(node, 1, linkage_names);		// Start with H1
+				html += await this.writeSection(node, 1, linkage_names);		// Start with H1
 			} else if (node.nodeName == "topic") {
 				// No need to handle nested topics, since we found all of them at the start.
 				// Put link to child topic in original topic
@@ -764,7 +748,7 @@ class RealmWorksImporter extends Application
 
 		// Create all the scenes now
 		await Promise.allSettled(Array.from(this.getScenes(topic)).map( async(smart_image) => {
-			await this.createScene(smart_image);
+			await this.createScene(smart_image).catch(e => console.log(`Failed to create scene due to ${e}`));
 		}));
 
 		// Format as a data block usable by JournalEntry.create
@@ -775,10 +759,39 @@ class RealmWorksImporter extends Application
 			//folder: this.journal_folder.id,
 			content:  html
 		};
-		if (this.journal_folder) result.folder = this.journal_folder.id;
-
+		// Create each category folder as required
+		// (the folders were created when we created blank journal entries.
+		if (this.journal_folders) result.folder = this.journal_folders.get(topic.getAttribute('category_name')).id;
 		//console.log(`Finished topic '${topic.getAttribute("public_name")}' in folder ${result.folder}`);
 		
+		return result;
+	}
+
+	// Examine each topic within topics to see if it should be converted into an actor:
+	// i.e. it contains a Portfolio or Statblock snippet type directly, not in a child topic.
+	getActorSnippet(node) {
+		for (const child of node.childNodes) {
+			if (child.nodeName == 'snippet' && 
+				(child.getAttribute('type') == 'Portfolio' || 
+				 child.getAttribute('type') == 'Statblock')) {
+				return child;
+			} else if (child.nodeName != 'topic' && child.childNodes.length > 0) {
+				// Don't check nested topics
+				let result = this.getActorSnippet(child);
+				if (result) return result;
+			}
+		}
+		return undefined;
+	}
+	
+	getActorTopics(topics) {
+		// This should return an HTMLCollection
+		let result = [];
+		for (const topic of topics) {
+			if (this.getActorSnippet(topic)) {
+				result.push(topic);
+			}
+		}
 		return result;
 	}
 
@@ -788,19 +801,21 @@ class RealmWorksImporter extends Application
 	async formatOneActor(topic) {
 		//console.log(`Formatting actor for ${topic.getAttribute('public_name')}`);
 		const snippet = this.getActorSnippet(topic);
-		if (!snippet) return;
+		if (!snippet) throw('formatOneActor: <snippet type=Portfolio|Statblock> is missing');
 		
 		const sntype = snippet.getAttribute('type');
-		const ext_object = this.getChild(snippet,    'ext_object');  // <ext_object name="Portrait" type="Picture">
+		const ext_object = this.getChild(snippet, 'ext_object');  // <ext_object name="Portrait" type="Picture">
+		if (!ext_object) throw('formatOneActor: no <ext_object> for actor');
 		const asset      = this.getChild(ext_object, 'asset');       // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-		const contents   = this.getChild(asset,      'contents');    // <contents>
-		if (!contents) return;
-		const filename = asset.getAttribute('filename');
+		if (!asset)      throw('formatOneActor: no <asset> for actor');
+		const contents   = this.getChild(asset, 'contents');    // <contents>
+		if (!contents)   throw('formatOneActor: no <contents> for actor');
+		const filename   = asset.getAttribute('filename');
 
 		let html = "";
 		let xml;
 		if (sntype == 'Portfolio') {
-			if (!filename.endsWith('.por')) return;	// consistency check
+			if (!filename.endsWith('.por')) throw('formatOneActor: Portfolio file does not end with .por');
 			
 			let characters = this.readPortfolio(contents.textContent, 'html');
 			for (let i=0; i<characters.length; i++) {
@@ -808,16 +823,17 @@ class RealmWorksImporter extends Application
 				html += characters[i].data;
 			}
 			xml = this.readPortfolio(contents.textContent, 'xml')[0].data;
+			//console.log(`ACTOR ${topic.getAttribute('public_name')} = XML '${xml}'`);
 		} else if (sntype == 'Statblock') {
-			if (!filename.endsWith('.html')) return;	// consistency check
+			if (!filename.endsWith('.html') && !filename.endsWith('.htm') && !filename.endsWith('.rtf')) throw('formatOneActor: Statblock file does not end with .htm or .html or .rtf');
 			html = `${atob(contents.textContent)}`;
 		}
 
 		// TODO - call the ACTOR creator for the specific GAME SYSTEM that is installed
+		//console.log(`ACTOR ${topic.getAttribute('public_name')} = HTML '${html}'`);
 		
-		//console.log(`ACTOR ${topic.getAttribute('public_name')} = '${html}'`);
 		let actor = { 
-			name: topic.getAttribute("public_name"),
+			name: topic.getAttribute('public_name'),
 			type: 'npc',
 			//folder: this.actor_folder.id
 		};
@@ -835,8 +851,9 @@ class RealmWorksImporter extends Application
 			//if (xml) actor.data = await RWDND5EActor.createActorData(xml);
 			actor.data = { details : { biography : { value : html }}};
 		}
-		
+
 		if (this.actor_folder) actor.folder = this.actor_folder.id;
+		//console.log(`Actor data for ${actor.name} in folder ${actor.folder}`);
 		
 		return actor;
 	}
@@ -847,6 +864,17 @@ class RealmWorksImporter extends Application
 	//
 	async parseXML(xmlDoc)
 	{
+		// Find all the topics in the XML tree
+		const topics = xmlDoc.getElementsByTagName('topic');  // all descendents, not just direct children
+		console.log(`Found ${topics.length} topics`);
+
+		let category_names = new Set();
+		if (this.folderName) {
+			for (const topic of topics)  {
+				category_names.add(topic.getAttribute('category_name'));
+			}
+		}
+
 		// Maybe delete the old compendium before creating a new one?
 		// (This has to be done now so that we can get journal_pack.collection name for links)
 		if (this.deleteCompendium) {
@@ -867,35 +895,43 @@ class RealmWorksImporter extends Application
 				}
 			}
 			if (this.folderName) {
+				// Delete folders with the given name.
 				for (let folder of game.folders.filter(e => e.name == this.folderName)) {
-					console.log(`Deleting a ${folder.type} folder called ${this.folderName}`);
-					folder.delete({deleteSubfolders: true, deleteContents: true});
+					await folder.delete({deleteSubfolders: true, deleteContents: true});
 				}
 			}
 		}
 		
-		// If using folders, then create the three folders now
-		if (this.folderName) {
-			this.actor_folder   = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
-			this.journal_folder = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
-			this.scene_folder   = await Folder.create({name: this.folderName, type: 'Scene', parent: null})
-			console.log(`folder-ids: actor ${this.actor_folder.id}, journal ${this.journal_folder.id}, scene ${this.scene_folder.id}`);
-		}
-
-		// Get/Create the compendium pack into which we are adding journal entries
+		// If putting into compendium packs, create the packs now
+		// If using folders, then create the folders now
 		let journal_pack;
+		let actor_pack;
 		if (this.storeInCompendium) {
+			// Get/Create the compendium pack into which we are adding journal entries
 			journal_pack = await this.getCompendiumWithType(this.journalCompendiumName, "JournalEntry");
 			this.journal_pack_name = journal_pack.collection;	// the full name of the compendium
+			if (this.actorCompendiumName.length > 0) {
+				actor_pack = await this.getCompendiumWithType(this.actorCompendiumName, "Actor");
+				this.actor_pack_name = actor_pack.collection;	// the full name of the compendium
+			}
+		} else {
+			if (this.folderName) {
+				console.log('Creating folders');
+				this.actor_folder   = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
+				this.scene_folder   = await Folder.create({name: this.folderName, type: 'Scene', parent: null})
+				//this.journal_folder = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
+				let journal_parent = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
+				this.journal_folders = new Map();  // actual journal entries will be in a folder with the TOPIC category name
+				for (const category_name of category_names) {
+					let folder = await Folder.create({name : category_name, type: 'JournalEntry', parent: journal_parent.id})
+						.catch(`Failed to create Journal folder for ${category_name}`);
+					if (folder) this.journal_folders.set(category_name, folder);
+				}
+				//console.log(`folder-ids: actor ${this.actor_folder.id}, journal ${this.journal_folder.id}, scene ${this.scene_folder.id}`);
+			}
 		}
-
-		let actor_pack;
-		if (this.storeInCompendium && this.actorCompendiumName.length > 0) {
-			actor_pack = await this.getCompendiumWithType(this.actorCompendiumName, "Actor");
-			this.actor_pack_name = actor_pack.collection;	// the full name of the compendium
-		}
-			
-		const topics = xmlDoc.getElementsByTagName('topic');  // all descendents, not just direct children
+		// Create the image folder if it doesn't already exist.
+		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData()).catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
 		
 		// Create a mapping from topic_id to public_name for all topic elements, required for creating "@Compendium[<packname>."mapping[linkage:target_id]"]{"linkage:target_name"}" entries.
 		// Also collect aliases for each topic:
@@ -918,118 +954,69 @@ class RealmWorksImporter extends Application
 			this.topic_names.set(topic_id, names);
 		};
 
-		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
-/*		
-		if (!this.deleteCompendium) {
-			this.ui_message.val('Deleting old journal entries');	
-			console.log('Deleting old journal entries');
-			let indices = await journal_pack.getIndex();
-			for (const topic of topics) {
-				const topic_name = topic.getAttribute("public_name");
-				let entity = indices.find(e => e.name === topic_name);
-				if (entity) {
-					console.log(`Deleting old ${topic_name}`);
-					await journal_pack.deleteEntity(entity._id);
-					// Regenerate the index
-					indices = await journal_pack.getIndex();
-				}
-			}
-		}
-*/
-		// Create empty topics in the compendium
+		//
+		// TOPICS => JOURNAL ENTRIES
+		//
+		// Generate empty topic entries first, so that we have Foundry id's for each topic.
 		this.ui_message.val('Creating empty journal entries');	
 		console.log('Creating empty journal entries');
 		this.entity_for_topic = new Map();
 		for (const topic of topics) {
-			const topic_name = topic.getAttribute("public_name");
-			let item = await JournalEntry.create({ name : topic_name}, { displaySheet: false, temporary: this.storeInCompendium });
+			const topic_name = topic.getAttribute('public_name');
+			const category_name = topic.getAttribute('category_name');
+			let initdata = {
+				name : topic_name
+			};
+			// Create directly in the relevant folder
+			if (this.journal_folders) initdata.folder = this.journal_folders.get(category_name).id;
+			let item = await JournalEntry.create(initdata, { displaySheet: false, temporary: this.storeInCompendium });
 			if (this.storeInCompendium && item) item = await journal_pack.importEntity(item);
 			//console.log(`Item ${topic_name} has _id = ${item.data._id}`);
 			this.entity_for_topic[topic.getAttribute("topic_id")] = item;
 		}
 		//console.log(this.entity_for_topic);
 		
-		// Asynchronously generate the HTML for all the topics
+		// Asynchronously generate each of the Journal Entries
 		this.ui_message.val(`Generating journal contents`);		
 		console.log(`Generating journal contents`);	
-		let journals = await Promise.allSettled(Array.from(topics).map(async (topic) =>
-			await this.formatOneTopic(topic)
-				.catch(e => console.log(`Failed to create topic ${topic.getAttribute("public_name")} due to ${e}`))
+		await Promise.allSettled(Array.from(topics).map(async (topic_node) =>
+			await this.formatOneTopic(topic_node)
+				.then(async(topic) => {
+					if (this.storeInCompendium)
+						await journal_pack.updateEntity(topic)
+							//.then(console.log(`Topic ${topic.name} added to Compendium pack`))
+							.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
+					else
+						await JournalEntry.update(topic)
+							//.then(console.log(`Topic ${topic.name} added to World directory`))
+							.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
+				})
+				.catch(e => console.log(`Failed to create topic ${topic_node.getAttribute("public_name")} due to ${e}`))
 			));
-		console.log(`Found ${journals.length} topics`);
+			
+		//
+		// HL PORTFOLIOS => ACTORS
+		//
 
-		// PARTIAL IMPLEMENTATION OF ACTOR GENERATION ONLY FOR PF1
-		let actors;
 		if (game.system.id == 'pf1') {
+			
+			if (game.system.id == 'pf1') {
+				// Very specific to PF1, generate the FEAT index only once (it avoids excessive re-writing of feats.db)
+				const pack = await game.packs.find(p => p.metadata.name === 'feats');
+				if (pack) await pack.getIndex();
+			}
+			
+			let actors = this.getActorTopics(topics);
+			this.ui_message.val(`Generating ${actors.length} Actors`);
+			console.log(`Generating ${actors.length} Actors`);
+			
 			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
-			if (actor_pack) {
-				this.ui_message.val(`Generating content for Actors`);
-				console.log(`Generating content for Actors`);
-				actors = await Promise.allSettled(Array.from(this.getActorTopics(topics)).map(async(actor_topic) => await this.formatOneActor(actor_topic)));
-				console.log(`Found ${actors.length} actors`);
-			}
-		}
-		//
-		// Delete old copies of the same named actors (if present)
-		//
-/*		if (!this.deleteCompendium && actors && actor_pack) {
-			let indices = await actor_pack.getIndex();
-			for (const prom of actors) {
-				let entity = indices.find(e => e.name === prom.value.name);
-				if (entity) {
-					console.log(`Deleting old ${prom.value.name}`);
-					await actor_pack.deleteEntity(entity._id);
-					// Regenerate the index
-					indices = await actor_pack.getIndex();
-				}
-			}
-		}
-*/
-		// Create all the journal entries
-		this.ui_message.val(`Creating ${journals.length} journal entries`);
-		console.log(`Creating ${journals.length} journal entries`);
-		if (this.storeInCompendium) {
-			await Promise.allSettled(Array.from(journals).map(
-				async (prom) => {
-					if (prom.status == 'fulfilled')
-						await journal_pack.updateEntity(prom.value).catch(p => console.log(`Update JE failed for '${prom.value.name}' because ${p}`));
-				}));
-				//async (item) => await JournalEntry.create(item, { displaySheet: false, temporary: true }) ));
-			// A single call to create from an array - but there is a size limit!
-			//let entries = await JournalEntry.create(journals, { displaySheet: false, temporary: true });	
-		} else {
-			await Promise.allSettled(Array.from(journals).map(
-				async (prom) => {
-					if (prom.status == 'fulfilled') {
-						return await JournalEntry.update(prom.value)
-							.catch(p => console.log(`Update JE failed for '${prom.value.name}' because ${p}`))
-					}
-				}));
-		}
-		
-		if (actors) {
-			this.ui_message.val(`Creating ${actors.length} actors`);
-			console.log(`Creating ${actors.length} actors`);
-			let create_results = await Promise.allSettled(Array.from(actors).map(
-				async (prom) => {
-					if (prom.status == 'fulfilled') {
-						console.log(`Creating Actor in folder ${prom.value.folder}`);
-						let result = await Actor.create(prom.value, { displaySheet: false, temporary: this.storeInCompendium });
-						console.log(`Created Actor in folder ${prom.value.folder}`);
-						return result;
-					}
-				}
-				));
-			// A single call to create from an array - but there is a size limit!
-			//let entries = await JournalEntry.create(actors, { displaySheet: false, temporary: true });	
-
-			// Add all the journal entries to the compendium pack
-			if (this.storeInCompendium) {
-				this.ui_message.val(`Adding ${create_results.length} to Actors compendium pack`);
-				console.log(`Adding ${create_results.length} to Actors compendium pack`);
-				await Promise.allSettled(Array.from(create_results).map(
-					async (prom) => { if (prom.status == 'fulfilled') await actor_pack.importEntity(prom.value)} ));
-			}
+			await Promise.allSettled(Array.from(actors).map(async(actor_topic) =>
+				await this.formatOneActor(actor_topic)
+				.then(async(actor_data) => await Actor.create(actor_data, { displaySheet: false, temporary: this.storeInCompendium }))
+				.then(async(actor) => { if (this.storeInCompendium) await actor_pack.importEntity(actor) })
+				.catch(e => console.log(`Failed to create Actor due to ${e}`))
+			));
 		}
 		
 		console.log('******  Finished  ******');
