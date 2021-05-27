@@ -71,6 +71,8 @@ class RealmWorksImporter extends Application
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
 			this.storeInCompendium = (this.folderName == 0);
+			this.filedirectory = 'worlds/' + game.world.name + '/realmworksimport';		// no trailing "/"
+			
 			// Try to load the file
 			let fileinput = html.find('[name=rwoutputFile]')?.[0];
 			if (!fileinput?.files || fileinput.files.length == 0)
@@ -247,13 +249,17 @@ class RealmWorksImporter extends Application
 		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
 	}
 
-	async uploadFile(filename, destination, data) {
-		// data = uint8array
+	// Convert a string in base64 format into binary and upload to this.filedirectory,
+	// @return The full path and filename of the created file.
+	uploadFile(filename, base64) {
+		// data = base64 string
+		const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 		const file = new File([data], filename);
 		let source = 'data';		// or 'core' or 's3'
 		let options = new FormData();
 		
-		const request = await FilePicker.upload(source, destination, file, options)
+		//const request = await FilePicker.upload(source, this.filedirectory, file, options)
+		FilePicker.upload(source, this.filedirectory, file, options)
 			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
 		//if (request.status === 413) {
@@ -261,6 +267,7 @@ class RealmWorksImporter extends Application
 		//} else if (request.status !== 200) {
 		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorSomethingWrong"));
 		//}
+		return this.filedirectory + '/' + filename;
 	}
 
 	// Convert a Smart_Image into a scene
@@ -291,18 +298,10 @@ class RealmWorksImporter extends Application
 			}
 		}
 		//console.log(`smart_image: scene name = ${scenename} from topic_id ${topic_id}`);
-		
-		const filename = asset.getAttribute('filename');
-
+	
 		// Firstly, put the file into the files area.
-		let file_contents = Uint8Array.from(atob(contents.textContent), c => c.charCodeAt(0));
-		//let path = `worlds/${game.world.name}/realmworksimport/${adventurePath}/${targetPath}`
-		let imgpath = `worlds/${game.world.name}/realmworksimport`;
-		this.uploadFile(filename, imgpath, file_contents);
-
-		const imgname = imgpath + '/' + filename;
+		const imgname = await this.uploadFile(asset.getAttribute('filename'), contents.textContent);
 		const tex = await loadTexture(imgname);
-		
 		let scenedata = {
 			name   : scenename,
 			img    : imgname,
@@ -334,14 +333,15 @@ class RealmWorksImporter extends Application
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
 			const pinname = pin.getAttribute('pin_name');
 			let desc = pin.getElementsByTagName('description')[0];
+			let entryid = this.entity_for_topic[pin.getAttribute('topic_id')]?.data._id;
 			let notedata = {
 				name: pinname,
-				entryId: this.entity_for_topic[pin.getAttribute('topic_id')]?.data._id,		// can't link to COMPENDIUM !!!
+				entryId: entryid,				// can't link to COMPENDIUM !!!
 				x: pin.getAttribute('x'),
 				y: pin.getAttribute('y'),
-				icon: "icons/svg/up.svg",		// Where do we get a good icon?
+				icon: 'icons/svg/circle.svg',		// Where do we get a good icon?
 				iconSize: 32,		// minimum size 32
-				iconTint: "#00FF00",
+				iconTint: entryid ? '#7CFC00' : '#c00000',
 				text: (desc.textContent.length > 0 ) ? desc.textContent.replace('&#xd;\n','\n') : pinname,
 				//fontSize: 48,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
@@ -580,14 +580,18 @@ class RealmWorksImporter extends Application
 						const fileext  = filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
 							result += `${atob(contents.textContent)}`;
-						else if (sntype == "Picture")
-							result += `<p><img src="data:image/${fileext};base64,${contents.textContent}"></img></p>`;					
-						else {
+						else if (sntype == "Picture") {
+							//result += `<p><img src="data:image/${fileext};base64,${contents.textContent}"></img></p>`;
+							let imgpath = this.uploadFile(filename, contents.textContent);
+							result += `<p><img src='${imgpath}'></img></p>`;
+						} else {
 							let format = 'binary/octet-stream';
 							if (fileext == 'pdf') {
 								format = 'application/pdf';
 							}
-							result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
+							//result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
+							let imgpath = this.uploadFile(filename, contents.textContent);
+							result += `<p><a href='${imgpath}'></a></p>`;
 						}
 					}
 				} else if (sntype == "Smart_Image") {
@@ -605,7 +609,9 @@ class RealmWorksImporter extends Application
 					const format      = asset?.getAttribute('filename').split('.').pop();	// extra suffix from asset filename
 					if (format && contents) {
 						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
-						result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
+						//result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
+						let imgpath = this.uploadFile(filename, contents.textContent);
+						result += `<p><img src='${imgpath}'></img></p>`;
 					}
 				} else if (sntype == "tag_assign") {
 					// Nothing to done for these
@@ -862,26 +868,29 @@ class RealmWorksImporter extends Application
 			}
 			if (this.folderName) {
 				for (let folder of game.folders.filter(e => e.name == this.folderName)) {
-					console.log(`Deleting a folder`);
-					folder.delete();
+					console.log(`Deleting a ${folder.type} folder called ${this.folderName}`);
+					folder.delete({deleteSubfolders: true, deleteContents: true});
 				}
 			}
 		}
 		
+		// If using folders, then create the three folders now
 		if (this.folderName) {
-			this.actor_folder = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
+			this.actor_folder   = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
 			this.journal_folder = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
-			this.scene_folder = await Folder.create({name: this.folderName, type: 'Scene', parent: null})
+			this.scene_folder   = await Folder.create({name: this.folderName, type: 'Scene', parent: null})
 			console.log(`folder-ids: actor ${this.actor_folder.id}, journal ${this.journal_folder.id}, scene ${this.scene_folder.id}`);
 		}
 
 		// Get/Create the compendium pack into which we are adding journal entries
 		let journal_pack;
-		journal_pack = await this.getCompendiumWithType(this.journalCompendiumName, "JournalEntry");
-		this.journal_pack_name = journal_pack.collection;	// the full name of the compendium
+		if (this.storeInCompendium) {
+			journal_pack = await this.getCompendiumWithType(this.journalCompendiumName, "JournalEntry");
+			this.journal_pack_name = journal_pack.collection;	// the full name of the compendium
+		}
 
 		let actor_pack;
-		if (this.actorCompendiumName.length > 0) {
+		if (this.storeInCompendium && this.actorCompendiumName.length > 0) {
 			actor_pack = await this.getCompendiumWithType(this.actorCompendiumName, "Actor");
 			this.actor_pack_name = actor_pack.collection;	// the full name of the compendium
 		}
@@ -910,21 +919,26 @@ class RealmWorksImporter extends Application
 		};
 
 		// Firstly delete any existing entries - must be done synchronously to prevent compendium pack corruption
-		this.ui_message.val('Deleting old entries');	
-		console.log('Deleting old entries');
-		let indices = await journal_pack.getIndex();
-		for (const topic of topics) {
-			const topic_name = topic.getAttribute("public_name");
-			let entity = indices.find(e => e.name === topic_name);
-			if (entity) {
-				console.log(`Deleting old ${topic_name}`);
-				await journal_pack.deleteEntity(entity._id);
-				// Regenerate the index
-				indices = await journal_pack.getIndex();
+/*		
+		if (!this.deleteCompendium) {
+			this.ui_message.val('Deleting old journal entries');	
+			console.log('Deleting old journal entries');
+			let indices = await journal_pack.getIndex();
+			for (const topic of topics) {
+				const topic_name = topic.getAttribute("public_name");
+				let entity = indices.find(e => e.name === topic_name);
+				if (entity) {
+					console.log(`Deleting old ${topic_name}`);
+					await journal_pack.deleteEntity(entity._id);
+					// Regenerate the index
+					indices = await journal_pack.getIndex();
+				}
 			}
 		}
-
+*/
 		// Create empty topics in the compendium
+		this.ui_message.val('Creating empty journal entries');	
+		console.log('Creating empty journal entries');
 		this.entity_for_topic = new Map();
 		for (const topic of topics) {
 			const topic_name = topic.getAttribute("public_name");
@@ -937,6 +951,7 @@ class RealmWorksImporter extends Application
 		
 		// Asynchronously generate the HTML for all the topics
 		this.ui_message.val(`Generating journal contents`);		
+		console.log(`Generating journal contents`);	
 		let journals = await Promise.allSettled(Array.from(topics).map(async (topic) =>
 			await this.formatOneTopic(topic)
 				.catch(e => console.log(`Failed to create topic ${topic.getAttribute("public_name")} due to ${e}`))
@@ -949,15 +964,15 @@ class RealmWorksImporter extends Application
 			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
 			if (actor_pack) {
 				this.ui_message.val(`Generating content for Actors`);
+				console.log(`Generating content for Actors`);
 				actors = await Promise.allSettled(Array.from(this.getActorTopics(topics)).map(async(actor_topic) => await this.formatOneActor(actor_topic)));
 				console.log(`Found ${actors.length} actors`);
 			}
 		}
 		//
-		// Now we can get the data into Foundry
+		// Delete old copies of the same named actors (if present)
 		//
-
-		if (actors && actor_pack) {
+/*		if (!this.deleteCompendium && actors && actor_pack) {
 			let indices = await actor_pack.getIndex();
 			for (const prom of actors) {
 				let entity = indices.find(e => e.name === prom.value.name);
@@ -969,7 +984,7 @@ class RealmWorksImporter extends Application
 				}
 			}
 		}
-
+*/
 		// Create all the journal entries
 		this.ui_message.val(`Creating ${journals.length} journal entries`);
 		console.log(`Creating ${journals.length} journal entries`);
