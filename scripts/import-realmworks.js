@@ -878,30 +878,36 @@ class RealmWorksImporter extends Application
 		// Maybe delete the old compendium before creating a new one?
 		// (This has to be done now so that we can get journal_pack.collection name for links)
 		if (this.deleteCompendium) {
-			if (this.journalCompendiumName.length > 0) {
-				let pack = game.packs.find(p => p.metadata.name === this.journalCompendiumName);
-				if (pack) {
-					this.ui_message.val(`Deleting old compendium ${this.journalCompendiumName}`);
-					console.log(`Deleting journal compendium pack ${this.journalCompendiumName}`);
-					await pack.delete();
+			if (this.storeInCompendium) {
+				if (this.journalCompendiumName.length > 0) {
+					let pack = game.packs.find(p => p.metadata.name === this.journalCompendiumName);
+					if (pack) {
+						this.ui_message.val(`Deleting old compendium ${this.journalCompendiumName}`);
+						console.log(`Deleting journal compendium pack ${this.journalCompendiumName}`);
+						await pack.delete();
+					}
 				}
-			}
-			if (this.actorCompendiumName.length > 0) {
-				let pack = game.packs.find(p => p.metadata.name === this.actorCompendiumName);
-				if (pack) {
-					this.ui_message.val(`Deleting old compendium ${this.actorCompendiumName}`);
-					console.log(`Deleting journal compendium pack ${this.actorCompendiumName}`);
-					await pack.delete();
+				if (this.actorCompendiumName.length > 0) {
+					let pack = game.packs.find(p => p.metadata.name === this.actorCompendiumName);
+					if (pack) {
+						this.ui_message.val(`Deleting old compendium ${this.actorCompendiumName}`);
+						console.log(`Deleting journal compendium pack ${this.actorCompendiumName}`);
+						await pack.delete();
+					}
 				}
-			}
-			if (this.folderName) {
-				// Delete folders with the given name.
-				for (let folder of game.folders.filter(e => e.name == this.folderName)) {
-					await folder.delete({deleteSubfolders: true, deleteContents: true});
+			} else {
+				if (this.folderName) {
+					// Delete folders with the given name.
+					for (let folder of game.folders.filter(e => e.name == this.folderName)) {
+						await folder.delete({
+							deleteSubfolders: true,
+							deleteContents: true
+						});
+					}
 				}
 			}
 		}
-		
+
 		// If putting into compendium packs, create the packs now
 		// If using folders, then create the folders now
 		let journal_pack;
