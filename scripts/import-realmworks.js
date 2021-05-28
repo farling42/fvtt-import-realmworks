@@ -262,9 +262,20 @@ class RealmWorksImporter extends Application
 		const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 		const file = new File([data], filename);
 		let options = new FormData();
-		
-		//const request = await FilePicker.upload(source, this.filedirectory, file, options)
-		//console.log(`Uploading ${filename} to ${this.filedirectory}`);
+		await FilePicker.upload(this.filesource, this.filedirectory, file, options)
+			//.then(console.log(`Uploaded file ${filename}`))
+			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
+		//if (request.status === 413) {
+		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorTooLarge"));
+		//} else if (request.status !== 200) {
+		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorSomethingWrong"));
+		//}
+	}
+
+	async uploadBinaryFile(filename, data) {
+		// data = base64 string
+		const file = new File([data], filename);
+		let options = new FormData();
 		await FilePicker.upload(this.filesource, this.filedirectory, file, options)
 			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
@@ -401,15 +412,18 @@ class RealmWorksImporter extends Application
 		//    <minions><character name="Flappy" summar><statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
 		
 		// For each character in the POR, extract the statblock with the corresponding format, and any minions with the corresponding statblock
-		for (const statblocks of xmlDoc.getElementsByTagName('statblocks')) {
-			for (const statblock of statblocks.getElementsByTagName('statblock')) {
+		for (const character of xmlDoc.getElementsByTagName('character')) {
+			let actordata = { name: character.getAttribute('name') };
+			for (const statblock of character.getElementsByTagName('statblock')) {
 				if (statblock.getAttribute('format') == format) {
-					result.push({
-						name: statblocks.parentNode.getAttribute('name'),
-						data: this.Utf8ArrayToStr(files[`${statblock.getAttribute('folder')}/${statblock.getAttribute('filename')}`])
-					});
+					actordata.data = this.Utf8ArrayToStr(files[`${statblock.getAttribute('folder')}/${statblock.getAttribute('filename')}`]);
 				}
 			}
+			for (const node of character.getElementsByTagName('image')) {
+				actordata.imgfilename = node.getAttribute('filename');
+				actordata.imgdata = files[`${node.getAttribute('folder')}/${actordata.imgfilename}`];
+			}
+			result.push(actordata);
 		}
 		//console.log(`...found ${result.length} sheets`);
 		return result;
@@ -812,8 +826,15 @@ class RealmWorksImporter extends Application
 		if (!contents)   throw('formatOneActor: no <contents> for actor');
 		const filename   = asset.getAttribute('filename');
 
+		let actor = { 
+			name: topic.getAttribute('public_name'),
+			type: 'npc',
+			//folder: this.actor_folder.id
+		};		
+
 		let html = "";
 		let xml;
+		let imgfilename;
 		if (sntype == 'Portfolio') {
 			if (!filename.endsWith('.por')) throw('formatOneActor: Portfolio file does not end with .por');
 			
@@ -822,8 +843,13 @@ class RealmWorksImporter extends Application
 				// We actually need one actor for each entry in this array !!!
 				html += characters[i].data;
 			}
-			xml = this.readPortfolio(contents.textContent, 'xml')[0].data;
+			let portdata = this.readPortfolio(contents.textContent, 'xml')[0];
+			xml = portdata.data;
 			//console.log(`ACTOR ${topic.getAttribute('public_name')} = XML '${xml}'`);
+			if (portdata.imgfilename) {
+				await this.uploadBinaryFile(portdata.imgfilename, portdata.imgdata);
+				imgfilename = this.imageFilename(portdata.imgfilename);
+			}
 		} else if (sntype == 'Statblock') {
 			if (!filename.endsWith('.html') && !filename.endsWith('.htm') && !filename.endsWith('.rtf')) throw('formatOneActor: Statblock file does not end with .htm or .html or .rtf');
 			html = `${atob(contents.textContent)}`;
@@ -831,12 +857,6 @@ class RealmWorksImporter extends Application
 
 		// TODO - call the ACTOR creator for the specific GAME SYSTEM that is installed
 		//console.log(`ACTOR ${topic.getAttribute('public_name')} = HTML '${html}'`);
-		
-		let actor = { 
-			name: topic.getAttribute('public_name'),
-			type: 'npc',
-			//folder: this.actor_folder.id
-		};
 		
 		if (game.system.id == 'pf1') {
 			// Test, put all the information into data.details.notes.value
@@ -850,8 +870,14 @@ class RealmWorksImporter extends Application
 			actor.type = 'Player Character';
 			//if (xml) actor.data = await RWDND5EActor.createActorData(xml);
 			actor.data = { details : { biography : { value : html }}};
+		} else if (game.system.id == 'grpga') {
+			actor.type = 'CharacterD20';	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+			actor.data = { biography : html };
 		}
 
+		// Use image from the portfolio file (it won't be inside the XML)
+		if (imgfilename) actor.img = imgfilename;
+		
 		if (this.actor_folder) actor.folder = this.actor_folder.id;
 		//console.log(`Actor data for ${actor.name} in folder ${actor.folder}`);
 		
@@ -1004,7 +1030,7 @@ class RealmWorksImporter extends Application
 		// HL PORTFOLIOS => ACTORS
 		//
 
-		if (game.system.id == 'pf1') {
+		if (game.system.id == 'pf1' || game.system.id == 'dnd5e' || game.system.id == 'grpga') {
 			
 			if (game.system.id == 'pf1') {
 				// Very specific to PF1, generate the FEAT index only once (it avoids excessive re-writing of feats.db)
