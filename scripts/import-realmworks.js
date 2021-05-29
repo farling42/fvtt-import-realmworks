@@ -117,7 +117,9 @@ class RealmWorksImporter extends Application
 								if (topic) {
 									topics.push(topic);
 									// Ensure topics with " in the title don't cause problems
-									buffer = buffer.slice(0,topic_start) + `<topicchild public_name="${topic.getAttribute('public_name').replace(/"/g,'%22')}" />` + buffer.slice(topic_end+8);
+									buffer = buffer.slice(0,topic_start) + 
+										`<topicchild topic_id="${topic.getAttribute('topic_id')}" public_name="${topic.getAttribute('public_name').replace(/"/g,'%22')}" />` + 
+										buffer.slice(topic_end+8);
 								} else {
 									console.log(`Failed to decode topic in ${block}`);
 									buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
