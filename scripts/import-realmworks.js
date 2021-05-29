@@ -84,24 +84,57 @@ class RealmWorksImporter extends Application
 			}
 			let file = fileinput.files[0];
 			
-			this.ui_message.val(`Loading ${file.name}`);
-			console.log(`Reading contents of ${file.name}`);
-
-			//
-			// This version loads the entire file into a string, and then parses it (limit of 512 MB)			
-			//
-			const inputRW = await file.text();
-			console.log(`Read total file size of ${inputRW.length}`);
-			if (inputRW.length == 0) {
-				this.ui_message.val(`Failed to read the file (too big, or empty?)`);
-				return;
-			}
-			this.ui_message.val(`--- Decording XML from ${file.name}---`);
-
+			this.ui_message.val(`Reading ${file.name}`);
+			console.log(`Reading contents of ${file.name} (size ${file.size})`);
+			
+			// Javascript string has a maximum size of 512 MB, so can't pass the entire file to parseFromString,
+			// so read chunks of the file and look for topics within the chunks.
+			const chunkSize = 5000000;	// ~5 MB
+			let buffer = "";
+			let topic_start, topic_end;
+			let topics = [];
 			let parser = new DOMParser();
-			let xmlDoc = parser.parseFromString(inputRW,"text/xml");
+			let start = 0;
+			let block, topic, blob;
+			while (start < file.size) {
+				// Read another chunk onto the end of the buffer.
+				blob = await file.slice(start, start+chunkSize);
+				if (blob.size == 0) break;
+				start += blob.size;
+				buffer += await blob.text();
+				console.log(`Read ${blob.size} bytes from file (buffer size now ${buffer.length}`);
+				// Read all complete topics which are in the buffer
+				do {
+					topic_end = buffer.indexOf('</topic>');
+					if (topic_end > 0) {
+						topic_start = buffer.lastIndexOf('<topic ', topic_end);
+						if (topic_start >= 0) {
+							//let docnode = parser.parseFromString('<?xml version="1.0" encoding="utf-8"?>' + buffer.slice(topic_start, topic_end+8), "text/xml");
+							// parseFromString returns a #Document node as the top node.
+							block = buffer.slice(topic_start, topic_end+8);
+							try {
+								topic = this.getChild(parser.parseFromString(block, "text/xml"), 'topic');
+								if (topic) {
+									topics.push(topic);
+									// Ensure topics with " in the title don't cause problems
+									buffer = buffer.slice(0,topic_start) + `<topicchild public_name="${topic.getAttribute('public_name').replace(/"/g,'%22')}" />` + buffer.slice(topic_end+8);
+								} else {
+									console.log(`Failed to decode topic in ${block}`);
+									buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
+								}
+							}
+							catch(e) {
+								console.log(`Parsing failed due to ${e}`);
+								console.log (`text: ${block}`);
+								buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
+							}
+						}
+					}
+				} while (topic_end >= 0 && topic_start >= 0);
+			}
 			// Do the actual work!
-			await this.parseXML(xmlDoc);
+			console.log(`Found ${topics.length} topics`);
+			await this.parseXML(topics);
 /*
 			//
 			// Try to get XMLHttpRequest to read the file and create a DOM nicely
@@ -348,7 +381,7 @@ class RealmWorksImporter extends Application
 
 		//console.log(`Creating scene in folder ${scenedata.folder}`);
 		let scene = await Scene.create(scenedata)
-			.catch(e => console.log(`Failed to created scene for ${scenename} due to ${e}`));
+			.catch(e => console.log(`Failed to created scene for '${scenename}' with image '${scenedata.img}' due to ${e}`));
 		//if (scene) console.log(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
 
 		// Add some notes
@@ -459,7 +492,8 @@ class RealmWorksImporter extends Application
 							result += '<b>GMDIR: </b>' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
 						//} else if (snip.nodeName == "annotation") {
 							//
-						} else if (!snip.nodeName.startsWith("#text")) {
+						} else if (!snip.nodeName.startsWith("#text") && 
+							!snip.nodeName.startsWith("other_spans")) {
 							// 'other_spans'
 							// 'tag_assign'  <-- tag assigned to this specific snippet by the user.
 							console.log (`Unknown node in Multi_Line snippet: '${snip.nodeName}'`);	// GM-DIR style
@@ -478,7 +512,8 @@ class RealmWorksImporter extends Application
 							result += '<b>GMDIR: </b>' + this.stripPara(snip.textContent);		// GM-DIR style
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
-						} else if (!snip.nodeName.startsWith("#text")) {
+						} else if (!snip.nodeName.startsWith("#text") && 
+							!snip.nodeName.startsWith("other_spans")) {
 							// 'other_spans'
 							// 'tag_assign'  <-- tag assigned to this specific snippet by the user.
 							console.log (`Unknown node in Labeled_Text snippet: '${snip.nodeName}'`);
@@ -499,7 +534,8 @@ class RealmWorksImporter extends Application
 							result += '<b>GMDIR: </b>' + this.stripPara(snip.textContent);
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
-						} else if (!snip.nodeName.startsWith("#text")) {
+						} else if (!snip.nodeName.startsWith("#text") && 
+							!snip.nodeName.startsWith("other_spans")) {
 							console.log (`Unknown node in Numeric snippet: '${snip.nodeName}'`);	// GM-DIR style
 						}
 					}
@@ -521,7 +557,8 @@ class RealmWorksImporter extends Application
 							}
 						} else if (snip.nodeName == "annotation") {
 							annotation = snip.textContent;
-						} else if (!snip.nodeName.startsWith("#text")) {
+						} else if (!snip.nodeName.startsWith("#text") && 
+							!snip.nodeName.startsWith("other_spans")) {
 							console.log (`Unknown node in Tag_Standard snippet: '${snip.nodeName}'`);	// GM-DIR style
 						}
 					}
@@ -543,7 +580,8 @@ class RealmWorksImporter extends Application
 						} else if (snip.nodeName == "annotation") {
 							// annotation appears before tag_assign elements, so save it for later
 							annotation = snip.textContent;
-						} else if (!snip.nodeName.startsWith("#text")) {
+						} else if (!snip.nodeName.startsWith("#text") && 
+							!snip.nodeName.startsWith("other_spans")) {
 							console.log (`Unknown node in Tag_Multi_Domain snippet: '${snip.nodeName}'`);	// GM-DIR style
 						}
 					}
@@ -706,9 +744,10 @@ class RealmWorksImporter extends Application
 				html += `<p><b>Aliases: </b><i>${node.getAttribute('name')}</i></p>`;
 			} else if (node.nodeName == "section") {
 				html += await this.writeSection(node, 1, linkage_names);		// Start with H1
-			} else if (node.nodeName == "topic") {
+			} else if (node.nodeName == "topicchild" || node.nodeName == "topic") {
 				// No need to handle nested topics, since we found all of them at the start.
 				// Put link to child topic in original topic
+				// topicchild elements are added when parsing a LARGE file
 				if (!has_child_topics) {
 					html += '<h1>Child Topics</h1><ul>';
 					has_child_topics = true;
@@ -888,12 +927,8 @@ class RealmWorksImporter extends Application
 	// Parse the entire Realm Works file supplied in 'xmlString'
 	// and put each individual topic into the compendium named '<compendiumName>-journal'
 	//
-	async parseXML(xmlDoc)
+	async parseXML(topics)
 	{
-		// Find all the topics in the XML tree
-		const topics = xmlDoc.getElementsByTagName('topic');  // all descendents, not just direct children
-		console.log(`Found ${topics.length} topics`);
-
 		let category_names = new Set();
 		if (this.folderName) {
 			for (const topic of topics)  {
@@ -990,8 +1025,8 @@ class RealmWorksImporter extends Application
 		// TOPICS => JOURNAL ENTRIES
 		//
 		// Generate empty topic entries first, so that we have Foundry id's for each topic.
-		this.ui_message.val('Creating empty journal entries');	
-		console.log('Creating empty journal entries');
+		this.ui_message.val(`Creating ${topics.length} empty journal entries`);
+		console.log(`Creating ${topics.length} empty journal entries`);
 		this.entity_for_topic = new Map();
 		for (const topic of topics) {
 			const topic_name = topic.getAttribute('public_name');
@@ -1009,8 +1044,8 @@ class RealmWorksImporter extends Application
 		//console.log(this.entity_for_topic);
 		
 		// Asynchronously generate each of the Journal Entries
-		this.ui_message.val(`Generating journal contents`);		
-		console.log(`Generating journal contents`);	
+		this.ui_message.val(`Generating ${topics.length} journal contents`);		
+		console.log(`Generating ${topics.length} journal contents`);	
 		await Promise.allSettled(Array.from(topics).map(async (topic_node) =>
 			await this.formatOneTopic(topic_node)
 				.then(async(topic) => {
@@ -1041,6 +1076,12 @@ class RealmWorksImporter extends Application
 			let actors = this.getActorTopics(topics);
 			this.ui_message.val(`Generating ${actors.length} Actors`);
 			console.log(`Generating ${actors.length} Actors`);
+			
+			// TODO:
+			// change formatOneActor to return an array of Actor data that is required for the supplied topic.
+			// Then sort them into alphabetical order.
+			// Then for all Actors with the same name, remove ones with the same actor data (e.g. most likely common monsters in the campaign)
+			// Then create actual Actor entities.
 			
 			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
 			await Promise.allSettled(Array.from(actors).map(async(actor_topic) =>

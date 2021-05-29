@@ -28,7 +28,11 @@ There is a file limit size of 512 MB for importing (due to a limitation on the m
 If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
-0.2.0 Only allow loading from a file (no cut/paste any more). Add generation of topic aliases and connection.
+0.2.3 Support files bigger than 512 MB (but Firefox might not like them)
+
+0.2.2 Extract images from embedded Hero Lab Portfolio files for use as the image for the Actor.
+
+0.2.1 Only allow loading from a file (no cut/paste any more). Add generation of topic aliases and connection.
 Scenes are now created with map pins which are connected to the appropriate journal entries. Because map pins can't link to compendium entries, all journal entries are created in the world.
 Create Actors for PF1 and DND5E based on HeroLab portfolio entries; only some fields are decoded.
 Journal Entries are grouped under sub-headings of the Category of each of topic.
