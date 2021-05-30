@@ -356,7 +356,11 @@ class RealmWorksImporter extends Application
 		let scene = await Scene.create(scenedata)
 			.catch(e => console.log(`Failed to created scene for '${scenename}' with image '${scenedata.img}' due to ${e}`));
 		//if (scene) console.log(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
-
+		if (!scene) return;
+		
+		// Create thumbnail
+		scene.createThumbnail().then(data => scene.update({thumb: data.thumb}));
+		
 		// Add some notes
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
 			const pinname = pin.getAttribute('pin_name');
@@ -789,7 +793,7 @@ class RealmWorksImporter extends Application
 		let prefix = topic.getAttribute('prefix');
 		let suffix = topic.getAttribute('suffix');
 		if (prefix) journaltitle = prefix + ' - ' + journaltitle;
-		if (suffix) journaltitle = journaltitle + ' (' + suffix + ')';
+		if (suffix) journaltitle += ' (' + suffix + ')';
 		
 		// Format as a data block usable by JournalEntry.create
 		let result = {
