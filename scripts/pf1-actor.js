@@ -237,6 +237,12 @@ export class RWPF1Actor {
 		// data.skills.acr/apr/art/blf/clm/crf/dip/dev/dis/esc/fly/han/hea/int/kar/kdu/ken/kge/khi/klo/kna/kno/kpl/kre/lin/lor/per/prf/pro/rid/sen/slt/spl/ste/sur/swm/umd
 		//   .value/ability/rt/acp/rank/mod/background
 		// data.customSkills
+		let numart = 0;
+		let numcrf = 0;
+		let numlor = 0;
+		let numper = 0;
+		let numpro = 0;
+		let numcust = 0;
 		for (const skill of character.skills.skill) {
 			let value = {
 				value: parseInt(skill.value),
@@ -251,13 +257,23 @@ export class RWPF1Actor {
 				actor.data.skills.apr = value;
 			else if (skill.name == "Artistry")
 				actor.data.skills.art = value;
-			else if (skill.name == "Bluff")
+			else if (skill.name.startsWith("Artistry (")) {
+				value.name = skill.name;
+				if (!actor.data.skills.art) actor.data.skills.art = {subSkills : {}};
+				else if (!actor.data.skills.art.subSkills) actor.data.skills.art.subSkills = {};
+				actor.data.skills.art.subSkills[`art${++numart}`] = value;
+			} else if (skill.name == "Bluff")
 				actor.data.skills.blf = value;
 			else if (skill.name == "Climb")
 				actor.data.skills.clm = value;
-			else if (skill.name == "Craft (bows)")
+			else if (skill.name == "Craft")
 				actor.data.skills.crf = value; // special skills
-			else if (skill.name == "Diplomacy")
+			else if (skill.name.startsWith("Craft (")) {
+				value.name = skill.name;
+				if (!actor.data.skills.crf) actor.data.skills.crf = {subSkills : {}};
+				else if (!actor.data.skills.crf.subSkills) actor.data.skills.crf.subSkills = {};
+				actor.data.skills.crf.subSkills[`crf${++numcrf}`] = value;
+			} else if (skill.name == "Diplomacy")
 				actor.data.skills.dip = value;
 			else if (skill.name == "Disguise")
 				actor.data.skills.dev = value;
@@ -297,13 +313,28 @@ export class RWPF1Actor {
 				actor.data.skills.lin = value;
 			else if (skill.name == "Lore")
 				actor.data.skills.lor = value;
-			else if (skill.name == "Perception")
+			else if (skill.name.startsWith("Lore (")) {
+				value.name = skill.name;
+				if (!actor.data.skills.lor) actor.data.skills.lor = {subSkills : {}};
+				else if (!actor.data.skills.lor.subSkills) actor.data.skills.lor.subSkills = {};
+				actor.data.skills.lor.subSkills[`lor${++numlor}`] = value;
+			} else if (skill.name == "Perception")
 				actor.data.skills.per = value;
 			else if (skill.name == "Perform")
 				actor.data.skills.prf = value;
-			else if (skill.name == "Profession (trapper)")
-				actor.data.skills.pro = value; // special skills
-			else if (skill.name == "Ride")
+			else if (skill.name.startsWith("Perform (")) {
+				value.name = skill.name;
+				if (!actor.data.skills.prf) actor.data.skills.prf = {subSkills : {}};
+				else if (!actor.data.skills.prf.subSkills) actor.data.skills.prf.subSkills = {};
+				actor.data.skills.prf.subSkills[`prf${++numprf}`] = value;
+			} else if (skill.name == "Profession")
+				actor.data.skills.pro = value;
+			else if (skill.name.startsWith("Profession (")) {
+				value.name = skill.name;
+				if (!actor.data.skills.pro) actor.data.skills.pro = {subSkills : {}};
+				else if (!actor.data.skills.pro.subSkills) actor.data.skills.pro.subSkills = {};
+				actor.data.skills.pro.subSkills[`pro${++numpro}`] = value;
+			} else if (skill.name == "Ride")
 				actor.data.skills.rid = value;
 			else if (skill.name == "Sense Motive")
 				actor.data.skills.sen = value;
@@ -320,7 +351,11 @@ export class RWPF1Actor {
 			else if (skill.name == "Use Magic Device")
 				actor.data.skills.umd = value;
 			else
-				console.log(`Unsupported PF1 skill ${skill.name}`);
+			{
+				console.log(`PF1 custom skill ${skill.name}`);
+				value.name = skill.name;
+				actor.data.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
+			}
 		}
 		// data.traits.size - fine|dim|tiny|med|lg|huge|grg|col
 		const siz = character.size.name;
@@ -394,7 +429,7 @@ export class RWPF1Actor {
 		const pack = await game.packs.find(p => p.metadata.name === 'feats');
 		//const index = await pack.getIndex();
 		const index = pack.index;		// We are never modifying this pack, so it should remain current.
-		for (const feat of character.feats.feat) {
+		for (const feat of (Array.isArray(character.feats.feat) ? character.feats.feat : [character.feats.feat] )) {
 			const entry = index.find(e => e.name === feat.name);
 			if (entry) {
 				actor.items.push(await pack.getEntry(entry._id));

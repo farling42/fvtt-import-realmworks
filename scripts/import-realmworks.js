@@ -402,7 +402,7 @@ class RealmWorksImporter extends Application
 	// format is one of the character formats in the .por file: 'html', 'text', 'xml'
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
 	
-	readPortfolio(base64, format) {
+	readPortfolio(base64) {
 		let result = [];
 		const buf = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 		const files = UZIP.parse(buf);
@@ -414,20 +414,27 @@ class RealmWorksImporter extends Application
 		// <document><characters>
 		//   <character name="Fantastic">
 		//    <statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
-		//    <images>
-		//    <minions><character name="Flappy" summar><statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
+		//    <images><image>
+		//    <minions><character name="Flappy"> <summary><statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
 		
 		// For each character in the POR, extract the statblock with the corresponding format, and any minions with the corresponding statblock
 		for (const character of xmlDoc.getElementsByTagName('character')) {
 			let actordata = { name: character.getAttribute('name') };
-			for (const statblock of character.getElementsByTagName('statblock')) {
-				if (statblock.getAttribute('format') == format) {
-					actordata.data = this.Utf8ArrayToStr(files[`${statblock.getAttribute('folder')}/${statblock.getAttribute('filename')}`]);
-				}
+			if (!actordata.name) {
+				console.log(`No 'name' tag in character portfolio: fields = ${character.getAttributeNames()}`);
+				continue;
 			}
-			for (const node of character.getElementsByTagName('image')) {
-				actordata.imgfilename = node.getAttribute('filename');
-				actordata.imgdata = files[`${node.getAttribute('folder')}/${actordata.imgfilename}`];
+			for (const statblock of character.getElementsByTagName('statblock')) {
+				let format = statblock.getAttribute('format');
+				let folder = statblock.getAttribute('folder');
+				let filename = statblock.getAttribute('filename');
+				actordata[format] = this.Utf8ArrayToStr(files[folder + '/' + filename]);
+			}
+			for (const item of character.getElementsByTagName('image')) {
+				let folder = item.getAttribute('folder');
+				let filename = item.getAttribute('filename');
+				actordata.imgfilename = filename;
+				actordata.imgdata = files[folder + '/' + filename];
 			}
 			result.push(actordata);
 		}
@@ -592,11 +599,11 @@ class RealmWorksImporter extends Application
 					const asset      = this.getChild(ext_object, 'asset');  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					const contents   = this.getChild(asset,      'contents');    // <contents>
 					if (contents) {
-						let characters = this.readPortfolio(contents.textContent, 'html');
+						let characters = this.readPortfolio(contents.textContent);
 						for (let i=0; i<characters.length; i++) {
 							if (i > 0) result += '<hr>';
 							result += `<h${level+1}>Portfolio: ${characters[i].name}</h${level+1}>`;
-							result += characters[i].data;
+							result += characters[i].html;
 						}
 					}
 				} else if (sntype == "Picture" ||
@@ -824,18 +831,18 @@ class RealmWorksImporter extends Application
 	//
 	// Convert a TOPIC into an ACTOR
 	//
-	async formatOneActor(topic) {
+	async formatActors(topic) {
 		//console.log(`Formatting actor for ${topic.getAttribute('public_name')}`);
 		const snippet = this.getActorSnippet(topic);
-		if (!snippet) throw('formatOneActor: <snippet type=Portfolio|Statblock> is missing');
+		if (!snippet) throw('formatActors: <snippet type=Portfolio|Statblock> is missing');
 		
 		const sntype = snippet.getAttribute('type');
 		const ext_object = this.getChild(snippet, 'ext_object');  // <ext_object name="Portrait" type="Picture">
-		if (!ext_object) throw('formatOneActor: no <ext_object> for actor');
+		if (!ext_object) throw('formatActors: no <ext_object> for actor');
 		const asset      = this.getChild(ext_object, 'asset');       // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-		if (!asset)      throw('formatOneActor: no <asset> for actor');
+		if (!asset)      throw('formatActors: no <asset> for actor');
 		const contents   = this.getChild(asset, 'contents');    // <contents>
-		if (!contents)   throw('formatOneActor: no <contents> for actor');
+		if (!contents)   throw('formatActors: no <contents> for actor');
 		const filename   = asset.getAttribute('filename');
 
 		let actor = { 
@@ -844,56 +851,101 @@ class RealmWorksImporter extends Application
 			//folder: this.actor_folder.id
 		};		
 
-		let html = "";
-		let xml;
-		let imgfilename;
+		let statblock;
+		let portfolio;
 		if (sntype == 'Portfolio') {
-			if (!filename.endsWith('.por')) throw('formatOneActor: Portfolio file does not end with .por');
-			
-			let characters = this.readPortfolio(contents.textContent, 'html');
-			for (let i=0; i<characters.length; i++) {
-				// We actually need one actor for each entry in this array !!!
-				html += characters[i].data;
-			}
-			let portdata = this.readPortfolio(contents.textContent, 'xml')[0];
-			xml = portdata.data;
-			//console.log(`ACTOR ${topic.getAttribute('public_name')} = XML '${xml}'`);
-			if (portdata.imgfilename) {
-				await this.uploadBinaryFile(portdata.imgfilename, portdata.imgdata);
-				imgfilename = this.imageFilename(portdata.imgfilename);
-			}
-		} else if (sntype == 'Statblock') {
-			if (!filename.endsWith('.html') && !filename.endsWith('.htm') && !filename.endsWith('.rtf')) throw('formatOneActor: Statblock file does not end with .htm or .html or .rtf');
-			html = `${atob(contents.textContent)}`;
+			if (!filename.endsWith('.por'))
+				throw('formatActors: Portfolio file does not end with .por');
+			portfolio = this.readPortfolio(contents.textContent);
+			// Upload images (if any)
+			for (let character of portfolio) {
+				if (character.imgfilename) {
+					await this.uploadBinaryFile(character.imgfilename, character.imgdata);
+				}
+			}				
+		} else { // (sntype == 'Statblock')
+			if (!filename.endsWith('.html') && !filename.endsWith('.htm') && !filename.endsWith('.rtf'))
+				throw('formatActors: Statblock file does not end with .htm or .html or .rtf');
+			statblock = atob(contents.textContent);
 		}
 
 		// TODO - call the ACTOR creator for the specific GAME SYSTEM that is installed
 		//console.log(`ACTOR ${topic.getAttribute('public_name')} = HTML '${html}'`);
+		let result = [];
 		
 		if (game.system.id == 'pf1') {
 			// Test, put all the information into data.details.notes.value
-			if (xml) {
-				actor = await RWPF1Actor.createActorData(xml);
-				actor.data.details.notes = { value : html };
+			if (portfolio) {
+				for (let character of portfolio) {
+					if (character.xml) {
+						actor = await RWPF1Actor.createActorData(character.xml);
+					} else {
+						console.log(`Portfolio for ${character.name} is missing XML data`);
+						actor = { 
+							name: character.name,
+							type: 'npc',
+							data: { details : {} }
+						}
+					}
+					actor.data.details.notes = { value : character.html };
+					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
 			} else {
-				actor.data = { details : { notes : { value : html }}};
+				actor = { 
+					name: topic.getAttribute('public_name'),
+					type: 'npc',
+					//folder: this.actor_folder.id
+					data: { details : { notes : { value : statblock }}}
+				};		
+				result.push(actor);
 			}
+			
 		} else if (game.system.id == 'dnd5e') {
 			actor.type = 'Player Character';
-			//if (xml) actor.data = await RWDND5EActor.createActorData(xml);
-			actor.data = { details : { biography : { value : html }}};
+			if (portfolio) {
+				for (let character of portfolio) {
+					//actor.data = await RWDND5EActor.createActorData(character.xml);
+					actor.data = { details : { biography : { value : character.html }}};
+					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename)
+					result.push(actor);
+				}
+			} else {
+				actor = { 
+					name: topic.getAttribute('public_name'),
+					type: 'npc',
+					//folder: this.actor_folder.id
+					data: { details : { biography : { value : statblock }}}
+				};		
+				result.push(actor);
+			}
+			
 		} else if (game.system.id == 'grpga') {
-			actor.type = 'CharacterD20';	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
-			actor.data = { biography : html };
+			if (portfolio) {
+				for (let character of portfolio) {
+					actor.type = 'CharacterD20';	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+					actor.data = { biography : character.html };
+					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				actor = { 
+					name: topic.getAttribute('public_name'),
+					type: 'CharacterD20',	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+					//folder: this.actor_folder.id,
+					data: { biography : statblock }
+				};		
+				result.push(actor);
+			}
 		}
 
-		// Use image from the portfolio file (it won't be inside the XML)
-		if (imgfilename) actor.img = imgfilename;
-		
-		if (this.actor_folder) actor.folder = this.actor_folder.id;
+		if (this.actor_folder) {
+			for (let i=0; i<result.length; i++)
+				result[i].folder = this.actor_folder.id;
+		}
 		//console.log(`Actor data for ${actor.name} in folder ${actor.folder}`);
 		
-		return actor;
+		return result;
 	}
 	
 	//
@@ -1046,20 +1098,35 @@ class RealmWorksImporter extends Application
 				if (pack) await pack.getIndex();
 			}
 			
-			let actors = this.getActorTopics(topics);
-			this.ui_message.val(`Generating ${actors.length} Actors`);
-			console.log(`Generating ${actors.length} Actors`);
+			let actor_topics = this.getActorTopics(topics);
+			this.ui_message.val(`Generating ${actor_topics.length} Actors`);
+			console.log(`Generating ${actor_topics.length} Actors`);
 			
 			// TODO:
-			// change formatOneActor to return an array of Actor data that is required for the supplied topic.
+			// change formatActors to return an array of Actor data that is required for the supplied topic.
 			// Then sort them into alphabetical order.
 			// Then for all Actors with the same name, remove ones with the same actor data (e.g. most likely common monsters in the campaign)
 			// Then create actual Actor entities.
 			
 			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
-			await Promise.allSettled(Array.from(actors).map(async(actor_topic) =>
-				await this.formatOneActor(actor_topic)
-				.then(async(actor_data) => await Actor.create(actor_data, { displaySheet: false, temporary: this.storeInCompendium }))
+			let actors = [];
+			for (let topic of actor_topics) {
+				try {
+					actors.push(await this.formatActors(topic));
+				} catch(error) {
+					console.log(`formatActors for topic '${topic.getAttribute("public_name")}': ${error}`);
+				};
+			}
+			// formatActors might have generated more than one actor
+			actors = actors.flat();
+			
+			// remove duplicates - does not remove any
+			actors = [...new Set(actors)];
+			console.log(`Reduced to ${actor_topics.length} Actors after removing duplicates`);
+			
+			// Now create the actual Actor elements
+			await Promise.allSettled(actors.map(async(actor_data) =>
+				await Actor.create(actor_data, { displaySheet: false, temporary: this.storeInCompendium })
 				.then(async(actor) => { if (this.storeInCompendium) await actor_pack.importEntity(actor) })
 				.catch(e => console.log(`Failed to create Actor due to ${e}`))
 			));
