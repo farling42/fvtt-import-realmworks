@@ -137,23 +137,6 @@ class RealmWorksImporter extends Application
 			// Do the actual work!
 			console.log(`Found ${topics.length} topics`);
 			await this.parseXML(topics);
-/*
-			//
-			// Try to get XMLHttpRequest to read the file and create a DOM nicely
-			//
-			***WEB SECURITY prevents XMLHttpRequest from accessing local files ***
-			const xhr = new XMLHttpRequest();
-			xhr.onload = function() {
-				parseXML(xhr.responseXML); // This is the response.
-			}
-			xhr.onerror = function() {
-				console.log("Error while getting XML.");
-			}
-			//let filepath;
-			xhr.open("GET", "file:///D:/Documents/Realm Works/Output/" + file.name);
-			xhr.responseType = "document";
-			xhr.send();
-*/
 			// Automatically close the window after the import is finished
 			//this.close();
 		});
@@ -289,15 +272,12 @@ class RealmWorksImporter extends Application
 	imageFilename(filename) {
 		return this.filedirectory + '/' + filename;
 	}
-	
-	// Convert a string in base64 format into binary and upload to this.filedirectory,
-	// @return The full path and filename of the created file.
-	async uploadFile(filename, base64) {
+
+	// Upload the specified binary data to a file in this.filedirectory
+	async uploadBinaryFile(filename, data) {
 		// data = base64 string
-		const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 		const file = new File([data], filename);
-		let options = new FormData();
-		await FilePicker.upload(this.filesource, this.filedirectory, file, options)
+		await FilePicker.upload(this.filesource, this.filedirectory, file)
 			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
 		//if (request.status === 413) {
@@ -307,18 +287,9 @@ class RealmWorksImporter extends Application
 		//}
 	}
 
-	async uploadBinaryFile(filename, data) {
-		// data = base64 string
-		const file = new File([data], filename);
-		let options = new FormData();
-		await FilePicker.upload(this.filesource, this.filedirectory, file, options)
-			//.then(console.log(`Uploaded file ${filename}`))
-			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
-		//if (request.status === 413) {
-		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorTooLarge"));
-		//} else if (request.status !== 200) {
-		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorSomethingWrong"));
-		//}
+	// Convert a string in base64 format into binary and upload to this.filedirectory,
+	async uploadFile(filename, base64) {
+		this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
 	// Convert a Smart_Image into a scene
