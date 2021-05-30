@@ -784,10 +784,17 @@ class RealmWorksImporter extends Application
 			await this.createScene(smart_image).catch(e => console.log(`Failed to create scene due to ${e}`));
 		}));
 
+		// Full title might have prefix and suffix
+		let journaltitle = topic.getAttribute("public_name");
+		let prefix = topic.getAttribute('prefix');
+		let suffix = topic.getAttribute('suffix');
+		if (prefix) journaltitle = prefix + ' - ' + journaltitle;
+		if (suffix) journaltitle = journaltitle + ' (' + suffix + ')';
+		
 		// Format as a data block usable by JournalEntry.create
 		let result = {
 			_id:      this.entity_for_topic[this_topic_id].data._id,
-			name:     topic.getAttribute("public_name"),
+			name:     journaltitle,
 			topic_id: this_topic_id,
 			//folder: this.journal_folder.id,
 			content:  html
