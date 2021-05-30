@@ -79,6 +79,98 @@ export class RWPF1Actor {
 			items: []
 		};
 
+
+		//
+		// SUMMARY tab
+		//
+
+		// data.attributes.hp.value/base/max/temp/nonlethal
+		actor.data.attributes.hp = {
+			value: parseInt(character.health.hitpoints),
+			base: parseInt(character.health.hitpoints),
+			min: 0,
+			max: parseInt(character.health.hitpoints),
+		};
+		// data.attributes.wounds.min/max/base/value
+		// data.attributes.vigor.min/value/temp/max/base
+		// data.attributes.woundThresholds.penalty/mod/level/override
+
+		// data.details.cr.base/total
+		if (character.challengerating) {
+			let cr = parseInt(character.challengerating['#text']);
+			actor.data.details.cr = { base: cr, total: cr };
+		}
+		if (actor.type == 'npc') {
+			actor.data.details.xp = { value : parseInt(character.xpaward.value) };
+		} else {	
+			// data.details.xp.value/min/max
+			actor.data.details.xp = {
+				value: parseInt(character.xp.total),
+				min  : 0,
+				max  : parseInt(character.xp.total)
+			};
+		};
+		// data.details.height/weight/gender/deity/age
+		actor.data.details.height = character.personal.charheight.text;
+		actor.data.details.weight = character.personal.charweight.text;
+		actor.data.details.gender = character.personal.gender;
+		actor.data.details.deity = character.deity.name;
+		actor.data.details.age = character.personal.age;
+
+		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
+		const race_pack = await game.packs.find(p => p.metadata.name === 'races');
+		const race = await race_pack.index.find(e => e.name.toLowerCase() === character.race.name);
+		if (race) {
+			actor.items.push(await race_pack.getEntry(race._id));
+		} else {
+			console.log(`Race '${character.race.name.toLowerCase()}' not in 'races' pack`);
+			const itemdata = {
+				name: character.race.name,
+				type: 'race',
+				//data: { description : { value : addParas(character.race.name['#text']) }}
+			};
+			actor.items.push(new Item(itemdata));
+		}
+
+		//
+		// CLASSES sub-tab
+		//
+		//	<classes level="11" summary="bard (archaeologist) 2/unchained rogue 9" summaryabbr="Brd 2/Rog 9">
+		//		<class name="Bard (Archaeologist)" level="2" spells="Spontaneous" casterlevel="2" concentrationcheck="+5" overcomespellresistance="+2" basespelldc="13" castersource="Arcane">
+		//			<arcanespellfailure text="0%" value="0"/>
+		//		</class>
+		//		<class name="Rogue (Unchained)" level="9" spells="" casterlevel="0" concentrationcheck="+3" overcomespellresistance="+0" basespelldc="13" castersource=""/>
+		//	</classes>		
+		const classes = character.classes?.["class"];
+		if (classes) {
+			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
+			
+			for (const cclass of (Array.isArray(classes) ? classes : [classes] )) {
+				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
+				const name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
+				console.log(`Looking for class called '${name}'`);
+				// Strip trailing (...)  from class.name
+				const entry = class_pack.index.find(e => e.name === name);
+				if (entry) {
+					let itemdata = await class_pack.getEntry(entry._id);
+					itemdata.data.level = cclass.level;
+					actor.items.push(itemdata);
+				} else {
+					// Create our own placemarker feat.
+					const itemdata = {
+						name: cclass.name,
+						type: 'race',
+						data: { level : cclass.level },
+						//data: { description : { value : addParas(feat.description['#text']) }}
+					};
+					actor.items.push(new Item(itemdata));
+				}
+			}
+		}
+		
+		//
+		// ATTRIBUTES tab
+		//
 		for (const attr of character.attributes.attribute) {
 			actor.data.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
 				total: attr.attrvalue.modified,
@@ -86,70 +178,7 @@ export class RWPF1Actor {
 				mod:   attr.attrbonus?.base ? attr.attrbonus.base : 0
 			}
 		}
-		// data.attributes.encumbrance.level/levels/carriedWeight
-		const enc = character.encumbrance;
-		actor.data.attributes.encumbrance = {
-			level: (enc.level == 'Light Load') ? 0 : 1, // 0 = light load TBD
-			levels: {
-				light: parseInt(enc.light),
-				medium: parseInt(enc.medium),
-				heavy: parseInt(enc.heavy),
-				//carry:
-				//drag:
-			},
-			carriedWeight: parseInt(enc.carried)
-		};
 
-		// data.attributes.vision.lowLight/darkvision
-		actor.data.attributes.vision = {
-			lowLight   : character.senses?.special?.name && character.senses.special.name.includes("Low-Light Vision"),
-			darkvision : 0,
-		}
-		// data.attributes.hpAbility
-		// data.attributes.cmbAbility
-		// data.attributes.hd.base/total/max
-
-		actor.data.attributes.naturalAC = parseInt(character.armorclass.fromnatural);
-		actor.data.attributes.ac = {
-			normal: {
-				value: parseInt(character.armorclass.ac),
-				total: parseInt(character.armorclass.ac)
-			},
-			touch: {
-				value: parseInt(character.armorclass.touch),
-				total: parseInt(character.armorclass.touch),
-			},
-			flatFooted: {
-				value: parseInt(character.armorclass.flatfooted),
-				total: parseInt(character.armorclass.flatfooted)
-			}
-		};
-		actor.data.attributes.bab = {
-			value: parseInt(character.attack.baseattack),
-			total: parseInt(character.attack.baseattack)
-		};
-		actor.data.attributes.cmd = {
-			value: parseInt(character.maneuvers.cmd),
-			total: parseInt(character.maneuvers.cmd),
-			flatFootedTotal: parseInt(character.maneuvers.cmdflatfooted)
-		}
-		actor.data.attributes.cmb = {
-			value: parseInt(character.maneuvers.cmb),
-			total: parseInt(character.maneuvers.cmb),
-		}
-
-		// data.attributes.sr.formula/total
-		// data.attributes.saveNotes
-		// data.attributes.acNotes
-		// data.attributes.cmdNotes
-		// data.attributes.srNotes
-		// data.attributes.attack.general/shared/melee/ranged/meleeAbility/rangedAbility
-		// data.attributes.damage.general/weapon/spell
-		// data.attributes.maxDexBonus
-		// data.attributes.mDex.armorBonus/shieldBonus
-		// data.attributes.acp.gear/encumbrance/total/armorBonus/shieldBonus/attackPenalty
-		// data.attributes.energyDrain
-		// data.attributes.quadruped
 		actor.data.attributes.savingThrows = {};
 		for (const child of character.saves.save) {
 			if (child.abbr == "Fort") {
@@ -170,23 +199,28 @@ export class RWPF1Actor {
 			}
 		};
 
-		// data.attributes.hp.value/base/max/temp/nonlethal
-		actor.data.attributes.hp = {
-			value: parseInt(character.health.hitpoints),
-			base: parseInt(character.health.hitpoints),
-			min: 0,
-			max: parseInt(character.health.hitpoints),
-		};
-		// data.attributes.wounds.min/max/base/value
-		// data.attributes.vigor.min/value/temp/max/base
-		// data.attributes.woundThresholds.penalty/mod/level/override
-		// data.attributes.init.value/bonus/total/ability
-		actor.data.attributes.init = {
-			value: parseInt(character.initiative.total),
-			bonus: parseInt(character.initiative.total),
-			total: parseInt(character.initiative.total),
-			ability: RWPF1Actor.ability_names[character.initiative.attrname]
-		};
+		// data.attributes.vision.lowLight/darkvision
+		actor.data.attributes.vision = {
+			lowLight   : character.senses?.special?.name && character.senses.special.name.includes("Low-Light Vision"),
+			darkvision : 0,
+		}
+		// data.attributes.hpAbility
+		// data.attributes.cmbAbility
+		// data.attributes.hd.base/total/max
+
+		// data.attributes.sr.formula/total
+		// data.attributes.saveNotes
+		// data.attributes.acNotes
+		// data.attributes.cmdNotes
+		// data.attributes.srNotes
+		// data.attributes.attack.general/shared/melee/ranged/meleeAbility/rangedAbility
+		// data.attributes.damage.general/weapon/spell
+		// data.attributes.maxDexBonus
+		// data.attributes.mDex.armorBonus/shieldBonus
+		// data.attributes.acp.gear/encumbrance/total/armorBonus/shieldBonus/attackPenalty
+		// data.attributes.energyDrain
+		// data.attributes.quadruped
+
 		// data.attributes.prof
 		// data.attributes.speed.land/climb/swim/burrow/fly (base/total + for fly, .maneuverability)
 		actor.data.attributes.speed = {
@@ -213,30 +247,135 @@ export class RWPF1Actor {
 		// data.details.notes.value/public
 		// data.details.bonusRankSkillFormula
 		// data.details.tooltip.name/hideHeld/hideArmor/hideBuffs/hideConditions/hideClothing/hideName
-		// data.details.cr.base/total
-		if (character.challengerating) {
-			let cr = parseInt(character.challengerating['#text']);
-			actor.data.details.cr = { base: cr, total: cr };
+		
+		//
+		// COMBAT tab
+		//
+		
+		// data.attributes.init.value/bonus/total/ability
+		actor.data.attributes.init = {
+			value: parseInt(character.initiative.total),
+			bonus: parseInt(character.initiative.total),
+			total: parseInt(character.initiative.total),
+			ability: RWPF1Actor.ability_names[character.initiative.attrname]
+		};
+
+		actor.data.attributes.bab = {
+			value: parseInt(character.attack.baseattack),
+			total: parseInt(character.attack.baseattack)
+		};
+		actor.data.attributes.cmd = {
+			value: parseInt(character.maneuvers.cmd),
+			total: parseInt(character.maneuvers.cmd),
+			flatFootedTotal: parseInt(character.maneuvers.cmdflatfooted)
 		}
-		if (actor.type == 'npc') {
-			actor.data.details.xp = { value : parseInt(character.xpaward.value) };
-		} else {	
-			// data.details.xp.value/min/max
-			actor.data.details.xp = {
-				value: parseInt(character.xp.total),
-				min  : 0,
-				max  : parseInt(character.xp.total)
-			};
+		actor.data.attributes.cmb = {
+			value: parseInt(character.maneuvers.cmb),
+			total: parseInt(character.maneuvers.cmb),
 		}
-		// data.details.height/weight/gender/deity/age
-		actor.data.details.height = character.personal.charheight.text;
-		actor.data.details.weight = character.personal.charweight.text;
-		actor.data.details.gender = character.personal.gender;
-		actor.data.details.deity = character.deity.name;
-		actor.data.details.age = character.personal.age;
-		// data.skills.acr/apr/art/blf/clm/crf/dip/dev/dis/esc/fly/han/hea/int/kar/kdu/ken/kge/khi/klo/kna/kno/kpl/kre/lin/lor/per/prf/pro/rid/sen/slt/spl/ste/sur/swm/umd
-		//   .value/ability/rt/acp/rank/mod/background
-		// data.customSkills
+
+		actor.data.attributes.naturalAC = parseInt(character.armorclass.fromnatural);
+		actor.data.attributes.ac = {
+			normal: {
+				value: parseInt(character.armorclass.ac),
+				total: parseInt(character.armorclass.ac)
+			},
+			touch: {
+				value: parseInt(character.armorclass.touch),
+				total: parseInt(character.armorclass.touch),
+			},
+			flatFooted: {
+				value: parseInt(character.armorclass.flatfooted),
+				total: parseInt(character.armorclass.flatfooted)
+			}
+		};
+
+
+		//
+		// INVENTORY tab
+		//
+		
+		// data.currency.pp/gp/sp/cp
+		actor.data.currency = {
+			pp: parseInt(character.money.pp),
+			gp: parseInt(character.money.gp),
+			sp: parseInt(character.money.sp),
+			cp: parseInt(character.money.cp),
+		}
+		// data.altCurrency.pp/gp/sp/cp  (weightless coins)
+
+
+		// data.attributes.encumbrance.level/levels/carriedWeight
+		const enc = character.encumbrance;
+		actor.data.attributes.encumbrance = {
+			level: (enc.level == 'Light Load') ? 0 : 1, // 0 = light load TBD
+			levels: {
+				light: parseInt(enc.light),
+				medium: parseInt(enc.medium),
+				heavy: parseInt(enc.heavy),
+				//carry:
+				//drag:
+			},
+			carriedWeight: parseInt(enc.carried)
+		};
+
+		
+		//
+		// FEATURES tab
+		//
+		
+		// data.items (includes feats)
+		const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
+		for (const feat of (Array.isArray(character.feats.feat) ? character.feats.feat : [character.feats.feat] )) {
+			const entry = feat_pack.index.find(e => e.name === feat.name);
+			if (entry) {
+				actor.items.push(await feat_pack.getEntry(entry._id));
+			} else {
+				// Create our own placemarker feat.
+				const itemdata = {
+						name: feat.name,
+						type: 'feat',
+						data: { description : { value : addParas(feat.description['#text']) }}
+					};
+				if (feat.featcategory) {
+					let cats = [ [ feat.featcategory['#text'] ] ];
+					//item.data.tags = new Map();
+					//item.data.tags.insert( cats );
+				}
+				actor.items.push(new Item(itemdata));
+			}
+		}
+		
+		// defensive.[special.shortname]  from 'class abilities'
+		// gear.[item.name/quantity/weight/cost/description
+		const item_pack = await game.packs.find(p => p.metadata.name === 'items');
+		for (const item of (Array.isArray(character.gear.item) ? character.gear.item : [character.gear.item] )) {
+			const entry = item_pack.index.find(e => e.name === item.name);
+			if (entry) {
+				actor.items.push(await item_pack.getEntry(entry._id));
+			} else {
+				// Create our own placemarker item.
+				const itemdata = {
+						name: item.name,
+						type: 'equipment',
+						data: {
+							quantity: item.quantity,
+							weight: item.weight.value,
+							price: item.cost.value,
+							description : { value : addParas(item.description['#text']) },
+							identified: true,
+							carried: true,
+							},
+					};
+				actor.items.push(new Item(itemdata));
+			}
+		}
+		
+		
+		
+		//
+		// SKILLS tab
+		//
 		let numart = 0;
 		let numcrf = 0;
 		let numlor = 0;
@@ -357,6 +496,32 @@ export class RWPF1Actor {
 				actor.data.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
 			}
 		}
+		
+		
+		//
+		// BUFFS tab
+		//
+		
+		
+		//
+		// BIOGRAPHY tab
+		//
+		
+		
+		//
+		// NOTES tab
+		//
+		
+		
+		//
+		// SETTINGS tab
+		//
+		
+		
+		//
+		// STUFF TO BE PUT INTO THE CORRECT PLACE
+		//
+		
 		// data.traits.size - fine|dim|tiny|med|lg|huge|grg|col
 		const siz = character.size.name;
 		if (siz == 'Fine')
@@ -414,41 +579,9 @@ export class RWPF1Actor {
 		// data.traits.stature
 		// data.traits.weaponProf.value[]/custom
 		// data.traits.armorProf.value[]/custom
-		// data.currency.pp/gp/sp/cp
-		actor.data.currency = {
-			pp: parseInt(character.money.pp),
-			gp: parseInt(character.money.gp),
-			sp: parseInt(character.money.sp),
-			cp: parseInt(character.money.cp),
-		}
-		// data.altCurrency.pp/gp/sp/cp
 		// data.flags
 		// data.token (leave empty)
 		
-		// data.items (includes feats)
-		const pack = await game.packs.find(p => p.metadata.name === 'feats');
-		//const index = await pack.getIndex();
-		const index = pack.index;		// We are never modifying this pack, so it should remain current.
-		for (const feat of (Array.isArray(character.feats.feat) ? character.feats.feat : [character.feats.feat] )) {
-			const entry = index.find(e => e.name === feat.name);
-			if (entry) {
-				actor.items.push(await pack.getEntry(entry._id));
-			} else {
-				// Create our own placemarker feat.
-				const item = {
-						name: feat.name,
-						type: 'feat',
-						data: { description : { value : addParas(feat.description['#text']) }}
-					};
-				if (feat.featcategory) {
-					let cats = [ [ feat.featcategory['#text'] ] ];
-					//item.data.tags = new Map();
-					//item.data.tags.insert( cats );
-				}
-				actor.items.push(new Item(item));
-			}
-		}
-
 		// data.effects
 
 		return actor;

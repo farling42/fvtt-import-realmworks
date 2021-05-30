@@ -1104,9 +1104,19 @@ class RealmWorksImporter extends Application
 		if (game.system.id == 'pf1' || game.system.id == 'dnd5e' || game.system.id == 'grpga') {
 			
 			if (game.system.id == 'pf1') {
+				// full list of packs: classes, mythicpaths, commonbuffs
+				// spells, feats, items, armors-and-shields, weapons-and-ammo, racialhd
+				// races, class-abilities, monster-templates, sample-macros, roll-tables
+				// ultimate-equipment, bestiary_1/2/3/4/5, conditions, skills
+				//game.packs.find(p => console.log(`PF1 pack = ${p.metadata.name}`));
 				// Very specific to PF1, generate the FEAT index only once (it avoids excessive re-writing of feats.db)
-				const pack = await game.packs.find(p => p.metadata.name === 'feats');
-				if (pack) await pack.getIndex();
+				await game.packs.find(p => p.metadata.name === 'armors-and-shields')?.getIndex();
+				await game.packs.find(p => p.metadata.name === 'classes')?.getIndex();
+				await game.packs.find(p => p.metadata.name === 'feats')?.getIndex();
+				await game.packs.find(p => p.metadata.name === 'items')?.getIndex();
+				await game.packs.find(p => p.metadata.name === 'races')?.getIndex();
+				await game.packs.find(p => p.metadata.name === 'spells')?.getIndex();
+				await game.packs.find(p => p.metadata.name === 'weapons-and-ammo')?.getIndex();
 			}
 			
 			let actor_topics = this.getActorTopics(topics);
