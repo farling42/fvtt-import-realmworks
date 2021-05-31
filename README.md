@@ -22,12 +22,17 @@ A new compendium pack with the supplied name will be created, and it will contai
 
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
-There is a file limit size of 512 MB for importing (due to a limitation on the maximum allowed size of a string in Javascript).
-
 ## Patreon
 If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
+0.2.5 RW terminology used in standard section headings:
+"Child Topics" changed to "Governed Content";
+"Connections" changed to "Relationships";
+"Links To/From Other Topics" changed to "Content Links: In/Out".
+Format of relationships changed slightly, and includes any entered annotations.
+File size limitation removed from the README.md file.
+
 0.2.4 Create an Actor for EACH character in a HL portfolio file, not just the first one.
 For PF1 characters, create sub-skills (e.g. Artistry, Perform, Profession).
 Include prefix and suffix (if any) from the RW topic in title of journal entries.

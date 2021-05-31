@@ -742,7 +742,7 @@ class RealmWorksImporter extends Application
 				// Put link to child topic in original topic
 				// topicchild elements are added when parsing a LARGE file
 				if (!has_child_topics) {
-					html += '<h1>Child Topics</h1><ul>';
+					html += '<h1>Governed Content</h1><ul>';
 					has_child_topics = true;
 				}
 				html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
@@ -756,12 +756,17 @@ class RealmWorksImporter extends Application
 				if (!has_connections)
 				{
 					has_connections = true;
-					html += '<h1>Connections</h1>';
+					html += '<h1>Relationships</h1>';
 				}
-				html += `<p>${this.formatLink(node.getAttribute('target_id'), node.getAttribute('target_name'))} = ${node.getAttribute('nature')}`;
-				if (node.hasAttribute('qualifier')) html += `:${node.getAttribute('qualifier')}`;
-				if (node.hasAttribute('rating'))    html += `, ${node.getAttribute('rating')} rating`;
-				if (node.hasAttribute('attitude'))  html += `, ${node.getAttribute('attitude')} attitude`;
+				
+				html += '<p>';
+				if (node.hasAttribute('qualifier'))  html += `${node.getAttribute('qualifier')} `;
+				html += `<i>(${node.getAttribute('nature').replace(/_/g,'-')})</i> `;
+				html += `${this.formatLink(node.getAttribute('target_id'), node.getAttribute('target_name'))}`;
+				if (node.hasAttribute('rating'))     html += `, rating ${node.getAttribute('rating')}`;
+				if (node.hasAttribute('attitude'))   html += `, attitude ${node.getAttribute('attitude')}`;
+				let note = node.getElementsByTagName('annotation');
+				if (note.length > 0) html += ` (${note[0].textContent})`;
 			}
 			// and ignore tag_assign at this point.
 		}
@@ -771,7 +776,7 @@ class RealmWorksImporter extends Application
 		// Add inbound and/or outbound link information (if requested)
 		if ((this.addInboundLinks || this.addOutboundLinks) && (inbound.length > 0 || outbound.length > 0 || both.length > 0)) {
 			if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
-				html += '<h1>Links From Other Topics</h1><p>';
+				html += '<h1>Content Links: In</h1><p>';
 				for (const node of inbound) {
 					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
@@ -781,7 +786,7 @@ class RealmWorksImporter extends Application
 				html += '<\p>';
 			}
 			if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
-				html += '<h1>Links To Other Topics</h1><p>';
+				html += '<h1>Content Links: Out</h1><p>';
 				for (const node of outbound) {
 					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 				}
