@@ -364,8 +364,17 @@ class RealmWorksImporter extends Application
 		// Add some notes
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
 			const pinname = pin.getAttribute('pin_name');
-			let desc = pin.getElementsByTagName('description')[0];
+			let desc = pin.getElementsByTagName('description')[0]?.textContent;
+			let gmdir = pin.getElementsByTagName('gm_directions')?.[0]?.textContent;
 			let entryid = this.entity_for_topic[pin.getAttribute('topic_id')]?.data._id;
+			let label = '';
+			if (desc.length > 0) label += '\n' + desc.replace('&#xd;\n','\n');
+			if (gmdir) label += '\nGMDIR: ' + gmdir.replace('&#xd;\n','\n');
+			// Embellish title if there is more to follow in the note
+			if (label.length == 0) 
+				label = pinname;
+			else
+				label = '**' + pinname + '**' + label;
 			let notedata = {
 				name: pinname,
 				entryId: entryid,				// can't link to COMPENDIUM !!!
@@ -374,8 +383,8 @@ class RealmWorksImporter extends Application
 				icon: 'icons/svg/circle.svg',		// Where do we get a good icon?
 				iconSize: 32,		// minimum size 32
 				iconTint: entryid ? '#7CFC00' : '#c00000',
-				text: (desc.textContent.length > 0 ) ? desc.textContent.replace('&#xd;\n','\n') : pinname,
-				//fontSize: 48,
+				text: label,
+				fontSize: 24,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
 				scene: scene._id

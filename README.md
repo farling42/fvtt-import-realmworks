@@ -32,6 +32,7 @@ If you like what it does, then contributions will be gratefully received at [Pat
 For PF1 characters, create sub-skills (e.g. Artistry, Perform, Profession).
 Include prefix and suffix (if any) from the RW topic in title of journal entries.
 Create thumbnails for each scene.
+Map pins now include GM-Notes if present, and always includes the pin name.
 
 0.2.3 Support files bigger than 512 MB (but Firefox might not like them)
 
