@@ -20,9 +20,10 @@ Press the IMPORT button at the bottom of the window and wait for the contents to
 
 New folders will be created in the Scenes, Actors and Journal sections containing the imported data.
 
+
 Each *Smart_Image* is converted into a scene, with map pins and connected to the originating topic for scene notes.
 
-Each *Topic* will be converted into a separate Journal Entry.
+Each *Topic* will be converted into a separate Journal Entry, placed in a sub-folder based on the Category of the topic.
 
 Each *image or embedded file* will be extracted and located in the subdirectory \[data]world/<world-name/realmworksimport
 
