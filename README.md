@@ -6,19 +6,27 @@ You can install the module by updating your module list with the following addit
 ## Instructions
 Simply add this module to your Foundry VTT and enable it within the game into which you want to import your RWoutput information.
 
-In the Compendium panel of the game you will find a new button at the bottom.
+In the Compendium panel of the game you will find a new button at the bottom called "Realm Works Import".
 
 Press the button to open a simple dialogue window.
 
 Select an .rwoutput file using the file selector.
 
-Enter the name of the compendium into which the journal entries will be placed (default: "Realm Works").
+Enter the name of the folder into which all extracted entries will be placed.
 
 Maybe modify which options you want to work with.
 
 Press the IMPORT button at the bottom of the window and wait for the contents to be imported.
 
-A new compendium pack with the supplied name will be created, and it will contain one journal entry for each topic that was present in the RWoutput file.
+New folders will be created in the Scenes, Actors and Journal sections containing the imported data.
+
+Each *Smart_Image* is converted into a scene, with map pins and connected to the originating topic for scene notes.
+
+Each *Topic* will be converted into a separate Journal Entry.
+
+Each *image or embedded file* will be extracted and located in the subdirectory \[data]world/<world-name/realmworksimport
+
+Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1 game system).
 
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
@@ -31,7 +39,7 @@ If you like what it does, then contributions will be gratefully received at [Pat
 "Connections" changed to "Relationships";
 "Links To/From Other Topics" changed to "Content Links: In/Out".
 Format of relationships changed slightly, and includes any entered annotations.
-File size limitation removed from the README.md file.
+README.md file updated with current information.
 
 0.2.4 Create an Actor for EACH character in a HL portfolio file, not just the first one.
 For PF1 characters, create sub-skills (e.g. Artistry, Perform, Profession).
