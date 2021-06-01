@@ -281,11 +281,6 @@ class RealmWorksImporter extends Application
 		await FilePicker.upload(this.filesource, this.filedirectory, file)
 			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
-		//if (request.status === 413) {
-		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorTooLarge"));
-		//} else if (request.status !== 200) {
-		//	return ui.notifications.error(game.i18n.localize("FILES.ErrorSomethingWrong"));
-		//}
 	}
 
 	// Convert a string in base64 format into binary and upload to this.filedirectory,
@@ -322,7 +317,7 @@ class RealmWorksImporter extends Application
 		
 		// The file was uploaded when the TOPIC was processed, so can simply read it here.
 		const imagename = this.imageFilename(filename);
-		const tex = await loadTexture(imagename);
+		const tex = await loadTexture(imagename);	// this works for .tif and .bmp, but scenedata.img won't support those
 		let scenedata = {
 			name   : scenename,
 			img    : imagename,
@@ -476,17 +471,33 @@ class RealmWorksImporter extends Application
 				const gmdir      = this.getChild(child, 'gm_directions');
 				const annotation = this.getChild(child, 'annotation');
 				
-				if (style && style != 'Normal') {
-					if (style == 'Read_Aloud')  // 209,223,242
-						result += '<section style="background-color:#d1dff2">';
-					else if (style == 'Handout')  // 232,225,217
-						result += '<section style="background-color:#e8e1d9">';
-					else if (style == 'Flavor')   // 239,212,210
-						result += '<section style="background-color:#efd4d2">';
-					else if (style == 'Callout')  // 190,190,190
-						result += '<section style="background-color:#bebebe">';
+				// If both gmdir and contents, then need an extra border
+				let in_section = false;
+				let margin="";
+				let bgcol="";
+				if (gmdir && contents) {
+					margin = 'border:1px solid black;margin-top:2px;margin-bottom:2px;';
+					in_section = true;
 				}
-				
+				if (style && style != 'Normal') {
+					if (style == 'Read_Aloud') { // 209,223,242
+						bgcol = 'background-color:#d1dff2;padding:1px;';
+						in_section = true;
+					} else if (style == 'Handout') { // 232,225,217
+						bgcol = 'background-color:#e8e1d9;padding:1px;';
+						in_section = true;
+					} else if (style == 'Flavor') {  // 239,212,210
+						bgcol = 'background-color:#efd4d2;padding:1px;';
+						in_section = true;
+					} else if (style == 'Callout') { // 190,190,190
+						bgcol = 'background-color:#bebebe;padding:1px;';
+						in_section = true;
+					}
+				}
+				if (in_section) {
+					result += '<section style="' + margin + bgcol + '">';
+					in_section = true;
+				}
 				if (gmdir) {
 					result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(gmdir.textContent, linkage_names)) + '</section>';
 				}
@@ -618,7 +629,7 @@ class RealmWorksImporter extends Application
 					console.log(`Unsupported snippet type: ${sntype}`);
 				}
 				
-				if (style && style != 'Normal') {
+				if (in_section) {
 					result += '</section>';
 				}
 
