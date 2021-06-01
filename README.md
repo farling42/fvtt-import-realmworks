@@ -41,6 +41,8 @@ If you like what it does, then contributions will be gratefully received at [Pat
 "Links To/From Other Topics" changed to "Content Links: In/Out".
 Format of relationships changed slightly, and includes any entered annotations.
 README.md file updated with current information.
+GM-Directions in topics converted to "secret" sections in journal entries.
+Snippet styles change the background colour as per RW.
 
 0.2.4 Create an Actor for EACH character in a HL portfolio file, not just the first one.
 For PF1 characters, create sub-skills (e.g. Artistry, Perform, Profession).
