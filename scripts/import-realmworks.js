@@ -91,52 +91,53 @@ class RealmWorksImporter extends Application
 			// so read chunks of the file and look for topics within the chunks.
 			const chunkSize = 5000000;	// ~5 MB
 			let buffer = "";
-			let topic_start, topic_end;
-			let topics = [];
+			let topic_nodes = [];
 			let parser = new DOMParser();
 			let start = 0;
-			let block, topic, blob;
 			while (start < file.size) {
 				// Read another chunk onto the end of the buffer.
-				blob = await file.slice(start, start+chunkSize);
+				const blob = await file.slice(start, start+chunkSize);
 				if (blob.size == 0) break;
 				start += blob.size;
+				
 				buffer += await blob.text();
 				console.log(`Read ${blob.size} bytes from file (buffer size now ${buffer.length}`);
 				// Read all complete topics which are in the buffer
-				do {
-					topic_end = buffer.indexOf('</topic>');
-					if (topic_end > 0) {
-						topic_start = buffer.lastIndexOf('<topic ', topic_end);
-						if (topic_start >= 0) {
-							//let docnode = parser.parseFromString('<?xml version="1.0" encoding="utf-8"?>' + buffer.slice(topic_start, topic_end+8), "text/xml");
-							// parseFromString returns a #Document node as the top node.
-							block = buffer.slice(topic_start, topic_end+8);
-							try {
-								topic = this.getChild(parser.parseFromString(block, "text/xml"), 'topic');
-								if (topic) {
-									topics.push(topic);
-									// Ensure topics with " in the title don't cause problems
-									buffer = buffer.slice(0,topic_start) + 
-										`<topicchild topic_id="${topic.getAttribute('topic_id')}" public_name="${topic.getAttribute('public_name').replace(/"/g,'%22')}" />` + 
-										buffer.slice(topic_end+8);
-								} else {
-									console.log(`Failed to decode topic in ${block}`);
-									buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
-								}
-							}
-							catch(e) {
-								console.log(`Parsing failed due to ${e}`);
-								console.log (`text: ${block}`);
-								buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
-							}
+				while (true) {
+					// Firstly, find first end-of-topic marker
+					const topic_end = buffer.indexOf('</topic>');
+					if (topic_end < 0) break;
+					// Find the start-of-topic marker for that end-marker
+					const topic_start = buffer.lastIndexOf('<topic ', topic_end);
+					if (topic_start < 0) break;
+					//let docnode = parser.parseFromString('<?xml version="1.0" encoding="utf-8"?>' + buffer.slice(topic_start, topic_end+8), "text/xml");
+					const block = buffer.slice(topic_start, topic_end+8);
+					try {
+						// parseFromString returns a #Document node as the top node.
+						const topicnode = this.getChild(parser.parseFromString(block, "text/xml"), 'topic');
+						if (topicnode) {
+							topic_nodes.push(topicnode);
+							// Replace extracted topic with a marker to correctly identify child topics.
+							// Ensure topics with " in the title don't cause problems
+							buffer = buffer.slice(0,topic_start) + 
+								`<topicchild topic_id="${topicnode.getAttribute('topic_id')}" public_name="${topicnode.getAttribute('public_name').replace(/"/g,'%22')}" />` + 
+								buffer.slice(topic_end+8);
+						} else {
+							console.log(`Failed to decode topic in ${block}`);
+							// Remove offending topic without marker
+							buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
 						}
+					} catch(e) {
+						console.log(`Parsing failed due to ${e}`);
+						console.log (`text: ${block}`);
+						// Remove offending topic without marker
+						buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
 					}
-				} while (topic_end >= 0 && topic_start >= 0);
+				}
 			}
 			// Do the actual work!
-			console.log(`Found ${topics.length} topics`);
-			await this.parseXML(topics);
+			console.log(`Found ${topic_nodes.length} topics`);
+			await this.parseXML(topic_nodes);
 			// Automatically close the window after the import is finished
 			//this.close();
 		});
@@ -479,10 +480,13 @@ class RealmWorksImporter extends Application
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							result += this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
+							if (child.getAttribute('style') == 'Read_Aloud')
+								result += '<blockquote>' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</blockquote>';
+							else
+								result += this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
-							result += '<b>GMDIR: </b>' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
+							result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</section>';
 						//} else if (snip.nodeName == "annotation") {
 							//
 						} else if (!snip.nodeName.startsWith("#text") && 
