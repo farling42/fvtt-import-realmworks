@@ -474,16 +474,27 @@ class RealmWorksImporter extends Application
 				// Snippets contain the real information!
 				let annotation;
 				const sntype = child.getAttribute("type");
+				const style  = child.getAttribute("style");
 				const label = this.getSnippetLabel(child);
 				
 				if (sntype == "Multi_Line") {
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == "contents") {
 							// contents child (it will already be in encoded-HTML)
-							if (child.getAttribute('style') == 'Read_Aloud')
-								result += '<blockquote>' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</blockquote>';
-							else
+							if (!style || style == 'Normal')
 								result += this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
+							else if (style == 'Read_Aloud')  // 209,223,242
+								result += '<section style="background-color:#d1dff2">' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</section>';
+								//result += '<blockquote>' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</blockquote>';
+							else if (style == 'Handout')  // 232,225,217
+								result += '<section style="background-color:#e8e1d9">' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</section>';
+							else if (style == 'Flavor')   // 239,212,210
+								result += '<section style="background-color:#efd4d2">' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</section>';
+							else if (style == 'Callout')  // 190,190,190
+								result += '<section style="background-color:#bebebe">' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</section>';
+							else // should never get here
+								result += this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names));
+								
 						} else if (snip.nodeName == "gm_directions") {
 							// contents child (it will already be in encoded-HTML)
 							result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(snip.textContent, linkage_names)) + '</section>';
