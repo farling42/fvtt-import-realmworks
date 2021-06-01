@@ -114,7 +114,7 @@ export class RWPF1Actor {
 		actor.data.details.height = character.personal.charheight.text;
 		actor.data.details.weight = character.personal.charweight.text;
 		actor.data.details.gender = character.personal.gender;
-		actor.data.details.deity = character.deity.name;
+		actor.data.details.deity = character?.deity?.name;
 		actor.data.details.age = character.personal.age;
 
 		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
@@ -123,7 +123,7 @@ export class RWPF1Actor {
 		if (race) {
 			actor.items.push(await race_pack.getEntry(race._id));
 		} else {
-			console.log(`Race '${character.race.name.toLowerCase()}' not in 'races' pack`);
+			//console.log(`Race '${character.race.name.toLowerCase()}' not in 'races' pack`);
 			const itemdata = {
 				name: character.race.name,
 				type: 'race',
@@ -148,7 +148,7 @@ export class RWPF1Actor {
 			for (const cclass of (Array.isArray(classes) ? classes : [classes] )) {
 				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
 				const name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
-				console.log(`Looking for class called '${name}'`);
+				//console.log(`Looking for class called '${name}'`);
 				// Strip trailing (...)  from class.name
 				const entry = class_pack.index.find(e => e.name === name);
 				if (entry) {
@@ -325,53 +325,61 @@ export class RWPF1Actor {
 		//
 		
 		// data.items (includes feats)
-		const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
-		for (const feat of (Array.isArray(character.feats.feat) ? character.feats.feat : [character.feats.feat] )) {
-			const entry = feat_pack.index.find(e => e.name === feat.name);
-			if (entry) {
-				actor.items.push(await feat_pack.getEntry(entry._id));
-			} else {
-				// Create our own placemarker feat.
-				const itemdata = {
+		if (character.feats?.feat) {
+			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
+			for (const feat of(Array.isArray(character.feats.feat) ? character.feats.feat : [character.feats.feat])) {
+				const entry = feat_pack.index.find(e => e.name === feat.name);
+				if (entry) {
+					actor.items.push(await feat_pack.getEntry(entry._id));
+				} else {
+					// Create our own placemarker feat.
+					const itemdata = {
 						name: feat.name,
 						type: 'feat',
-						data: { description : { value : addParas(feat.description['#text']) }}
+						data: {
+							description: {
+								value: addParas(feat.description['#text'])
+							}
+						}
 					};
-				if (feat.featcategory) {
-					let cats = [ [ feat.featcategory['#text'] ] ];
-					//item.data.tags = new Map();
-					//item.data.tags.insert( cats );
+					if (feat.featcategory) {
+						let cats = [[feat.featcategory['#text']]];
+						//item.data.tags = new Map();
+						//item.data.tags.insert( cats );
+					}
+					actor.items.push(new Item(itemdata));
 				}
-				actor.items.push(new Item(itemdata));
 			}
 		}
 		
 		// defensive.[special.shortname]  from 'class abilities'
 		// gear.[item.name/quantity/weight/cost/description
-		const item_pack = await game.packs.find(p => p.metadata.name === 'items');
-		for (const item of (Array.isArray(character.gear.item) ? character.gear.item : [character.gear.item] )) {
-			const entry = item_pack.index.find(e => e.name === item.name);
-			if (entry) {
-				actor.items.push(await item_pack.getEntry(entry._id));
-			} else {
-				// Create our own placemarker item.
-				const itemdata = {
+		if (character.gear?.item) {
+			const item_pack = await game.packs.find(p => p.metadata.name === 'items');
+			for (const item of(Array.isArray(character.gear.item) ? character.gear.item : [character.gear.item])) {
+				const entry = item_pack.index.find(e => e.name === item.name);
+				if (entry) {
+					actor.items.push(await item_pack.getEntry(entry._id));
+				} else {
+					// Create our own placemarker item.
+					const itemdata = {
 						name: item.name,
 						type: 'equipment',
 						data: {
 							quantity: item.quantity,
 							weight: item.weight.value,
 							price: item.cost.value,
-							description : { value : addParas(item.description['#text']) },
+							description: {
+								value: addParas(item.description['#text'])
+							},
 							identified: true,
 							carried: true,
-							},
+						},
 					};
-				actor.items.push(new Item(itemdata));
+					actor.items.push(new Item(itemdata));
+				}
 			}
 		}
-		
-		
 		
 		//
 		// SKILLS tab
@@ -379,7 +387,7 @@ export class RWPF1Actor {
 		let numart = 0;
 		let numcrf = 0;
 		let numlor = 0;
-		let numper = 0;
+		let numprf = 0;
 		let numpro = 0;
 		let numcust = 0;
 		for (const skill of character.skills.skill) {
