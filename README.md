@@ -35,6 +35,14 @@ Any parent topic in the RWoutput file will have a list of children at the end of
 If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
+0.3.3 For PF1 actors, include weapons/armor/ammo/shield items, and improve logic for matching names of other items.
+Some attempts at speeding up the code a little.
+Decode embedded HL portfolios correctly in the case where a character has minions.
+
+0.3.2 Get Actors and Scenes working on 0.8.6 to the same level as on 0.7.10 (item quantities not working)
+
+0.3.1 Fixed wrong compatibleCoreVersion in module.json
+
 0.3.0 Prevent it generating errors in 0.8.6 (but disable some functionality in order to achieve this)
 
 0.2.6 Further improvements to presentation of snippet styles and GM-Directions

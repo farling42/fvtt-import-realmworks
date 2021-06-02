@@ -169,7 +169,7 @@ export class RWPF1Actor {
 					if (isNewerVersion(game.data.version, "0.8.0")) {
 						//console.log(`Class ${entry.name} at level ${cclass.level}`);
 						let itemdata = (await class_pack.getDocument(entry._id)).data;
-						itemdata.data.level = cclass.level;		// TODO - doesn't work
+						itemdata.data.level = parseInt(cclass.level);		// TODO - doesn't work
 						actor.items.push(itemdata);
 					} else {
 						let itemdata =  await class_pack.getEntry(entry._id);

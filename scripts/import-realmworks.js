@@ -401,6 +401,19 @@ class RealmWorksImporter extends Application
 		return undefined;
 	}
 
+	getChildren(node,name) {
+		//return node?.querySelector(name);
+		let result = [];
+		if (node) {
+			// children   = only element children
+			// childNodes = all child nodes
+			for (const child of node.children) {
+				if (child.nodeName == name) result.append(child);
+			}
+		}
+		return result;
+	}
+
 	// base64 is the base64 string containing the .por file
 	// format is one of the character formats in the .por file: 'html', 'text', 'xml'
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
@@ -427,15 +440,18 @@ class RealmWorksImporter extends Application
 				console.log(`No 'name' tag in character portfolio: fields = ${character.getAttributeNames()}`);
 				continue;
 			}
-			for (const statblock of character.getElementsByTagName('statblock')) {
-				let format = statblock.getAttribute('format');
-				let folder = statblock.getAttribute('folder');
-				let filename = statblock.getAttribute('filename');
-				actordata[format] = this.Utf8ArrayToStr(files[folder + '/' + filename]);
+			for (const statblock of this.getChild(character,'statblocks').childNodes) {
+				if (statblock.nodeName == 'statblock') {
+					const format = statblock.getAttribute('format');
+					const folder = statblock.getAttribute('folder');
+					const filename = statblock.getAttribute('filename');
+					actordata[format] = this.Utf8ArrayToStr(files[folder + '/' + filename]);
+				}
 			}
-			for (const item of character.getElementsByTagName('image')) {
-				let folder = item.getAttribute('folder');
-				let filename = item.getAttribute('filename');
+			const img  = this.getChild(this.getChild(character,'images'),'image');
+			if (img) {
+				const folder   = img.getAttribute('folder');
+				const filename = img.getAttribute('filename');
 				actordata.imgfilename = filename;
 				actordata.imgdata = files[folder + '/' + filename];
 			}
