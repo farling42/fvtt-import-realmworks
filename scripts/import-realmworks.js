@@ -456,11 +456,13 @@ class RealmWorksImporter extends Application
 		
 		// Process all child (not descendent) nodes in this section
 		for (const child of section.childNodes) {
-			if (child.nodeName == "section") {
+			switch (child.nodeName) {
+			case 'section':
 				// Subsections increase the HEADING number
 				result += await this.writeSection(child, level+1, linkage_names);
+				break;
 				
-			} else if (child.nodeName == "snippet") {
+			case 'snippet':
 				// Snippets contain the real information!
 				const sntype = child.getAttribute('type');
 				const style  = child.getAttribute('style');
@@ -500,108 +502,123 @@ class RealmWorksImporter extends Application
 					result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(gmdir.textContent, linkage_names)) + '</section>';
 				}
 				
-				if (sntype == "Multi_Line") {
+				switch (sntype) {
+				case "Multi_Line":
 					if (contents) {
 						result += this.simplifyPara(this.replaceLinks(contents.textContent, linkage_names));
 					}
-				} else if (sntype == "Labeled_Text") {
+					break;
+				case "Labeled_Text":
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
 						result += `<p><b>${label}:</b> ` + this.stripPara(this.replaceLinks(contents.textContent, linkage_names));
 						if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
-				} else if (sntype == "Numeric") {
+					break;
+				case "Numeric":
 					if (contents) {
 						// contents will hold just a number
 						result += `<p><b>${label}:</b> ` + this.replaceLinks(contents.textContent, linkage_names);
 						if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
-				} else if (sntype == "Tag_Standard") {
+					break;
+				case "Tag_Standard":
 					// <tag_assign tag_name="Manufacturing" domain_name="Commerce Activity" type="Indirect" />
-					let items = [];
+					let tags = [];
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == 'tag_assign') {
 							let tag = snip.getAttribute('tag_name');
-							if (tag) items.push(tag);
+							if (tag) tags.push(tag);
 						}
 					}
 					result += `<p><b>${label}:</b> `;
-					if (items.length > 0) result += items.join(', ');
+					if (tags.length > 0) result += tags.join(', ');
 					if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`;
 					result += `</p>`;
-				} else if (sntype == "Tag_Multi_Domain") {
-					let items = [];
+					break;
+					
+				case "Tag_Multi_Domain":
+					let tagmulti = [];
 					for (const snip of child.childNodes) {
 						if (snip.nodeName == "tag_assign") {
 							if (snip.hasAttribute('tag_name')) {
-								items.push(snip.getAttribute('domain_name') + ': ' + snip.getAttribute('tag_name'));
+								tagmulti.push(snip.getAttribute('domain_name') + ': ' + snip.getAttribute('tag_name'));
 							}
 						}
 					}
 					result += `<p><b>${label}:</b> `;
-					if (items.length > 0) result += items.join('; ');
+					if (tagmulti.length > 0) result += tagmulti.join('; ');
 					if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`;
 					result += `</p>`;
-				} else if (sntype == "Date_Game") {
-					let snip = this.getChild(child, 'game_date');
+					break;
+					
+				case "Date_Game":
+					let gamedate = this.getChild(child, 'game_date');
 					result += `<p><b>${label}:</b> `;
-					if (snip) result += snip.getAttribute("display");
+					if (gamedate) result += gamedate.getAttribute("display");
 					if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`;
 					result += `</p>`;
 					// annotation
-				} else if (sntype == "Date_Range") {
-					let snip = this.getChild(child, 'date_range');
+					break;
+				case "Date_Range":
+					let daterange = this.getChild(child, 'date_range');
 					result += `<p><b>${label}:</b> `;
-					if (snip) result += `${snip.getAttribute("display_start")} to ${snip.getAttribute("display_end")}`;
+					if (daterange) result += `${daterange.getAttribute("display_start")} to ${daterange.getAttribute("display_end")}`;
 					if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`;
 					result += `</p>`;
 					// annotation
-				} else if (sntype == "Portfolio") {
-					const ext_object = this.getChild(child,      'ext_object');
-					const asset      = this.getChild(ext_object, 'asset');  // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents   = this.getChild(asset,      'contents');    // <contents>
-					if (contents) {
-						let characters = this.readPortfolio(contents.textContent);
+					break;
+				case "Portfolio":
+					// <ext_object ...>
+					// <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					// <contents>
+					const portfolio = this.getChild(this.getChild(this.getChild(child, 'ext_object'), 'asset'), 'contents');    // <contents>
+					if (portfolio) {
+						let characters = this.readPortfolio(portfolio.textContent);
 						for (let i=0; i<characters.length; i++) {
 							if (i > 0) result += '<hr>';
 							result += `<h${level+1}>Portfolio: ${characters[i].name}</h${level+1}>`;
 							result += characters[i].html;
 						}
 					}
-				} else if (sntype == "Picture" ||
-					sntype == "PDF" ||
-					sntype == "Audio" ||
-					sntype == "Video" ||
-					sntype == "Statblock" ||
-					sntype == "Foreign" ||
-					sntype == "Rich_Text") {
-					
-					const ext_object = this.getChild(child,      'ext_object');  // <ext_object name="Portrait" type="Picture">
-					const asset      = this.getChild(ext_object, 'asset');       // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents   = this.getChild(asset,      'contents');    // <contents>
-					const filename   = asset.getAttribute('filename');
-					if (contents) {
-						result += `<h${level+1}>${ext_object.getAttribute('name')}</h${level+1}>`;
-						const fileext  = filename.split('.').pop();	// extra suffix from asset filename
+					break;
+				case "Picture":
+				case "PDF":
+				case "Audio":
+				case "Video":
+				case "Statblock":
+				case "Foreign":
+				case "Rich_Text":
+					// <ext_object name="Portrait" type="Picture">
+					// <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					// <contents>
+					const bin_ext_object = this.getChild(child,      'ext_object');  
+					const bin_asset      = this.getChild(bin_ext_object, 'asset');       
+					const bin_contents   = this.getChild(bin_asset,      'contents');    
+					const bin_filename   = bin_asset.getAttribute('filename');
+					if (bin_contents) {
+						result += `<h${level+1}>${bin_ext_object.getAttribute('name')}</h${level+1}>`;
+						const fileext  = bin_filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
-							result += `${atob(contents.textContent)}`;
+							result += `${atob(bin_contents.textContent)}`;
 						else if (sntype == "Picture") {
-							//result += `<p><img src="data:image/${fileext};base64,${contents.textContent}"></img></p>`;
-							await this.uploadFile(filename, contents.textContent);
-							result += `<p><img src='${this.imageFilename(filename)}'></img></p>`;
+							//result += `<p><img src="data:image/${fileext};base64,${bin_contents.textContent}"></img></p>`;
+							await this.uploadFile(bin_filename, bin_contents.textContent);
+							result += `<p><img src='${this.imageFilename(bin_filename)}'></img></p>`;
 						} else {
 							let format = 'binary/octet-stream';
 							if (fileext == 'pdf') {
 								format = 'application/pdf';
 							}
-							//result += `<p><a href="data:${format};base64,${contents.textContent}"></a></p>`;
-							await this.uploadFile(filename, contents.textContent);
-							result += `<p><a href='${this.imageFilename(filename)}'></a></p>`;
+							//result += `<p><a href="data:${format};base64,${bin_contents.textContent}"></a></p>`;
+							await this.uploadFile(bin_filename, bin_contents.textContent);
+							result += `<p><a href='${this.imageFilename(bin_filename)}'></a></p>`;
 						}
 					}
-				} else if (sntype == "Smart_Image") {
+					break;
+				case "Smart_Image":
 					//<snippet facet_name="Map" type="Smart_Image" search_text="">
 					//  <smart_image name="Map">
 					//    <asset filename="n5uvmpam.eb4.png">
@@ -610,33 +627,38 @@ class RealmWorksImporter extends Application
 					//		<description>Nieklsdia (Zhodani)</description> -- could be empty
 					
 					// These need to be created as Scenes (and linked from the original topic?)
-					const smart_image = this.getChild(child,       'smart_image');
-					const asset       = this.getChild(smart_image, 'asset'); 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const contents    = this.getChild(asset,       'contents');  	// <contents>
-					const filename    = asset?.getAttribute('filename');
-					const format      = filename?.split('.').pop();	// extra suffix from asset filename
-					if (format && contents) {
+					const smart_image  = this.getChild(child,       'smart_image');
+					const map_asset    = this.getChild(smart_image, 'asset'); 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const map_contents = this.getChild(map_asset,       'contents');  	// <contents>
+					const map_filename = map_asset?.getAttribute('filename');
+					const map_format   = map_filename?.split('.').pop();	// extra suffix from asset filename
+					if (map_format && map_contents) {
 						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
-						//result += `<p><img src="data:image/${format};base64,${contents.textContent}"></img></p>`;
-						await this.uploadFile(filename, contents.textContent);
-						result += `<p><img src='${this.imageFilename(filename)}'></img></p>`;
+						//result += `<p><img src="data:image/${map_format};base64,${map_contents.textContent}"></img></p>`;
+						await this.uploadFile(map_filename, map_contents.textContent);
+						result += `<p><img src='${this.imageFilename(map_filename)}'></img></p>`;
 					}
-				} else if (sntype == "tag_assign") {
+					break;
+				case "tag_assign":
 					// Nothing to done for these
-				} else {
+					break;
+				default:
 					console.log(`Unsupported snippet type: ${sntype}`);
-				}
+				} // switch sntype
 				
 				if (in_section) {
 					result += '</section>';
 				}
+				break;
 
-			} else if (!child.nodeName.startsWith('#text')) {
-				// We can safely ignore whitespace at this level.
-				// Some other element type which we haven't implemented yet
-				console.log(`Unsupported element type: ${child.nodeName}`);
-			}
-		}
+			default:
+				if (!child.nodeName.startsWith('#text')) {
+					// We can safely ignore whitespace at this level.
+					// Some other element type which we haven't implemented yet
+					console.log(`Unsupported element type: ${child.nodeName}`);
+				}
+			}	// switch child.nodeName
+		} // for childNodes
 		
 		//console.log(`writeSection(${name}) returning ${result}`);
 		return result;
@@ -688,12 +710,16 @@ class RealmWorksImporter extends Application
 		let has_child_topics = false;
 		let has_connections = false;
 		for (const node of topic.childNodes) {
-			if (node.nodeName == "alias") {
+			switch (node.nodeName) {
+			case 'alias':
 				// These come first
-				html += `<p><b>Aliases: </b><i>${node.getAttribute('name')}</i></p>`;
-			} else if (node.nodeName == "section") {
-				html += await this.writeSection(node, 1, linkage_names);		// Start with H1
-			} else if (node.nodeName == "topicchild" || node.nodeName == "topic") {
+				html += `<p><b>Aliases: </b><i>${node.getAttribute(' name ')}</i></p>`;
+				break;
+			case 'section':
+				html += await this.writeSection(node, 1, linkage_names); // Start with H1
+				break;
+			case 'topicchild':
+			case 'topic':
 				// No need to handle nested topics, since we found all of them at the start.
 				// Put link to child topic in original topic
 				// topicchild elements are added when parsing a LARGE file
@@ -702,27 +728,35 @@ class RealmWorksImporter extends Application
 					has_child_topics = true;
 				}
 				html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
-			} else if (node.nodeName == "linkage") {
+				break;
+			case 'linkage':
 				var dir = node.getAttribute('direction');
-				if (dir == 'Outbound') outbound.push(node);
-				else if (dir == 'Inbound') inbound.push(node);
-				else if (dir == 'Both') both.push(node);
-			} else if (node.nodeName == "connection") {
+				if (dir == 'Outbound')
+					outbound.push(node);
+				else if (dir == 'Inbound')
+					inbound.push(node);
+				else if (dir == 'Both')
+					both.push(node);
+				break;
+			case 'connection':
 				// <connection target_id="Topic_2" target_name="Child Feat 1" nature="Master_To_Minion" qualifier="Owner / Subsidiary"/>
-				if (!has_connections)
-				{
+				if (!has_connections) {
 					has_connections = true;
 					html += '<h1>Relationships</h1>';
 				}
-				
 				html += '<p>';
-				if (node.hasAttribute('qualifier'))  html += `${node.getAttribute('qualifier')} `;
+				if (node.hasAttribute('qualifier'))
+					html += `${node.getAttribute('qualifier')} `;
 				html += `<i>(${node.getAttribute('nature').replace(/_/g,'-')})</i> `;
 				html += `${this.formatLink(node.getAttribute('target_id'), node.getAttribute('target_name'))}`;
-				if (node.hasAttribute('rating'))     html += `, rating ${node.getAttribute('rating')}`;
-				if (node.hasAttribute('attitude'))   html += `, attitude ${node.getAttribute('attitude')}`;
+				if (node.hasAttribute('rating'))
+					html += `, rating ${node.getAttribute('rating')}`;
+				if (node.hasAttribute('attitude'))
+					html += `, attitude ${node.getAttribute('attitude')}`;
 				let note = node.getElementsByTagName('annotation');
-				if (note.length > 0) html += ` (${note[0].textContent})`;
+				if (note.length > 0)
+					html += ` (${note[0].textContent})`;
+				break;
 			}
 			// and ignore tag_assign at this point.
 		}
