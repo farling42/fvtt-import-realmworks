@@ -35,6 +35,8 @@ Any parent topic in the RWoutput file will have a list of children at the end of
 If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime)
 
 ## Changelog
+0.2.7 Prevent it generating errors in 0.8.6 (but disable some functionality in order to achieve this)
+
 0.2.6 Further improvements to presentation of snippet styles and GM-Directions
 
 0.2.5 RW terminology used in standard section headings:
