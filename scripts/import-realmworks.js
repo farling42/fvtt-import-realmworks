@@ -375,9 +375,6 @@ class RealmWorksImporter extends Application
 				scene: (isNewerVersion(game.data.version, "0.8.0") ? scene.id : scene._id)
 			};
 			
-			//let note = await Note.create(notedata)
-			//	.catch(console.log(`Failed to create map pin ${pinname}`));
-			// As per Note.create, but adding it to a different scene, not canvas.scene
 			if (isNewerVersion(game.data.version, "0.8.0")) {
 				await scene.createEmbeddedDocuments('Note', [notedata]);
 			} else {
