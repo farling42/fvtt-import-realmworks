@@ -3,9 +3,9 @@
 	"title": "Realm Works® Importer",
 	"description": "Imports files from Realm Works® campaign management tool",
 	"author": "Farling",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"minimumCoreVersion": "0.7.9",
-	"compatibleCoreVersion": "0.7.10",
+	"compatibleCoreVersion": "0.8.6",
 
 	"esmodules": ["scripts/import-realmworks.js"],
 	"scripts": ["scripts/UZIP.js", "scripts/pf1-actor.js"],
