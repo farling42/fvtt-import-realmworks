@@ -378,34 +378,26 @@ export class RWPF1Actor {
 		
 		// gear.[item.name/quantity/weight/cost/description
 		if (character.gear?.item) {
-			const item_pack = await game.packs.find(p => p.metadata.name === 'items');
-			const armor_pack = await game.packs.find(p => p.metadata.name === 'armors-and-shields');
+			const item_pack   = await game.packs.find(p => p.metadata.name === 'items');
+			const armor_pack  = await game.packs.find(p => p.metadata.name === 'armors-and-shields');
 			const weapon_pack = await game.packs.find(p => p.metadata.name === 'weapons-and-ammo');
 			let packs = [ item_pack,armor_pack,weapon_pack ];
 			
 			for (const item of(Array.isArray(character.gear.item) ? character.gear.item : [character.gear.item])) {
-				let pack;
-				let entry;
+				// Get all forms of item's name once, since we search each pack.
+				let lower = item.name.toLowerCase();
+				let singular, reversed, pack, entry;
+				// Remove container "(x @ y lbs)"
+				if (!entry && lower.endsWith('lbs)')) lower = lower.slice(0,lower.lastIndexOf(' ('));
+				// Remove plurals
+				if (lower.endsWith('s')) singular = lower.slice(0,-1);
+				// Handle names like "bear trap" => "trap, bear"
+				const words = lower.split(' ');
+				if (words.length == 2) reversed = words[1] + ', ' + words[0];
+				
 				for (const p of packs) {
-					let lower = item.name.toLowerCase()
-					// Remove container "(x @ y lbs)"
-					if (!entry && lower.endsWith('lbs)')) {
-						lower = lower.slice(0,lower.lastIndexOf(' ('));
-					}
-					entry = p.index.find(e => e.name.toLowerCase() === lower);
-					// Handle plurals
-					if (!entry && lower.endsWith('s')) {
-						const singular = lower.slice(0,-1);
-						entry = p.index.find(e => e.name.toLowerCase() === singular);
-					}
-					// Handle names like "bear trap" => "trap, bear"
-					if (!entry && lower.includes(' ')) {
-						const parts = lower.split(' ');
-						if (parts.length == 2) {
-							const reversed = parts[1] + ', ' + parts[0];
-							entry = p.index.find(e => e.name.toLowerCase() === reversed);
-						}
-					}
+					entry = p.index.find(e => {	const elc = e.name.toLowerCase(); 
+						return elc === lower || (singular && elc === singular) || (reversed && elc === reversed)});
 					if (entry) {
 						pack = p;
 						break;
@@ -596,28 +588,19 @@ export class RWPF1Actor {
 		//
 		
 		// data.traits.size - fine|dim|tiny|med|lg|huge|grg|col
-		const siz = character.size.name;
-		if (siz == 'Fine')
-			actor.data.traits.size = 'fine';
-		else if (siz == 'Diminutive')
-			actor.data.traits.size = 'dim';
-		else if (siz == 'Tiny')
-			actor.data.traits.size = 'tiny';
-		else if (siz == 'Small')
-			actor.data.traits.size = 'sm';
-		else if (siz == 'Medium')
-			actor.data.traits.size = 'med';
-		else if (siz == 'Large')
-			actor.data.traits.size = 'lg';
-		else if (siz == 'Huge')
-			actor.data.traits.size = 'huge';
-		else if (siz == 'Gargantuan')
-			actor.data.traits.size = 'grg';
-		else if (siz == 'Colossal')
-			actor.data.traits.size = 'col';
-		else
-			console.log(`Unknown actor size ${siz}`);
-		
+		switch (character.size.name) {
+		case 'Fine':		actor.data.traits.size = 'fine';	break;
+		case 'Diminutive':	actor.data.traits.size = 'dim';		break;
+		case 'Tiny':		actor.data.traits.size = 'tiny';	break;
+		case 'Small':		actor.data.traits.size = 'sm';		break;
+		case 'Medium':		actor.data.traits.size = 'med';		break;
+		case 'Large':		actor.data.traits.size = 'lg';		break;
+		case 'Huge':		actor.data.traits.size = 'huge';	break;
+		case 'Gargantuan':	actor.data.traits.size = 'grg';		break;
+		case 'Colossal':	actor.data.traits.size = 'col';		break;
+		default:
+			console.log(`Unknown actor size ${character.size.name}`);
+		}
 		// data.traits.senses
 		let senses = "";
 		if (character.senses.special) {
