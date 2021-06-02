@@ -379,10 +379,7 @@ class RealmWorksImporter extends Application
 			//	.catch(console.log(`Failed to create map pin ${pinname}`));
 			// As per Note.create, but adding it to a different scene, not canvas.scene
 			if (isNewerVersion(game.data.version, "0.8.0")) {
-				console.log(`creating Note ${notedata.name} to topic ${notedata.entryId}`);
-				//let newnote = await new Note(notedata);
-				//console.log(`new Note has ${Object.keys(newnote)}`);
-				const note = await scene.createEmbeddedDocuments('Note', notedata);
+				await scene.createEmbeddedDocuments('Note', [notedata]);
 			} else {
 				let newnote = new Note(notedata, scene);
 				const note = await scene.createEmbeddedEntity('Note', newnote.data);
