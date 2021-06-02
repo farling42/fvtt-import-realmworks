@@ -72,7 +72,7 @@ class RealmWorksImporter extends Application
 			this.deleteCompendium = html.find('[name=deleteCompendium]').is(':checked');
 			this.storeInCompendium = (this.folderName == 0);
 			// Where image files should be stored...
-			this.filedirectory = 'worlds/' + game.world.name + '/realmworksimport';		// no trailing "/"
+			this.filedirectory = 'worlds/' + (isNewerVersion(game.data.version, "0.8.0") ? game.world.data.name : game.world.name) + '/realmworksimport';		// no trailing "/"
 			this.filesource = 'data';	// or 'core' or 's3'
 			
 			// Try to load the file
@@ -157,10 +157,7 @@ class RealmWorksImporter extends Application
 				collection: compendiumName,
 				entity: type
 			};
-			if (isNewerVersion(game.data.version, "0.8.0"))
-				pack = await createCompendium(packdata);
-			else
-				pack = await Compendium.create(packdata);
+			pack = isNewerVersion(game.data.version, "0.8.0") ? await createCompendium(packdata) : await Compendium.create(packdata);
 		}
 		if (!pack){
 		  throw "Could not find/make pack";
@@ -375,14 +372,21 @@ class RealmWorksImporter extends Application
 				fontSize: 24,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
-				scene: scene._id
+				scene: (isNewerVersion(game.data.version, "0.8.0") ? scene.id : scene._id)
 			};
 			
 			//let note = await Note.create(notedata)
 			//	.catch(console.log(`Failed to create map pin ${pinname}`));
 			// As per Note.create, but adding it to a different scene, not canvas.scene
-			let newnote = new Note(notedata, scene);
-			const note = await scene.createEmbeddedEntity('Note', newnote.data);
+			if (isNewerVersion(game.data.version, "0.8.0")) {
+				console.log(`creating Note ${notedata.name} to topic ${notedata.entryId}`);
+				//let newnote = await new Note(notedata);
+				//console.log(`new Note has ${Object.keys(newnote)}`);
+				const note = await scene.createEmbeddedDocuments('Note', notedata);
+			} else {
+				let newnote = new Note(notedata, scene);
+				const note = await scene.createEmbeddedEntity('Note', newnote.data);
+			}
 			
 			//if (note) console.log(`Created map pin ${notedata.name}`);
 		}
@@ -1061,10 +1065,16 @@ class RealmWorksImporter extends Application
 						await journal_pack.updateEntity(topic)
 							//.then(console.log(`Topic ${topic.name} added to Compendium pack`))
 							.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
-					else
-						await JournalEntry.update(topic)
-							//.then(console.log(`Topic ${topic.name} added to World directory`))
-							.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
+					else {
+						if (isNewerVersion(game.data.version, "0.8.0"))
+							await JournalEntry.updateDocuments([topic])
+								//.then(console.log(`Topic ${topic.name} added to World directory`))
+								.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
+						else
+							await JournalEntry.update(topic)
+								//.then(console.log(`Topic ${topic.name} added to World directory`))
+								.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
+					}
 				})
 				.catch(e => console.log(`Failed to create topic ${topic_node.getAttribute("public_name")} due to ${e}`))
 			));

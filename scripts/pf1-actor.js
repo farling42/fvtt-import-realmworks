@@ -118,20 +118,23 @@ export class RWPF1Actor {
 		actor.data.details.age = character.personal.age;
 
 		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
-		const race_pack = await game.packs.find(p => p.metadata.name === 'races');
-		const race = await race_pack.index.find(e => e.name.toLowerCase() === character.race.name);
-		if (race) {
-			actor.items.push(await race_pack.getEntry(race._id));
-		} else {
-			//console.log(`Race '${character.race.name.toLowerCase()}' not in 'races' pack`);
-			const itemdata = {
-				name: character.race.name,
-				type: 'race',
-				//data: { description : { value : addParas(character.race.name['#text']) }}
-			};
-			actor.items.push(new Item(itemdata));
+		if (!isNewerVersion(game.data.version, "0.8.0")) {
+			const race_pack = await game.packs.find(p => p.metadata.name === 'races');
+			const race = await race_pack.index.find(e => e.name.toLowerCase() === character.race.name);
+			if (race) {
+				// race has { name, img, type, _id }
+				actor.items.push(isNewerVersion(game.data.version, "0.8.0") ? await race_pack.getDocument(race._id) : await race_pack.getEntry(race._id));
+			} else {
+				//console.log(`Race '${character.race.name.toLowerCase()}' not in 'races' pack`);
+				const itemdata = {
+					name: character.race.name,
+					type: 'race',
+					//data: { description : { value : addParas(character.race.name['#text']) }}
+				};
+				actor.items.push(new Item(itemdata));
+			}
 		}
-
+		
 		//
 		// CLASSES sub-tab
 		//
@@ -142,7 +145,7 @@ export class RWPF1Actor {
 		//		<class name="Rogue (Unchained)" level="9" spells="" casterlevel="0" concentrationcheck="+3" overcomespellresistance="+0" basespelldc="13" castersource=""/>
 		//	</classes>		
 		const classes = character.classes?.["class"];
-		if (classes) {
+		if (classes && !isNewerVersion(game.data.version, "0.8.0")) {
 			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
 			
 			for (const cclass of (Array.isArray(classes) ? classes : [classes] )) {
@@ -152,9 +155,18 @@ export class RWPF1Actor {
 				// Strip trailing (...)  from class.name
 				const entry = class_pack.index.find(e => e.name === name);
 				if (entry) {
-					let itemdata = await class_pack.getEntry(entry._id);
-					itemdata.data.level = cclass.level;
-					actor.items.push(itemdata);
+					// entry has { name, img, type, _id }
+					if (isNewerVersion(game.data.version, "0.8.0")) {
+						let itemdata =  await class_pack.getDocument(entry._id);
+						// itemdata has { labels, changes, apps, _sheet, links, _rollData }
+						console.log(`itemdata has ${Object.keys(itemdata)}`);
+						itemdata.data.level = cclass.level;
+						actor.items.push(itemdata);
+					} else {
+						let itemdata =  await class_pack.getEntry(entry._id);
+						itemdata.data.level = cclass.level;
+						actor.items.push(itemdata);
+					}
 				} else {
 					// Create our own placemarker feat.
 					const itemdata = {
@@ -325,12 +337,12 @@ export class RWPF1Actor {
 		//
 		
 		// data.items (includes feats)
-		if (character.feats?.feat) {
+		if (character.feats?.feat && !isNewerVersion(game.data.version, "0.8.0")) {
 			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
 			for (const feat of(Array.isArray(character.feats.feat) ? character.feats.feat : [character.feats.feat])) {
 				const entry = feat_pack.index.find(e => e.name === feat.name);
 				if (entry) {
-					actor.items.push(await feat_pack.getEntry(entry._id));
+					actor.items.push(isNewerVersion(game.data.version, "0.8.0") ? await feat_pack.getDocument(entry._id) : await feat_pack.getEntry(entry._id));
 				} else {
 					// Create our own placemarker feat.
 					const itemdata = {
@@ -354,12 +366,12 @@ export class RWPF1Actor {
 		
 		// defensive.[special.shortname]  from 'class abilities'
 		// gear.[item.name/quantity/weight/cost/description
-		if (character.gear?.item) {
+		if (character.gear?.item && !isNewerVersion(game.data.version, "0.8.0")) {
 			const item_pack = await game.packs.find(p => p.metadata.name === 'items');
 			for (const item of(Array.isArray(character.gear.item) ? character.gear.item : [character.gear.item])) {
 				const entry = item_pack.index.find(e => e.name === item.name);
 				if (entry) {
-					actor.items.push(await item_pack.getEntry(entry._id));
+					actor.items.push(isNewerVersion(game.data.version, "0.8.0") ? await item_pack.getDocument(entry._id) : await item_pack.getEntry(entry._id));
 				} else {
 					// Create our own placemarker item.
 					const itemdata = {
