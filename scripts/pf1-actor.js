@@ -18,6 +18,14 @@ export class RWPF1Actor {
 		"cha" : "cha"
 	};
 
+	// Items whose name doesn't fit into one of the pattern matches.
+	static item_name_mapping = new Map([
+		[ "thieves' tools", "tools, thieves' (common)" ],
+		[ "thieves' tools, masterwork",  "tools, thieves' (masterwork)" ],
+		[ "thieves' tools, concealable",  "tools, thieves' (concealable)" ],
+		[ "pot", "pot, cooking (iron)" ],
+	]);
+	
 	static parseXml(xmlDoc, arrayTags) {
 
 		function parseNode(xmlNode, result) {
@@ -394,6 +402,8 @@ export class RWPF1Actor {
 				// Handle names like "bear trap" => "trap, bear"
 				const words = lower.split(' ');
 				if (words.length == 2) reversed = words[1] + ', ' + words[0];
+				// Finally, some name changes aren't simple re-mappings
+				if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
 				
 				for (const p of packs) {
 					entry = p.index.find(e => {	const elc = e.name.toLowerCase(); 
