@@ -375,25 +375,62 @@ export class RWPF1Actor {
 		}
 		
 		// defensive.[special.shortname]  from 'class abilities'
+		
 		// gear.[item.name/quantity/weight/cost/description
 		if (character.gear?.item) {
 			const item_pack = await game.packs.find(p => p.metadata.name === 'items');
+			const armor_pack = await game.packs.find(p => p.metadata.name === 'armors-and-shields');
+			const weapon_pack = await game.packs.find(p => p.metadata.name === 'weapons-and-ammo');
+			let packs = [ item_pack,armor_pack,weapon_pack ];
+			
 			for (const item of(Array.isArray(character.gear.item) ? character.gear.item : [character.gear.item])) {
-				const entry = item_pack.index.find(e => e.name === item.name);
+				let pack;
+				let entry;
+				for (const p of packs) {
+					let lower = item.name.toLowerCase()
+					// Remove container "(x @ y lbs)"
+					if (!entry && lower.endsWith('lbs)')) {
+						lower = lower.slice(0,lower.lastIndexOf(' ('));
+					}
+					entry = p.index.find(e => e.name.toLowerCase() === lower);
+					// Handle plurals
+					if (!entry && lower.endsWith('s')) {
+						const singular = lower.slice(0,-1);
+						entry = p.index.find(e => e.name.toLowerCase() === singular);
+					}
+					// Handle names like "bear trap" => "trap, bear"
+					if (!entry && lower.includes(' ')) {
+						const parts = lower.split(' ');
+						if (parts.length == 2) {
+							const reversed = parts[1] + ', ' + parts[0];
+							entry = p.index.find(e => e.name.toLowerCase() === reversed);
+						}
+					}
+					if (entry) {
+						pack = p;
+						break;
+					}
+				}
+				
 				if (entry) {
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push((await item_pack.getDocument(entry._id)).data);
-					else
-						actor.items.push(await item_pack.getEntry(entry._id));
+					let itemdata;
+					if (isNewerVersion(game.data.version, "0.8.0")) {
+						itemdata = (await pack.getDocument(entry._id)).data;
+						itemdata.data.quantity = parseInt(item.quantity);		// TODO - not working
+					} else {
+						itemdata = await pack.getEntry(entry._id);
+						itemdata.quantity = parseInt(item.quantity);
+					}
+					actor.items.push(itemdata);
 				} else {
 					// Create our own placemarker item.
 					const itemdata = {
 						name: item.name,
-						type: 'equipment',
+						type: 'loot',
 						data: {
-							quantity: item.quantity,
-							weight: item.weight.value,
-							price: item.cost.value,
+							quantity: parseInt(item.quantity),
+							weight: parseInt(item.weight.value),
+							price: parseInt(item.cost.value),
 							description: {
 								value: addParas(item.description['#text'])
 							},
