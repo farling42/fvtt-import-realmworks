@@ -427,7 +427,7 @@ class RealmWorksImporter extends Application
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
 	
 	readPortfolio(data) {
-		let result = [];
+		let result = new Map();
 		const buf = (data instanceof Uint8Array) ? data : Uint8Array.from(atob(data), c => c.charCodeAt(0));
 		const files = UZIP.parse(buf);
 		// Now have an object with "key : property" pairs  (key = filename [String]; property = file data [Uint8Array])
@@ -463,7 +463,7 @@ class RealmWorksImporter extends Application
 				actordata.imgfilename = filename;
 				actordata.imgdata = files[folder + '/' + filename];
 			}
-			result.push(actordata);
+			result.set(actordata.name, actordata);
 		}
 		//console.log(`...found ${result.length} sheets`);
 		return result;
@@ -900,7 +900,7 @@ class RealmWorksImporter extends Application
 				throw('formatActors: Portfolio file does not end with .por');
 			portfolio = this.readPortfolio(contents.textContent);
 			// Upload images (if any)
-			for (let character of portfolio) {
+			for (let [charname, character] of portfolio) {
 				if (character.imgfilename) {
 					await this.uploadBinaryFile(character.imgfilename, character.imgdata);
 				}
@@ -918,13 +918,15 @@ class RealmWorksImporter extends Application
 		if (game.system.id == 'pf1') {
 			// Test, put all the information into data.details.notes.value
 			if (portfolio) {
-				for (let character of portfolio) {
+				for (let [charname, character] of portfolio) {
 					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
 						const actorlist = await RWPF1Actor.createActorData(character.xml);
 						for (let actor of actorlist) {
-							actor.data.details.notes = { value : character.html };
-							if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
+							// Cater for MINIONS
+							let port = portfolio.get(actor.name);
+							actor.data.details.notes = { value : port.html };
+							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
 							result.push(actor);
 						}
 					}
@@ -942,7 +944,8 @@ class RealmWorksImporter extends Application
 		} else if (game.system.id == 'dnd5e') {
 			actor.type = 'Player Character';
 			if (portfolio) {
-				for (let character of portfolio) {
+				for (let [charname, character] of portfolio) {
+					// TODO
 					//actor.data = await RWDND5EActor.createActorData(character.xml);
 					actor.data = { details : { biography : { value : character.html }}};
 					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename)
@@ -960,7 +963,8 @@ class RealmWorksImporter extends Application
 			
 		} else if (game.system.id == 'grpga') {
 			if (portfolio) {
-				for (let character of portfolio) {
+				for (let [charname, character] of portfolio) {
+					// TODO
 					actor.type = 'CharacterD20';	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
 					actor.data = { biography : character.html };
 					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
@@ -997,21 +1001,24 @@ class RealmWorksImporter extends Application
 
 		let portfolio = this.readPortfolio(new Uint8Array(data));
 		// Upload images (if any)
-		for (let character of portfolio) {
+		for (let [charname, character] of portfolio) {
 			// no XML means it is a MINION, and has been created from the XML of another character.
 			if (character.xml) {
 				const actorlist = await RWPF1Actor.createActorData(character.xml);
 				for (let actordata of actorlist) {
+					// Minion will have ITS data in a different place in the portfolio.
+					console.log(`Processing ${actordata.name} from ${charname}`);
+					let port = portfolio.get(actordata.name);
 					actordata.data.details.notes = {
-						value: character.html
+						value: port.html
 					};
 					// WRONG IMG FOR MINIONS
-					if (character.imgfilename) {
-						await this.uploadBinaryFile(character.imgfilename, character.imgdata);
-						actordata.img = this.imageFilename(character.imgfilename);
+					if (port.imgfilename) {
+						await this.uploadBinaryFile(port.imgfilename, port.imgdata);
+						actordata.img = this.imageFilename(port.imgfilename);
 					}
 			
-					let existing = game.actors.contents.find(o => o.name === character.name);
+					let existing = game.actors.contents.find(o => o.name === actordata.name);
 					if (existing) await existing.delete();
 			
 					let actor = await Actor.create(actordata, { displaySheet: false, temporary: this.storeInCompendium })
