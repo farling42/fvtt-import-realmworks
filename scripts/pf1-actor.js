@@ -26,6 +26,23 @@ export class RWPF1Actor {
 		[ "pot", "pot, cooking (iron)" ],
 	]);
 	
+	static async initModule() {
+		// full list of packs: classes, mythicpaths, commonbuffs
+		// spells, feats, items, armors-and-shields, weapons-and-ammo, racialhd
+		// races, class-abilities, monster-templates, sample-macros, roll-tables
+		// ultimate-equipment, bestiary_1/2/3/4/5, conditions, skills
+		//game.packs.find(p => console.log(`PF1 pack = ${p.metadata.name}`));
+		// Very specific to PF1, generate the FEAT index only once (it avoids excessive re-writing of feats.db)
+		await game.packs.find(p => p.metadata.name === 'armors-and-shields')?.getIndex();
+		await game.packs.find(p => p.metadata.name === 'classes')?.getIndex();
+		await game.packs.find(p => p.metadata.name === 'feats')?.getIndex();
+		await game.packs.find(p => p.metadata.name === 'items')?.getIndex();
+		await game.packs.find(p => p.metadata.name === 'races')?.getIndex();
+		await game.packs.find(p => p.metadata.name === 'spells')?.getIndex();
+		await game.packs.find(p => p.metadata.name === 'weapons-and-ammo')?.getIndex();
+	}
+
+	
 	static parseXml(xmlDoc, arrayTags) {
 
 		function parseNode(xmlNode, result) {
@@ -68,9 +85,29 @@ export class RWPF1Actor {
 		let parser = new DOMParser();
 		const json = RWPF1Actor.parseXml(parser.parseFromString(xmlString, "text/xml"));
 		const character = json.document.public.character;
+		// The main character
+		let result = [ await RWPF1Actor.createOneActorData(character) ];
+		// The minions
+		if (character.minions) {
+			for (const minion of (Array.isArray(character.minions.character) ? character.minions.character : [character.minions.character])) {
+				result.push (await RWPF1Actor.createOneActorData(minion));
+			}
+		}
+		return result;
+	}
+		
+	static async createOneActorData(character) {
 
+		console.log(`Parsing ${character.name}`);
+		
 		function addParas(string) {
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;
+		}
+		function toArray(thing) {
+			if (!thing || Array.isArray(thing))
+				return thing;
+			else
+				return [thing];
 		}
 		
 		let actor = {
@@ -159,7 +196,7 @@ export class RWPF1Actor {
 		if (classes) {
 			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
 			
-			for (const cclass of (Array.isArray(classes) ? classes : [classes] )) {
+			for (const cclass of toArray(classes)) {
 				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
 				const name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
 				//console.log(`Looking for class called '${name}'`);
@@ -326,8 +363,7 @@ export class RWPF1Actor {
 			sp: parseInt(character.money.sp),
 			cp: parseInt(character.money.cp),
 		}
-		// data.altCurrency.pp/gp/sp/cp  (weightless coins)
-
+		// data.altCurrency.pp/gp/sp/cp  (weightless coins) - count as weightless
 
 		// data.attributes.encumbrance.level/levels/carriedWeight
 		const enc = character.encumbrance;
@@ -343,47 +379,6 @@ export class RWPF1Actor {
 			carriedWeight: parseInt(enc.carried)
 		};
 
-		
-		//
-		// FEATURES tab
-		//
-		
-		// data.items (includes feats)
-		if (character.feats?.feat) {
-			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
-			for (const feat of (Array.isArray(character.feats.feat) ? character.feats.feat : [character.feats.feat])) {
-				const entry = feat_pack.index.find(e => e.name === feat.name);
-				if (entry) {
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push((await feat_pack.getDocument(entry._id)).data);
-					else
-						actor.items.push(await feat_pack.getEntry(entry._id));
-				} else {
-					// Create our own placemarker feat.
-					const itemdata = {
-						name: feat.name,
-						type: 'feat',
-						data: {
-							description: {
-								value: addParas(feat.description['#text'])
-							}
-						}
-					};
-					if (feat.featcategory) {
-						let cats = [[feat.featcategory['#text']]];
-						//item.data.tags = new Map();
-						//item.data.tags.insert( cats );
-					}
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
-					else
-						actor.items.push(new Item(itemdata));
-				}
-			}
-		}
-		
-		// defensive.[special.shortname]  from 'class abilities'
-		
 		// gear.[item.name/quantity/weight/cost/description
 		if (character.gear?.item) {
 			const item_pack   = await game.packs.find(p => p.metadata.name === 'items');
@@ -391,7 +386,7 @@ export class RWPF1Actor {
 			const weapon_pack = await game.packs.find(p => p.metadata.name === 'weapons-and-ammo');
 			let packs = [ item_pack,armor_pack,weapon_pack ];
 			
-			for (const item of(Array.isArray(character.gear.item) ? character.gear.item : [character.gear.item])) {
+			for (const item of toArray(character.gear.item)) {
 				// Get all forms of item's name once, since we search each pack.
 				let lower = item.name.toLowerCase();
 				let singular, reversed, pack, entry;
@@ -430,7 +425,7 @@ export class RWPF1Actor {
 						name: item.name,
 						type: 'loot',
 						data: {
-							quantity: parseInt(item.quantity),
+							quantity: parseInt(item.quantity),			// This DOES work!
 							weight: parseInt(item.weight.value),
 							price: parseInt(item.cost.value),
 							description: {
@@ -447,7 +442,48 @@ export class RWPF1Actor {
 				}
 			}
 		}
+				
+		//
+		// FEATURES tab
+		//
 		
+		// data.items (includes feats)
+		if (character.feats?.feat) {
+			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
+			for (const feat of toArray(character.feats.feat)) {
+				const entry = feat_pack.index.find(e => e.name === feat.name);
+				if (entry) {
+					if (isNewerVersion(game.data.version, "0.8.0"))
+						actor.items.push((await feat_pack.getDocument(entry._id)).data);
+					else
+						actor.items.push(await feat_pack.getEntry(entry._id));
+				} else {
+					// Create our own placemarker feat.
+					const itemdata = {
+						name: feat.name,
+						type: 'feat',
+						data: {
+							description: {
+								value: addParas(feat.description['#text'])
+							}
+						}
+					};
+					if (feat.featcategory) {
+						let cats = [[feat.featcategory['#text']]];
+						//item.data.tags = new Map();
+						//item.data.tags.insert( cats );
+					}
+					if (isNewerVersion(game.data.version, "0.8.0"))
+						actor.items.push(itemdata);
+					else
+						actor.items.push(new Item(itemdata));
+				}
+			}
+		}
+		
+		// defensive.[special.shortname]  from 'class abilities'
+		
+
 		//
 		// SKILLS tab
 		//
@@ -465,6 +501,11 @@ export class RWPF1Actor {
 				mod: parseInt(skill.attrbonus)
 				// rt, acp, background
 			}
+			if (!value.ability) {
+				console.log(`Failed to find an ability called '${skill.attrname}' for skill '${skill.name}' - SKIPPING`);
+				continue;
+			}
+			
 			if (skill.name == 'Acrobatics')
 				actor.data.skills.acr = value;
 			else if (skill.name == "Appraise")
@@ -584,6 +625,73 @@ export class RWPF1Actor {
 		
 		
 		//
+		// SPELLS tab
+		//
+		// data.attributes.spells.spellbooks.primary/secondary/tertiary/spelllike
+		//
+		// data.attributes.spellbooks.usedSpellbooks: [ 'primary', 'tertiary', 'spelllike' ]
+		// spells are added to items array.
+		// <character>
+		// <spellsknown>
+		// <spell name="Ghost Sound" level="0" class="Bard" casttime="1 action" range="close (25 + 5 ft./2 levels)" target="" area="" effect="illusory sounds" duration="1 round/level (D)" save="DC 13 Will disbelief" resist="no" dc="13" casterlevel="2" componenttext="Verbal, Somatic, Material" schooltext="Illusion" subschooltext="Figment" descriptortext="" savetext="Will disbelief" resisttext="No" spontaneous="yes">
+		//			<description>Ghost sound allows you to create a volume of sound that rises, recedes, approaches, or remains at a fixed place. You choose what type of sound ghost sound creates when casting it and cannot thereafter change the sound's basic character. The volume of sound created depends on your level. You can produce as much noise as four normal humans per caster level (maximum 40 humans). Thus, talking, singing, shouting, walking, marching, or running sounds can be created. The noise a ghost sound spell produces can be virtually any type of sound within the volume limit. A horde of rats running and squeaking is about the same volume as eight humans running and shouting. A roaring lion is equal to the noise from 16 humans, while a roaring dragon is equal to the noise from 32 humans. Anyone who hears a ghost sound receives a Will save to disbelieve.
+		//	 		Ghost sound can enhance the effectiveness of a silent image spell.
+		//			Ghost sound can be made permanent with a permanency spell.</description>
+		//			<spellcomp>Verbal</spellcomp>
+		//			<spellcomp>Somatic</spellcomp>
+		//			<spellcomp>Material</spellcomp>
+		//			<spellschool>Illusion</spellschool>
+		//			<spellsubschool>Figment</spellsubschool>
+		//		</spell>
+		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
+		
+		async function addSpells(node, book, memorized=[]) {
+			let result = false;
+			if (node.spell) {
+				console.log(`Creating spellbook ${book}`);
+				result = true;
+				if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
+				actor.data.attributes.spells.usedSpellbooks.push(book);
+				
+				for (const spell of toArray(node.spell)) {
+					const lowername = spell.name.toLowerCase();
+					const entry = spell_pack.index.find(e => e.name.toLowerCase() === lowername);
+					if (entry) {
+						if (isNewerVersion(game.data.version, "0.8.0")) {
+							let itemdata = (await spell_pack.getDocument(entry._id)).data;
+							itemdata.data.spellbook = book;
+							if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
+							//itemdata.data.learnedAt = { 'class': [  };
+							actor.items.push(itemdata);
+						} else {
+							let itemdata = await spell_pack.getEntry(entry._id);
+							itemdata.data.spellbook = book;
+							if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
+							actor.items.push(itemdata);
+						}
+					} else {
+						// Manually create a spell
+						console.log(`Add entry to ${book} manually for spell '${spell.name}'`);
+					}
+				}
+			}
+			return result;
+		}
+
+		// Technically, we should process spellsmemorized to mark which spells in spellbook are prepared
+		let spellbooks = [ 'primary', 'secondary', 'tertiary' ];
+		let memorized = [];
+		if (character.spellsmemorized.spell) {
+			for (const spell of toArray(character.spellsmemorized.spell)) {
+				memorized.push(spell.name.toLowerCase());
+			}
+		}
+		await addSpells(character.spellbook, spellbooks[0], memorized);
+		//if (await addSpells(character.spellsmemorized, spellbooks[0])) spellbooks.shift();
+		if (await addSpells(character.spellsknown, spellbooks[0])) spellbooks.shift();
+		await addSpells(character.spelllike, 'spelllike');
+		
+		//
 		// NOTES tab
 		//
 		
@@ -629,12 +737,8 @@ export class RWPF1Actor {
 			actor.data.traits.languages = {
 				value: []
 			};
-			if (Array.isArray(character.languages.language)) {
-				for (const lang of character.languages.language) {
-					actor.data.traits.languages.value.push(lang.name.toLowerCase());
-				}
-			} else {
-				actor.data.traits.languages.value.push(character.languages.language.name.toLowerCase());
+			for (const lang of toArray(character.languages.language)) {
+				actor.data.traits.languages.value.push(lang.name.toLowerCase());
 			}
 		}
 

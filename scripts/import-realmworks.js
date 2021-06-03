@@ -87,6 +87,14 @@ class RealmWorksImporter extends Application
 			this.ui_message.val(`Reading ${file.name}`);
 			console.log(`Reading contents of ${file.name} (size ${file.size})`);
 			
+			if (file.name.endsWith('.por')) {
+				console.log(`Parsing HeroLab Portfolio file`);
+				await this.parseHL(file);
+				console.log(`Parsing complete`);
+				this.ui_message.val('--- Finished ---');
+				return;
+			}
+			
 			// Javascript string has a maximum size of 512 MB, so can't pass the entire file to parseFromString,
 			// so read chunks of the file and look for topics within the chunks.
 			const chunkSize = 5000000;	// ~5 MB
@@ -418,9 +426,9 @@ class RealmWorksImporter extends Application
 	// format is one of the character formats in the .por file: 'html', 'text', 'xml'
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
 	
-	readPortfolio(base64) {
+	readPortfolio(data) {
 		let result = [];
-		const buf = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+		const buf = (data instanceof Uint8Array) ? data : Uint8Array.from(atob(data), c => c.charCodeAt(0));
 		const files = UZIP.parse(buf);
 		// Now have an object with "key : property" pairs  (key = filename [String]; property = file data [Uint8Array])
 
@@ -590,8 +598,11 @@ class RealmWorksImporter extends Application
 					// <ext_object ...>
 					// <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					// <contents>
-					const portfolio = this.getChild(this.getChild(this.getChild(child, 'ext_object'), 'asset'), 'contents');    // <contents>
+					let portasset = this.getChild(this.getChild(child, 'ext_object'), 'asset');
+					const portfolio = this.getChild(portasset, 'contents');    // <contents>
 					if (portfolio) {
+						// TODO: for test purposes, extract all .por files!
+						await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
 						let characters = this.readPortfolio(portfolio.textContent);
 						for (let i=0; i<characters.length; i++) {
 							if (i > 0) result += '<hr>';
@@ -908,19 +919,15 @@ class RealmWorksImporter extends Application
 			// Test, put all the information into data.details.notes.value
 			if (portfolio) {
 				for (let character of portfolio) {
+					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
-						actor = await RWPF1Actor.createActorData(character.xml);
-					} else {
-						console.log(`Portfolio for ${character.name} is missing XML data`);
-						actor = { 
-							name: character.name,
-							type: 'npc',
-							data: { details : {} }
+						const actorlist = await RWPF1Actor.createActorData(character.xml);
+						for (let actor of actorlist) {
+							actor.data.details.notes = { value : character.html };
+							if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
+							result.push(actor);
 						}
 					}
-					actor.data.details.notes = { value : character.html };
-					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
-					result.push(actor);
 				}
 			} else {
 				actor = { 
@@ -977,6 +984,42 @@ class RealmWorksImporter extends Application
 		//console.log(`Actor data for ${actor.name} in folder ${actor.folder}`);
 		
 		return result;
+	}
+	
+	async parseHL(file)
+	{
+		let data = await file.arrayBuffer();
+		if (!data) throw "Failed to read .por file";
+		
+		if (game.system.id == 'pf1') {
+			await RWPF1Actor.initModule();
+		}
+
+		let portfolio = this.readPortfolio(new Uint8Array(data));
+		// Upload images (if any)
+		for (let character of portfolio) {
+			// no XML means it is a MINION, and has been created from the XML of another character.
+			if (character.xml) {
+				const actorlist = await RWPF1Actor.createActorData(character.xml);
+				for (let actordata of actorlist) {
+					actordata.data.details.notes = {
+						value: character.html
+					};
+					// WRONG IMG FOR MINIONS
+					if (character.imgfilename) {
+						await this.uploadBinaryFile(character.imgfilename, character.imgdata);
+						actordata.img = this.imageFilename(character.imgfilename);
+					}
+			
+					let existing = game.actors.contents.find(o => o.name === character.name);
+					if (existing) await existing.delete();
+			
+					let actor = await Actor.create(actordata, { displaySheet: false, temporary: this.storeInCompendium })
+						.catch(e => console.log(`Failed to create Actor due to ${e}`));
+				}
+			}
+			//if (actor && this.storeInCompendium) await actor_pack.importEntity(actor);
+		}
 	}
 	
 	//
@@ -1130,19 +1173,7 @@ class RealmWorksImporter extends Application
 		if (game.system.id == 'pf1' || game.system.id == 'dnd5e' || game.system.id == 'grpga') {
 			
 			if (game.system.id == 'pf1') {
-				// full list of packs: classes, mythicpaths, commonbuffs
-				// spells, feats, items, armors-and-shields, weapons-and-ammo, racialhd
-				// races, class-abilities, monster-templates, sample-macros, roll-tables
-				// ultimate-equipment, bestiary_1/2/3/4/5, conditions, skills
-				//game.packs.find(p => console.log(`PF1 pack = ${p.metadata.name}`));
-				// Very specific to PF1, generate the FEAT index only once (it avoids excessive re-writing of feats.db)
-				await game.packs.find(p => p.metadata.name === 'armors-and-shields')?.getIndex();
-				await game.packs.find(p => p.metadata.name === 'classes')?.getIndex();
-				await game.packs.find(p => p.metadata.name === 'feats')?.getIndex();
-				await game.packs.find(p => p.metadata.name === 'items')?.getIndex();
-				await game.packs.find(p => p.metadata.name === 'races')?.getIndex();
-				await game.packs.find(p => p.metadata.name === 'spells')?.getIndex();
-				await game.packs.find(p => p.metadata.name === 'weapons-and-ammo')?.getIndex();
+				await RWPF1Actor.initModule();
 			}
 			
 			let actor_topics = this.getActorTopics(topics);
