@@ -32,7 +32,7 @@ Each *HL portfolio* will be extracted and Actors created for each character in t
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
 ## Patreon
-If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime)
+If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime) or [Paypal](https://paypal.me/farling)
 
 ## Changelog
 0.3.3 For PF1 actors, include weapons/armor/ammo/shield items, and improve logic for matching names of other items.
