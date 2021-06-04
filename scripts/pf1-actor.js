@@ -37,6 +37,7 @@ export class RWPF1Actor {
 		await game.packs.find(p => p.metadata.name === 'classes')?.getIndex();
 		await game.packs.find(p => p.metadata.name === 'feats')?.getIndex();
 		await game.packs.find(p => p.metadata.name === 'items')?.getIndex();
+		await game.packs.find(p => p.metadata.name === 'racialhd')?.getIndex();	// creature types
 		await game.packs.find(p => p.metadata.name === 'races')?.getIndex();
 		await game.packs.find(p => p.metadata.name === 'spells')?.getIndex();
 		await game.packs.find(p => p.metadata.name === 'weapons-and-ammo')?.getIndex();
@@ -88,7 +89,7 @@ export class RWPF1Actor {
 		// The main character
 		let result = [ await RWPF1Actor.createOneActorData(character) ];
 		// The minions
-		if (character.minions) {
+		if (character.minions?.character) {
 			for (const minion of (Array.isArray(character.minions.character) ? character.minions.character : [character.minions.character])) {
 				result.push (await RWPF1Actor.createOneActorData(minion));
 			}
@@ -98,16 +99,13 @@ export class RWPF1Actor {
 		
 	static async createOneActorData(character) {
 
-		console.log(`Parsing ${character.name}`);
+		//console.log(`Parsing ${character.name}`);
 		
 		function addParas(string) {
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;
 		}
 		function toArray(thing) {
-			if (!thing || Array.isArray(thing))
-				return thing;
-			else
-				return [thing];
+			return (!thing || Array.isArray(thing)) ? thing : [thing];
 		}
 		
 		let actor = {
@@ -142,7 +140,7 @@ export class RWPF1Actor {
 
 		// data.details.cr.base/total
 		if (character.challengerating) {
-			let cr = parseInt(character.challengerating['#text']);
+			let cr = parseInt(character.challengerating.value);
 			actor.data.details.cr = { base: cr, total: cr };
 		}
 		if (actor.type == 'npc') {
@@ -164,17 +162,21 @@ export class RWPF1Actor {
 
 		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
 		const race_pack = await game.packs.find(p => p.metadata.name === 'races');
-		const race = await race_pack.index.find(e => e.name.toLowerCase() === character.race.name);
+		const lowerrace = character.race.name.toLowerCase();
+		const race = await race_pack.index.find(e => e.name.toLowerCase() === lowerrace);
 		if (race) {
 			if (isNewerVersion(game.data.version, "0.8.0"))
 				actor.items.push((await race_pack.getDocument(race._id)).data);
 			else
 				actor.items.push(await race_pack.getEntry(race._id));
-		} else {
-			//console.log(`Race '${character.race.name.toLowerCase()}' not in 'races' pack`);
+		} else if (character.types.type?.name == 'Humanoid') {
+			// Only do manual entry for humanoids, since monstrous races
+			// have "classes" of the monster/animal levels
+			console.log(`Race '${character.race.name}' not in 'races' pack for ${character.name}`);
 			const itemdata = {
 				name: character.race.name,
 				type: 'race',
+				creatureType: character.types?.type?.name,
 				//data: { description : { value : addParas(character.race.name['#text']) }}
 			};
 			if (isNewerVersion(game.data.version, "0.8.0"))
@@ -182,7 +184,36 @@ export class RWPF1Actor {
 			else
 				actor.items.push(new Item(itemdata));
 		}
-
+		// <types><type name="Humanoid" active="yes"/>
+		// <subtypes><subtype name="Human"/>
+		if (character.types.type && character.types.type.name != 'Humanoid') {
+			const racialhd_pack = await game.packs.find(p => p.metadata.name === 'racialhd');
+			const racehdlower = character.types.type.name.toLowerCase();
+			const racialhd = await racialhd_pack.index.find(e => e.name === racehdlower);
+			if (racialhd) {
+				if (isNewerVersion(game.data.version, "0.8.0")) {
+					let item = (await racialhd_pack.getDocument(racialhd._id)).data;
+					item.data.level = parseInt(character.health.hitdice);	// HD - TODO : NOT WORKING YET
+					actor.items.push(item);
+				} else {
+					let item = await racialhd_pack.getEntry(racialhd._id);
+					item.data.level = parseInt(character.health.hitdice);	// HD - TODO : NOT WORKING YET
+					actor.items.push(item);
+				}
+			} else {
+				//console.log(`racialhd '${character.racialhd.name.toLowerCase()}' not in 'racialhd' pack`);
+				const itemdata = {
+					name: character.types.type.name,
+					type: 'class',
+					classType: 'racial',
+					//data: { description : { value : addParas(character.racialhd.name['#text']) }}
+				};
+				if (isNewerVersion(game.data.version, "0.8.0"))
+					actor.items.push(itemdata);
+				else
+					actor.items.push(new Item(itemdata));
+			}
+		}
 		//
 		// CLASSES sub-tab
 		//
@@ -244,16 +275,19 @@ export class RWPF1Actor {
 		for (const child of character.saves.save) {
 			if (child.abbr == "Fort") {
 				actor.data.attributes.savingThrows.fort = {
+					base: parseInt(child.base),
 					total: parseInt(child.save),
 					ability: "con"
 				};
 			} else if (child.abbr == "Ref") {
 				actor.data.attributes.savingThrows.ref = {
+					base: parseInt(child.base),
 					total: parseInt(child.save),
 					ability: "dex"
 				};
 			} else if (child.abbr == "Will") {
 				actor.data.attributes.savingThrows.will = {
+					base: parseInt(child.base),
 					total: parseInt(child.save),
 					ability: "wis"
 				};
@@ -267,7 +301,7 @@ export class RWPF1Actor {
 		}
 		// data.attributes.hpAbility
 		// data.attributes.cmbAbility
-		// data.attributes.hd.base/total/max
+		// data.attributes.hd -> actually handled by level of "racialhd" item
 
 		// data.attributes.sr.formula/total
 		// data.attributes.saveNotes
@@ -645,28 +679,39 @@ export class RWPF1Actor {
 		//		</spell>
 		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
 		
-		async function addSpells(node, book, memorized=[]) {
+		async function addSpells(nodes, book, memorized=[]) {
 			let result = false;
-			if (node.spell) {
-				console.log(`Creating spellbook ${book}`);
+			if (nodes) {
+				console.log(`Creating spellbook ${book} for '${character.name}'`);
 				result = true;
 				if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
 				actor.data.attributes.spells.usedSpellbooks.push(book);
 				
-				for (const spell of toArray(node.spell)) {
+				for (const spell of toArray(nodes)) {
 					const lowername = spell.name.toLowerCase();
-					const entry = spell_pack.index.find(e => e.name.toLowerCase() === lowername);
+					const shortpos = lowername.indexOf(' (');
+					const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
+					
+					const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
 					if (entry) {
 						if (isNewerVersion(game.data.version, "0.8.0")) {
 							let itemdata = (await spell_pack.getDocument(entry._id)).data;
 							itemdata.data.spellbook = book;
 							if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
+							if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
+							if (lowername.endsWith('at will)')) itemdata.data.atWill = true;
+							if (lowername.endsWith('/day)')) {
+								itemdata.data.uses.max = parseInt(lowername.slice(-6));	// assume one digit
+								itemdata.data.uses.per = 'day';
+							}
 							//itemdata.data.learnedAt = { 'class': [  };
+							console.log(`Adding spell ${itemdata.name}`);
 							actor.items.push(itemdata);
 						} else {
 							let itemdata = await spell_pack.getEntry(entry._id);
 							itemdata.data.spellbook = book;
 							if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
+							if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
 							actor.items.push(itemdata);
 						}
 					} else {
@@ -686,10 +731,14 @@ export class RWPF1Actor {
 				memorized.push(spell.name.toLowerCase());
 			}
 		}
-		await addSpells(character.spellbook, spellbooks[0], memorized);
-		//if (await addSpells(character.spellsmemorized, spellbooks[0])) spellbooks.shift();
-		if (await addSpells(character.spellsknown, spellbooks[0])) spellbooks.shift();
-		await addSpells(character.spelllike, 'spelllike');
+		await addSpells(character.spellbook.spell, spellbooks[0], memorized);
+		//if (await addSpells(character.spellsmemorized.spell, spellbooks[0])) spellbooks.shift();
+		if (await addSpells(character.spellsknown.spell, spellbooks[0])) spellbooks.shift();
+		
+		// <special name="Disguise Self (humanoid form only, At will)" shortname="Disguise Self">
+		// <special name="Blur (1/day)" shortname="Blur">
+		// <special name="Serpentfriend (At will) (Ex)" shortname="Serpentfriend (At will)" type="Extraordinary Ability" sourcetext="Sorcerer">
+		await addSpells(character.spelllike.special, 'spelllike');
 		
 		//
 		// NOTES tab
@@ -720,13 +769,13 @@ export class RWPF1Actor {
 			console.log(`Unknown actor size ${character.size.name}`);
 		}
 		// data.traits.senses
-		let senses = "";
+		let senses = [];
 		if (character.senses.special) {
-			if (senses.length > 0)
-				senses += ', ';
-			senses += character.senses.special.name;
+			for (const sense of toArray(character.senses.special)) {
+				senses.push(sense.name);
+			}
 		}
-		actor.data.traits.senses = senses;
+		actor.data.traits.senses = senses.join(', ');
 		// data.traits.dr		// damage reduction		(character.damagereduction)
 		// data.traits.eres		// energy resistance	(character.resistances)
 		// data.traits.cres		// condition resistance	(character.resistances)

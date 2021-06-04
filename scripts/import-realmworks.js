@@ -90,7 +90,7 @@ class RealmWorksImporter extends Application
 			if (file.name.endsWith('.por')) {
 				console.log(`Parsing HeroLab Portfolio file`);
 				await this.parseHL(file);
-				console.log(`Parsing complete`);
+				console.log('******  Finished  ******');
 				this.ui_message.val('--- Finished ---');
 				return;
 			}
@@ -102,13 +102,22 @@ class RealmWorksImporter extends Application
 			let topic_nodes = [];
 			let parser = new DOMParser();
 			let start = 0;
+			let first=true;
 			while (start < file.size) {
 				// Read another chunk onto the end of the buffer.
 				const blob = await file.slice(start, start+chunkSize);
 				if (blob.size == 0) break;
 				start += blob.size;
-				
 				buffer += await blob.text();
+				
+				// Strip leading space before the first <topic> to help keep the size of buffer relatively small
+				if (first) {
+					let pos = buffer.indexOf('<topic ');
+					if (pos < 0) continue;		// We haven't found the first topic yet
+					buffer = buffer.slice(pos);
+					first = false;
+				}
+
 				console.log(`Read ${blob.size} bytes from file (buffer size now ${buffer.length}`);
 				// Read all complete topics which are in the buffer
 				while (true) {
@@ -398,7 +407,6 @@ class RealmWorksImporter extends Application
 		
 	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
 	getChild(node,name) {
-		//return node?.querySelector(name);
 		if (node) {
 			// children   = only element children
 			// childNodes = all child nodes
@@ -410,7 +418,6 @@ class RealmWorksImporter extends Application
 	}
 
 	getChildren(node,name) {
-		//return node?.querySelector(name);
 		let result = [];
 		if (node) {
 			// children   = only element children
@@ -448,7 +455,7 @@ class RealmWorksImporter extends Application
 				console.log(`No 'name' tag in character portfolio: fields = ${character.getAttributeNames()}`);
 				continue;
 			}
-			for (const statblock of this.getChild(character,'statblocks').childNodes) {
+			for (const statblock of this.getChild(character,'statblocks').children) {
 				if (statblock.nodeName == 'statblock') {
 					const format = statblock.getAttribute('format');
 					const folder = statblock.getAttribute('folder');
@@ -479,7 +486,7 @@ class RealmWorksImporter extends Application
 		let result = `<h${level}>${name}</h${level}>`;
 		
 		// Process all child (not descendent) nodes in this section
-		for (const child of section.childNodes) {
+		for (const child of section.children) {
 			switch (child.nodeName) {
 			case 'section':
 				// Subsections increase the HEADING number
@@ -551,7 +558,7 @@ class RealmWorksImporter extends Application
 				case "Tag_Standard":
 					// <tag_assign tag_name="Manufacturing" domain_name="Commerce Activity" type="Indirect" />
 					let tags = [];
-					for (const snip of child.childNodes) {
+					for (const snip of child.children) {
 						if (snip.nodeName == 'tag_assign') {
 							let tag = snip.getAttribute('tag_name');
 							if (tag) tags.push(tag);
@@ -565,7 +572,7 @@ class RealmWorksImporter extends Application
 					
 				case "Tag_Multi_Domain":
 					let tagmulti = [];
-					for (const snip of child.childNodes) {
+					for (const snip of child.children) {
 						if (snip.nodeName == "tag_assign") {
 							if (snip.hasAttribute('tag_name')) {
 								tagmulti.push(snip.getAttribute('domain_name') + ': ' + snip.getAttribute('tag_name'));
@@ -602,7 +609,7 @@ class RealmWorksImporter extends Application
 					const portfolio = this.getChild(portasset, 'contents');    // <contents>
 					if (portfolio) {
 						// TODO: for test purposes, extract all .por files!
-						await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
+						//await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
 						let characters = this.readPortfolio(portfolio.textContent);
 						for (let i=0; i<characters.length; i++) {
 							if (i > 0) result += '<hr>';
@@ -685,7 +692,7 @@ class RealmWorksImporter extends Application
 					console.log(`Unsupported element type: ${child.nodeName}`);
 				}
 			}	// switch child.nodeName
-		} // for childNodes
+		} // for children
 		
 		//console.log(`writeSection(${name}) returning ${result}`);
 		return result;
@@ -694,10 +701,10 @@ class RealmWorksImporter extends Application
 	getScenes(topic) {
 		let result = [];
 		function checkSnippets(node) {
-			for (const child of node.childNodes) {
+			for (const child of node.children) {
 				if (child.nodeName == 'smart_image')
 					result.push(child);
-				else if (child.nodeName != 'topic' && child.childNodes.length > 0)
+				else if (child.nodeName != 'topic' && child.children.length > 0)
 					checkSnippets(child);
 			}
 		}
@@ -715,7 +722,7 @@ class RealmWorksImporter extends Application
 		// Collect linkage children and create an alias/title-to-topic map:
 		//   <linkage target_id="Topic_345" target_name="Air/Raft" direction="Outbound" />
 		let linkage_names = new Map();
-		for (const node of topic.childNodes) {
+		for (const node of topic.children) {
 			if (node.nodeName == "linkage" && node.getAttribute('direction') != 'Inbound') {
 				const target_id = node.getAttribute('target_id');
 				// In partial output, all linkages are reported even if the target topic is not present.
@@ -736,7 +743,7 @@ class RealmWorksImporter extends Application
 		let both = [];
 		let has_child_topics = false;
 		let has_connections = false;
-		for (const node of topic.childNodes) {
+		for (const node of topic.children) {
 			switch (node.nodeName) {
 			case 'alias':
 				// These come first
@@ -845,12 +852,12 @@ class RealmWorksImporter extends Application
 	// Examine each topic within topics to see if it should be converted into an actor:
 	// i.e. it contains a Portfolio or Statblock snippet type directly, not in a child topic.
 	getActorSnippet(node) {
-		for (const child of node.childNodes) {
+		for (const child of node.children) {
 			if (child.nodeName == 'snippet' && 
 				(child.getAttribute('type') == 'Portfolio' || 
 				 child.getAttribute('type') == 'Statblock')) {
 				return child;
-			} else if (child.nodeName != 'topic' && child.childNodes.length > 0) {
+			} else if (child.nodeName != 'topic' && child.children.length > 0) {
 				// Don't check nested topics
 				let result = this.getActorSnippet(child);
 				if (result) return result;
@@ -898,6 +905,7 @@ class RealmWorksImporter extends Application
 		if (sntype == 'Portfolio') {
 			if (!filename.endsWith('.por'))
 				throw('formatActors: Portfolio file does not end with .por');
+			//console.log(`Reading portfolio ${filename}`);
 			portfolio = this.readPortfolio(contents.textContent);
 			// Upload images (if any)
 			for (let [charname, character] of portfolio) {
@@ -946,7 +954,16 @@ class RealmWorksImporter extends Application
 			if (portfolio) {
 				for (let [charname, character] of portfolio) {
 					// TODO
-					//actor.data = await RWDND5EActor.createActorData(character.xml);
+/*					if (character.xml) {
+						const actorlist = await DND5EActor.createActorData(character.xml);
+						for (let actor of actorlist) {
+							// Cater for MINIONS
+							let port = portfolio.get(actor.name);
+							actor.data.details.biography = { value : port.html };
+							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
+							result.push(actor);
+						}
+					}*/
 					actor.data = { details : { biography : { value : character.html }}};
 					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename)
 					result.push(actor);
@@ -965,6 +982,16 @@ class RealmWorksImporter extends Application
 			if (portfolio) {
 				for (let [charname, character] of portfolio) {
 					// TODO
+/*					if (character.xml) {
+						const actorlist = await GRPGAActor.createActorData(character.xml);
+						for (let actor of actorlist) {
+							// Cater for MINIONS
+							let port = portfolio.get(actor.name);
+							actor.data.biography = port.html;
+							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
+							result.push(actor);
+						}
+					}*/
 					actor.type = 'CharacterD20';	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
 					actor.data = { biography : character.html };
 					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
@@ -990,6 +1017,9 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 	
+	//
+	// Read a HeroLab portfolio file and create Actors directly from the contents
+	//
 	async parseHL(file)
 	{
 		let data = await file.arrayBuffer();
@@ -999,6 +1029,60 @@ class RealmWorksImporter extends Application
 			await RWPF1Actor.initModule();
 		}
 
+		// Maybe delete old items
+		if (this.deleteCompendium) {
+			if (this.storeInCompendium) {
+				if (this.journalCompendiumName.length > 0) {
+					let pack = game.packs.find(p => p.metadata.type === 'Actor' && p.metadata.name === this.journalCompendiumName);
+					if (pack) {
+						this.ui_message.val(`Deleting old compendium ${this.journalCompendiumName}`);
+						console.log(`Deleting journal compendium pack ${this.journalCompendiumName}`);
+						await pack.delete();
+					}
+				}
+				if (this.actorCompendiumName.length > 0) {
+					let pack = game.packs.find(p => p.metadata.type === 'Actor' && p.metadata.name === this.actorCompendiumName);
+					if (pack) {
+						this.ui_message.val(`Deleting old compendium ${this.actorCompendiumName}`);
+						console.log(`Deleting journal compendium pack ${this.actorCompendiumName}`);
+						await pack.delete();
+					}
+				}
+			} else {
+				if (this.folderName) {
+					// Delete folders with the given name.
+					for (let folder of game.folders.filter(e => e.type === 'Actor' && e.name == this.folderName)) {
+						await folder.delete({
+							deleteSubfolders: true,
+							deleteContents: true
+						});
+					}
+				}
+			}
+		}
+
+		let actor_pack;
+		if (this.storeInCompendium) {
+			// Get/Create the compendium pack into which we are adding journal entries
+			if (this.actorCompendiumName.length > 0) {
+				actor_pack = await this.getCompendiumWithType(this.actorCompendiumName, "Actor");
+				this.actor_pack_name = actor_pack.collection;	// the full name of the compendium
+			}
+		} else {
+			if (this.folderName) {
+				const found = game.folders.filter(e => e.type === 'Actor' && e.name == this.folderName);
+				if (found?.length > 0)
+					this.actor_folder = found[0];
+				else {
+					console.log(`Creating '${this.folderName}' folder for actors`);
+					this.actor_folder = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
+				}
+			}
+		}
+		// Create the image folder if it doesn't already exist.
+		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData()).catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
+
+
 		let portfolio = this.readPortfolio(new Uint8Array(data));
 		// Upload images (if any)
 		for (let [charname, character] of portfolio) {
@@ -1007,12 +1091,10 @@ class RealmWorksImporter extends Application
 				const actorlist = await RWPF1Actor.createActorData(character.xml);
 				for (let actordata of actorlist) {
 					// Minion will have ITS data in a different place in the portfolio.
-					console.log(`Processing ${actordata.name} from ${charname}`);
 					let port = portfolio.get(actordata.name);
 					actordata.data.details.notes = {
 						value: port.html
 					};
-					// WRONG IMG FOR MINIONS
 					if (port.imgfilename) {
 						await this.uploadBinaryFile(port.imgfilename, port.imgdata);
 						actordata.img = this.imageFilename(port.imgfilename);
@@ -1020,6 +1102,10 @@ class RealmWorksImporter extends Application
 			
 					let existing = game.actors.contents.find(o => o.name === actordata.name);
 					if (existing) await existing.delete();
+
+					if (this.actor_folder) {
+						actordata.folder = this.actor_folder.id;
+					}
 			
 					let actor = await Actor.create(actordata, { displaySheet: false, temporary: this.storeInCompendium })
 						.catch(e => console.log(`Failed to create Actor due to ${e}`));
@@ -1118,7 +1204,7 @@ class RealmWorksImporter extends Application
 			let names = new Array();
 			names.push(topic_name);
 			
-			for (const alias of child.childNodes) {
+			for (const alias of child.children) {
 				if (alias.nodeName == "alias") {
 					names.push(alias.getAttribute('name'));
 				}
@@ -1186,12 +1272,6 @@ class RealmWorksImporter extends Application
 			let actor_topics = this.getActorTopics(topics);
 			this.ui_message.val(`Generating ${actor_topics.length} Actors`);
 			console.log(`Generating ${actor_topics.length} Actors`);
-			
-			// TODO:
-			// change formatActors to return an array of Actor data that is required for the supplied topic.
-			// Then sort them into alphabetical order.
-			// Then for all Actors with the same name, remove ones with the same actor data (e.g. most likely common monsters in the campaign)
-			// Then create actual Actor entities.
 			
 			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
 			let actors = [];
