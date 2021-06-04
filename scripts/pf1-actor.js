@@ -119,7 +119,7 @@ export class RWPF1Actor {
 				skills: {},
 				traits: {},
 			},
-			items: []
+			items: []		// add items with :   items.push(new Item(itemdata).data)
 		};
 
 
@@ -683,7 +683,7 @@ export class RWPF1Actor {
 		async function addSpells(nodes, book, memorized=[]) {
 			if (!nodes) return false;
 			
-			console.log(`Creating spellbook ${book} for '${character.name}'`);
+			//console.log(`Creating spellbook ${book} for '${character.name}'`);
 			if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
 			actor.data.attributes.spells.usedSpellbooks.push(book);
 				
