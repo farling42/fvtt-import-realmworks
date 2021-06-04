@@ -166,7 +166,7 @@ export class RWPF1Actor {
 		const race = await race_pack.index.find(e => e.name.toLowerCase() === lowerrace);
 		if (race) {
 			if (isNewerVersion(game.data.version, "0.8.0"))
-				actor.items.push((await race_pack.getDocument(race._id)).data);
+				actor.items.push(new Item((await race_pack.getDocument(race._id)).data).data);
 			else
 				actor.items.push(await race_pack.getEntry(race._id));
 		} else if (character.types.type?.name == 'Humanoid') {
@@ -180,7 +180,7 @@ export class RWPF1Actor {
 				//data: { description : { value : addParas(character.race.name['#text']) }}
 			};
 			if (isNewerVersion(game.data.version, "0.8.0"))
-				actor.items.push(itemdata);
+				actor.items.push(new Item(itemdata).data);
 			else
 				actor.items.push(new Item(itemdata));
 		}
@@ -194,7 +194,7 @@ export class RWPF1Actor {
 				if (isNewerVersion(game.data.version, "0.8.0")) {
 					let item = (await racialhd_pack.getDocument(racialhd._id)).data;
 					item.data.level = parseInt(character.health.hitdice);	// HD - TODO : NOT WORKING YET
-					actor.items.push(item);
+					actor.items.push(new Item(item).data);
 				} else {
 					let item = await racialhd_pack.getEntry(racialhd._id);
 					item.data.level = parseInt(character.health.hitdice);	// HD - TODO : NOT WORKING YET
@@ -209,7 +209,7 @@ export class RWPF1Actor {
 					//data: { description : { value : addParas(character.racialhd.name['#text']) }}
 				};
 				if (isNewerVersion(game.data.version, "0.8.0"))
-					actor.items.push(itemdata);
+					actor.items.push(new Item(itemdata).data);
 				else
 					actor.items.push(new Item(itemdata));
 			}
@@ -238,7 +238,7 @@ export class RWPF1Actor {
 						//console.log(`Class ${entry.name} at level ${cclass.level}`);
 						let itemdata = (await class_pack.getDocument(entry._id)).data;
 						itemdata.data.level = parseInt(cclass.level);		// TODO - doesn't work
-						actor.items.push(itemdata);
+						actor.items.push(new Item(itemdata).data);
 					} else {
 						let itemdata =  await class_pack.getEntry(entry._id);
 						itemdata.data.level = cclass.level;
@@ -253,7 +253,7 @@ export class RWPF1Actor {
 						//data: { description : { value : addParas(feat.description['#text']) }}
 					};
 					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
+						actor.items.push(new Item(itemdata).data);
 					else
 						actor.items.push(new Item(itemdata));
 				}
@@ -448,11 +448,12 @@ export class RWPF1Actor {
 					if (isNewerVersion(game.data.version, "0.8.0")) {
 						itemdata = (await pack.getDocument(entry._id)).data;
 						itemdata.data.quantity = parseInt(item.quantity);		// TODO - not working
+						actor.items.push(new Item(itemdata).data);
 					} else {
 						itemdata = await pack.getEntry(entry._id);
 						itemdata.quantity = parseInt(item.quantity);
+						actor.items.push(new Item(itemdata));
 					}
-					actor.items.push(itemdata);
 				} else {
 					// Create our own placemarker item.
 					const itemdata = {
@@ -470,7 +471,7 @@ export class RWPF1Actor {
 						},
 					};
 					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
+						actor.items.push(new Item(itemdata).data);
 					else
 						actor.items.push(new Item(itemdata));
 				}
@@ -488,7 +489,7 @@ export class RWPF1Actor {
 				const entry = feat_pack.index.find(e => e.name === feat.name);
 				if (entry) {
 					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push((await feat_pack.getDocument(entry._id)).data);
+						actor.items.push(new Item((await feat_pack.getDocument(entry._id)).data).data);
 					else
 						actor.items.push(await feat_pack.getEntry(entry._id));
 				} else {
@@ -508,7 +509,7 @@ export class RWPF1Actor {
 						//item.data.tags.insert( cats );
 					}
 					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
+						actor.items.push(new Item(itemdata).data);
 					else
 						actor.items.push(new Item(itemdata));
 				}
@@ -680,47 +681,45 @@ export class RWPF1Actor {
 		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
 		
 		async function addSpells(nodes, book, memorized=[]) {
-			let result = false;
-			if (nodes) {
-				console.log(`Creating spellbook ${book} for '${character.name}'`);
-				result = true;
-				if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
-				actor.data.attributes.spells.usedSpellbooks.push(book);
+			if (!nodes) return false;
+			
+			console.log(`Creating spellbook ${book} for '${character.name}'`);
+			if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
+			actor.data.attributes.spells.usedSpellbooks.push(book);
 				
-				for (const spell of toArray(nodes)) {
-					const lowername = spell.name.toLowerCase();
-					const shortpos = lowername.indexOf(' (');
-					const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
+			for (const spell of toArray(nodes)) {
+				const lowername = spell.name.toLowerCase();
+				const shortpos = lowername.indexOf(' (');
+				const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
 					
-					const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
-					if (entry) {
-						if (isNewerVersion(game.data.version, "0.8.0")) {
-							let itemdata = (await spell_pack.getDocument(entry._id)).data;
-							itemdata.data.spellbook = book;
-							if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
-							if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
-							if (lowername.endsWith('at will)')) itemdata.data.atWill = true;
-							if (lowername.endsWith('/day)')) {
-								itemdata.data.uses.max = parseInt(lowername.slice(-6));	// assume one digit
-								itemdata.data.uses.per = 'day';
-							}
-							//itemdata.data.learnedAt = { 'class': [  };
-							console.log(`Adding spell ${itemdata.name}`);
-							actor.items.push(itemdata);
-						} else {
-							let itemdata = await spell_pack.getEntry(entry._id);
-							itemdata.data.spellbook = book;
-							if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
-							if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
-							actor.items.push(itemdata);
+				const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
+				if (entry) {
+					if (isNewerVersion(game.data.version, "0.8.0")) {
+						let itemdata = (await spell_pack.getDocument(entry._id)).data;
+						itemdata.data.spellbook = book;
+						if (memorized.includes(lowername)) itemdata.data.preparation = { preparedAmount : 1};
+						if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
+						if (lowername.endsWith('at will)')) itemdata.data.atWill = true;
+						if (lowername.endsWith('/day)')) {
+							itemdata.data.uses.max = parseInt(lowername.slice(-6));	// assume one digit
+							itemdata.data.uses.value = itemdata.data.uses.max;
+							itemdata.data.uses.per = 'day';
 						}
+						//itemdata.data.learnedAt = { 'class': [  };
+						actor.items.push(new Item(itemdata).data);
 					} else {
-						// Manually create a spell
-						console.log(`Add entry to ${book} manually for spell '${spell.name}'`);
+						let itemdata = await spell_pack.getEntry(entry._id);
+						itemdata.data.spellbook = book;
+						if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
+						if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
+						actor.items.push(itemdata);
 					}
+				} else {
+					// Manually create a spell
+					console.log(`Add entry to ${book} manually for spell '${spell.name}'`);
 				}
 			}
-			return result;
+			return true;
 		}
 
 		// Technically, we should process spellsmemorized to mark which spells in spellbook are prepared
@@ -731,7 +730,7 @@ export class RWPF1Actor {
 				memorized.push(spell.name.toLowerCase());
 			}
 		}
-		await addSpells(character.spellbook.spell, spellbooks[0], memorized);
+		if (await addSpells(character.spellbook.spell, spellbooks[0], memorized)) spellbooks.shift();
 		//if (await addSpells(character.spellsmemorized.spell, spellbooks[0])) spellbooks.shift();
 		if (await addSpells(character.spellsknown.spell, spellbooks[0])) spellbooks.shift();
 		

@@ -1073,10 +1073,8 @@ class RealmWorksImporter extends Application
 				const found = game.folders.filter(e => e.type === 'Actor' && e.name == this.folderName);
 				if (found?.length > 0)
 					this.actor_folder = found[0];
-				else {
-					console.log(`Creating '${this.folderName}' folder for actors`);
+				else
 					this.actor_folder = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
-				}
 			}
 		}
 		// Create the image folder if it doesn't already exist.
