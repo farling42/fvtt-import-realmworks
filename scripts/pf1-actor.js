@@ -26,6 +26,12 @@ export class RWPF1Actor {
 		[ "pot", "pot, cooking (iron)" ],
 	]);
 	
+	static feat_name_mapping = new Map([
+		[ "Armor Proficiency (Light)", "Armor Proficiency, Light" ],
+		[ "Armor Proficiency (Medium)", "Armor Proficiency, Medium" ],
+		[ "Armor Proficiency (Heavy)", "Armor Proficiency, Heavy" ],
+	]);
+	
 	static async initModule() {
 		// full list of packs: classes, mythicpaths, commonbuffs
 		// spells, feats, items, armors-and-shields, weapons-and-ammo, racialhd
@@ -486,11 +492,20 @@ export class RWPF1Actor {
 		if (character.feats?.feat) {
 			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
 			for (const feat of toArray(character.feats.feat)) {
-				const entry = feat_pack.index.find(e => e.name === feat.name);
+				let featname = feat.name;
+				let realname = featname;
+				if (RWPF1Actor.feat_name_mapping.has(featname))
+					realname = featname = RWPF1Actor.feat_name_mapping.get(featname);
+				else
+					featname = featname.replace(/ \(.*/,'').replace(/ -.*/,'');
+				
+				const entry = feat_pack.index.find(e => e.name === featname);
 				if (entry) {
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push((await feat_pack.getDocument(entry._id)).data.toObject());
-					else
+					if (isNewerVersion(game.data.version, "0.8.0")) {
+						let itemdata = (await feat_pack.getDocument(entry._id)).data.toObject();
+						itemdata.name = realname;	// TODO: in case we removed parentheses
+						actor.items.push(itemdata);
+					} else
 						actor.items.push(await feat_pack.getEntry(entry._id));
 				} else {
 					// Create our own placemarker feat.
