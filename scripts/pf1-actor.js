@@ -129,10 +129,10 @@ export class RWPF1Actor {
 
 		// data.attributes.hp.value/base/max/temp/nonlethal
 		actor.data.attributes.hp = {
-			value: parseInt(character.health.hitpoints),
-			base: parseInt(character.health.hitpoints),
+			value: Number(character.health.hitpoints),
+			base: Number(character.health.hitpoints),
 			min: 0,
-			max: parseInt(character.health.hitpoints),
+			max: Number(character.health.hitpoints),
 		};
 		// data.attributes.wounds.min/max/base/value
 		// data.attributes.vigor.min/value/temp/max/base
@@ -140,17 +140,17 @@ export class RWPF1Actor {
 
 		// data.details.cr.base/total
 		if (character.challengerating) {
-			let cr = parseInt(character.challengerating.value);
+			let cr = Number(character.challengerating.value);
 			actor.data.details.cr = { base: cr, total: cr };
 		}
 		if (actor.type == 'npc') {
-			actor.data.details.xp = { value : parseInt(character.xpaward.value) };
+			actor.data.details.xp = { value : Number(character.xpaward.value) };
 		} else {	
 			// data.details.xp.value/min/max
 			actor.data.details.xp = {
-				value: parseInt(character.xp.total),
+				value: Number(character.xp.total),
 				min  : 0,
-				max  : parseInt(character.xp.total)
+				max  : Number(character.xp.total)
 			};
 		};
 		// data.details.height/weight/gender/deity/age
@@ -193,11 +193,11 @@ export class RWPF1Actor {
 			if (racialhd) {
 				if (isNewerVersion(game.data.version, "0.8.0")) {
 					let item = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
-					item.data.level = parseInt(character.health.hitdice);	// HD - TODO : NOT WORKING YET
+					item.data.level = parseInt(character.health.hitdice);	// HD - read just leading digits
 					actor.items.push(item);
 				} else {
 					let item = await racialhd_pack.getEntry(racialhd._id);
-					item.data.level = parseInt(character.health.hitdice);	// HD - TODO : NOT WORKING YET
+					item.data.level = parseInt(character.health.hitdice);	// HD - read just leading digits
 					actor.items.push(item);
 				}
 			} else {
@@ -237,7 +237,7 @@ export class RWPF1Actor {
 					if (isNewerVersion(game.data.version, "0.8.0")) {
 						//console.log(`Class ${entry.name} at level ${cclass.level}`);
 						let itemdata = (await class_pack.getDocument(entry._id)).data.toObject();
-						itemdata.data.level = parseInt(cclass.level);		// TODO - doesn't work
+						itemdata.data.level = Number(cclass.level);		// TODO - doesn't work
 						actor.items.push(itemdata);
 					} else {
 						let itemdata =  await class_pack.getEntry(entry._id);
@@ -265,9 +265,9 @@ export class RWPF1Actor {
 		//
 		for (const attr of character.attributes.attribute) {
 			actor.data.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
-				total: attr.attrvalue.modified,
-				value: attr.attrvalue.base,
-				mod:   attr.attrbonus?.base ? attr.attrbonus.base : 0
+				total: Number(attr.attrvalue.modified),
+				value: Number(attr.attrvalue.base),
+				mod:   attr.attrbonus?.base ? Number(attr.attrbonus.base) : 0
 			}
 		}
 
@@ -275,20 +275,20 @@ export class RWPF1Actor {
 		for (const child of character.saves.save) {
 			if (child.abbr == "Fort") {
 				actor.data.attributes.savingThrows.fort = {
-					base: parseInt(child.base),
-					total: parseInt(child.save),
+					base: Number(child.base),
+					total: Number(child.save),
 					ability: "con"
 				};
 			} else if (child.abbr == "Ref") {
 				actor.data.attributes.savingThrows.ref = {
-					base: parseInt(child.base),
-					total: parseInt(child.save),
+					base: Number(child.base),
+					total: Number(child.save),
 					ability: "dex"
 				};
 			} else if (child.abbr == "Will") {
 				actor.data.attributes.savingThrows.will = {
-					base: parseInt(child.base),
-					total: parseInt(child.save),
+					base: Number(child.base),
+					total: Number(child.save),
 					ability: "wis"
 				};
 			}
@@ -320,8 +320,8 @@ export class RWPF1Actor {
 		// data.attributes.speed.land/climb/swim/burrow/fly (base/total + for fly, .maneuverability)
 		actor.data.attributes.speed = {
 			land: {
-				base: parseInt(character.movement.speed.value),
-				total: parseInt(character.movement.speed.value)
+				base: Number(character.movement.speed.value),
+				total: Number(character.movement.speed.value)
 			},
 		}
 		// data.attributes.conditions((long list false|true)
@@ -349,39 +349,39 @@ export class RWPF1Actor {
 		
 		// data.attributes.init.value/bonus/total/ability
 		actor.data.attributes.init = {
-			value: parseInt(character.initiative.total),
-			bonus: parseInt(character.initiative.total),
-			total: parseInt(character.initiative.total),
+			value: Number(character.initiative.total),
+			bonus: Number(character.initiative.total),
+			total: Number(character.initiative.total),
 			ability: RWPF1Actor.ability_names[character.initiative.attrname]
 		};
 
 		actor.data.attributes.bab = {
-			value: parseInt(character.attack.baseattack),
-			total: parseInt(character.attack.baseattack)
+			value: Number(character.attack.baseattack),
+			total: Number(character.attack.baseattack)
 		};
 		actor.data.attributes.cmd = {
-			value: parseInt(character.maneuvers.cmd),
-			total: parseInt(character.maneuvers.cmd),
-			flatFootedTotal: parseInt(character.maneuvers.cmdflatfooted)
+			value: Number(character.maneuvers.cmd),
+			total: Number(character.maneuvers.cmd),
+			flatFootedTotal: Number(character.maneuvers.cmdflatfooted)
 		}
 		actor.data.attributes.cmb = {
-			value: parseInt(character.maneuvers.cmb),
-			total: parseInt(character.maneuvers.cmb),
+			value: Number(character.maneuvers.cmb),
+			total: Number(character.maneuvers.cmb),
 		}
 
-		actor.data.attributes.naturalAC = parseInt(character.armorclass.fromnatural);
+		actor.data.attributes.naturalAC = Number(character.armorclass.fromnatural);
 		actor.data.attributes.ac = {
 			normal: {
-				value: parseInt(character.armorclass.ac),
-				total: parseInt(character.armorclass.ac)
+				value: Number(character.armorclass.ac),
+				total: Number(character.armorclass.ac)
 			},
 			touch: {
-				value: parseInt(character.armorclass.touch),
-				total: parseInt(character.armorclass.touch),
+				value: Number(character.armorclass.touch),
+				total: Number(character.armorclass.touch),
 			},
 			flatFooted: {
-				value: parseInt(character.armorclass.flatfooted),
-				total: parseInt(character.armorclass.flatfooted)
+				value: Number(character.armorclass.flatfooted),
+				total: Number(character.armorclass.flatfooted)
 			}
 		};
 
@@ -392,10 +392,10 @@ export class RWPF1Actor {
 		
 		// data.currency.pp/gp/sp/cp
 		actor.data.currency = {
-			pp: parseInt(character.money.pp),
-			gp: parseInt(character.money.gp),
-			sp: parseInt(character.money.sp),
-			cp: parseInt(character.money.cp),
+			pp: Number(character.money.pp),
+			gp: Number(character.money.gp),
+			sp: Number(character.money.sp),
+			cp: Number(character.money.cp),
 		}
 		// data.altCurrency.pp/gp/sp/cp  (weightless coins) - count as weightless
 
@@ -404,13 +404,13 @@ export class RWPF1Actor {
 		actor.data.attributes.encumbrance = {
 			level: (enc.level == 'Light Load') ? 0 : 1, // 0 = light load TBD
 			levels: {
-				light: parseInt(enc.light),
-				medium: parseInt(enc.medium),
-				heavy: parseInt(enc.heavy),
+				light: Number(enc.light),
+				medium: Number(enc.medium),
+				heavy: Number(enc.heavy),
 				//carry:
 				//drag:
 			},
-			carriedWeight: parseInt(enc.carried)
+			carriedWeight: Number(enc.carried)
 		};
 
 		// gear.[item.name/quantity/weight/cost/description
@@ -447,11 +447,11 @@ export class RWPF1Actor {
 					let itemdata;
 					if (isNewerVersion(game.data.version, "0.8.0")) {
 						itemdata = (await pack.getDocument(entry._id)).data.toObject();
-						itemdata.data.quantity = parseInt(item.quantity);		// TODO - not working
+						itemdata.data.quantity = Number(item.quantity);
 						actor.items.push(itemdata);
 					} else {
 						itemdata = await pack.getEntry(entry._id);
-						itemdata.quantity = parseInt(item.quantity);
+						itemdata.quantity = Number(item.quantity);
 						actor.items.push(new Item(itemdata));
 					}
 				} else {
@@ -460,9 +460,9 @@ export class RWPF1Actor {
 						name: item.name,
 						type: 'loot',
 						data: {
-							quantity: parseInt(item.quantity),			// This DOES work!
-							weight: parseInt(item.weight.value),
-							price: parseInt(item.cost.value),
+							quantity: Number(item.quantity),
+							weight: Number(item.weight.value),
+							price: Number(item.cost.value),
 							description: {
 								value: addParas(item.description['#text'])
 							},
@@ -530,10 +530,10 @@ export class RWPF1Actor {
 		let numcust = 0;
 		for (const skill of character.skills.skill) {
 			let value = {
-				value: parseInt(skill.value),
+				value: Number(skill.value),
 				ability: RWPF1Actor.ability_names[skill.attrname.toLowerCase()],
-				rank: parseInt(skill.ranks),
-				mod: parseInt(skill.attrbonus)
+				rank: Number(skill.ranks),
+				mod: Number(skill.attrbonus)
 				// rt, acp, background
 			}
 			if (!value.ability) {
