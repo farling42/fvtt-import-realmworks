@@ -200,43 +200,11 @@ class RealmWorksImporter extends Application
 	}
 	
 	//
-	// Write a "contents" element:
-	// Only <contents> can contain <span> which identify links.
-	//
-	replaceLinks(original, linkage_names) {
-		// Replace '<scan>something</scan>' with '@Compendium[world.packname.<topic-for-something>]{something}'
-		// @Compendium is case sensitive when using names!
-		
-		// We can't access "this" inside the replace function
-		let formatLink = this.formatLink;
-		let functhis = this;
-		
-		return original.replace(/<span>([^<]+)<\/span>/g, 
-			function(match,p1,offset,string) {
-				for (const [topic_id, labels] of linkage_names) {
-					// case insensitive search across all entries in the Array() stored in the map.
-					if (labels.some(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) == 0) )) {
-						return formatLink.call(functhis, topic_id, p1);
-					}
-				};
-				// Not found in map, so just create a broken link.
-				return formatLink.call(functhis, undefined, p1);
-			});
-	}
-
-	// The label for a snippet is either the 'facet_name' attribute (for predefined categories) or 'label' attribute (for user-defined categories)
-	getSnippetLabel(node) {
-		let name = node.getAttribute('facet_name');
-		if (!name || name == "") name = node.getAttribute('label');
-		return name;
-	}
-
-	//
 	// Convert Utf8Array to UTF-8 string
 	//
 	Utf8ArrayToStr(array) {
-		var out, i, len, c;
-		var char2, char3;
+		let out, i, len, c;
+		let char2, char3;
 
 		out = "";
 		len = array.length;
@@ -303,7 +271,7 @@ class RealmWorksImporter extends Application
 	}
 
 	// Convert a Smart_Image into a scene
-	async createScene(smart_image) {
+	async createScene(topic, smart_image) {
 		//<snippet facet_name="Map" type="Smart_Image" search_text="">
 		//  <smart_image name="Map">
 		//    <asset filename="n5uvmpam.eb4.png">
@@ -321,9 +289,8 @@ class RealmWorksImporter extends Application
 		if (!filename) throw('<smart_image><asset> is missing filename attribute');
 		
 		// Name comes from topic name + facet_name
-		const topicnode = smart_image.closest('topic');
-		const scenename = topicnode?.getAttribute('public_name') + ':' + smart_image.getAttribute('name');
-		const topic_id  = topicnode?.getAttribute('topic_id');
+		const scenename = topic.getAttribute('public_name') + ':' + smart_image.getAttribute('name');
+		const topic_id  = topic.getAttribute('topic_id');
 		//console.log(`smart_image: scene name = ${scenename} from topic_id ${topic_id}`);
 	
 		// Firstly, put the file into the files area.
@@ -377,6 +344,7 @@ class RealmWorksImporter extends Application
 				label = pinname;
 			else
 				label = '**' + pinname + '**' + label;
+			
 			let notedata = {
 				name: pinname,
 				entryId: entryid,				// can't link to COMPENDIUM !!!
@@ -396,7 +364,7 @@ class RealmWorksImporter extends Application
 				await scene.createEmbeddedDocuments('Note', [notedata]);
 			} else {
 				let newnote = new Note(notedata, scene);
-				const note = await scene.createEmbeddedEntity('Note', newnote.data);
+				await scene.createEmbeddedEntity('Note', newnote.data);
 			}
 			
 			//if (note) console.log(`Created map pin ${notedata.name}`);
@@ -417,20 +385,8 @@ class RealmWorksImporter extends Application
 		return undefined;
 	}
 
-	getChildren(node,name) {
-		let result = [];
-		if (node) {
-			// children   = only element children
-			// childNodes = all child nodes
-			for (const child of node.children) {
-				if (child.nodeName == name) result.append(child);
-			}
-		}
-		return result;
-	}
-
 	// base64 is the base64 string containing the .por file
-	// format is one of the character formats in the .por file: 'html', 'text', 'xml'
+	// format is one of the character formats in the .por file: 'html', 'text', 'xml' (need to do this.Utf8ArrayToStr to get to string)
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
 	
 	readPortfolio(data) {
@@ -460,7 +416,7 @@ class RealmWorksImporter extends Application
 					const format = statblock.getAttribute('format');
 					const folder = statblock.getAttribute('folder');
 					const filename = statblock.getAttribute('filename');
-					actordata[format] = this.Utf8ArrayToStr(files[folder + '/' + filename]);
+					actordata[format] = files[folder + '/' + filename];
 				}
 			}
 			const img  = this.getChild(this.getChild(character,'images'),'image');
@@ -480,6 +436,28 @@ class RealmWorksImporter extends Application
 	// Write one RW section
 	//
 	async writeSection(section, level, linkage_names) {
+
+		// We can't access "this" inside the replaceLinks function
+		let functhis = this;
+		
+		// Write a "contents" element:
+		// Only <contents> can contain <span> which identify links.
+		function replaceLinks(original, linkage_names) {
+			// Replace '<scan>something</scan>' with '@Compendium[world.packname.<topic-for-something>]{something}'
+			// @Compendium is case sensitive when using names!
+			return original.replace(/<span>([^<]+)<\/span>/g,
+				function (match, p1, offset, string) {
+				for (const [topic_id, labels] of linkage_names) {
+					// case insensitive search across all entries in the Array() stored in the map.
+					if (labels.some(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) == 0))) {
+						return functhis.formatLink.call(functhis, topic_id, p1);
+					}
+				};
+				// Not found in map, so just create a broken link.
+				return functhis.formatLink.call(functhis, undefined, p1);
+			});
+		}
+		
 		// Process all the snippets and sections in order
 		const name = section.getAttribute("name");
 		//console.log(`writeSection(${level}, '${name}'})`);
@@ -497,10 +475,10 @@ class RealmWorksImporter extends Application
 				// Snippets contain the real information!
 				const sntype = child.getAttribute('type');
 				const style  = child.getAttribute('style');
-				const label  = this.getSnippetLabel(child);
 				const contents   = this.getChild(child, 'contents');
 				const gmdir      = this.getChild(child, 'gm_directions');
 				const annotation = this.getChild(child, 'annotation');
+				const label = child.getAttribute('facet_name') ?? child.getAttribute('label');
 				
 				// If both gmdir and contents, then need an extra border
 				let in_section = false;
@@ -530,19 +508,19 @@ class RealmWorksImporter extends Application
 					in_section = true;
 				}
 				if (gmdir) {
-					result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(gmdir.textContent, linkage_names)) + '</section>';
+					result += '<section class="secret">' + this.simplifyPara(replaceLinks(gmdir.textContent, linkage_names)) + '</section>';
 				}
 				
 				switch (sntype) {
 				case "Multi_Line":
 					if (contents) {
-						result += this.simplifyPara(this.replaceLinks(contents.textContent, linkage_names));
+						result += this.simplifyPara(replaceLinks(contents.textContent, linkage_names));
 					}
 					break;
 				case "Labeled_Text":
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += `<p><b>${label}:</b> ` + this.stripPara(this.replaceLinks(contents.textContent, linkage_names));
+						result += `<p><b>${label}:</b> ` + this.stripPara(replaceLinks(contents.textContent, linkage_names));
 						if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
@@ -550,7 +528,7 @@ class RealmWorksImporter extends Application
 				case "Numeric":
 					if (contents) {
 						// contents will hold just a number
-						result += `<p><b>${label}:</b> ` + this.replaceLinks(contents.textContent, linkage_names);
+						result += `<p><b>${label}:</b> ` + replaceLinks(contents.textContent, linkage_names);
 						if (annotation) result += `; <i>${this.stripPara(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
@@ -610,11 +588,11 @@ class RealmWorksImporter extends Application
 					if (portfolio) {
 						// TODO: for test purposes, extract all .por files!
 						//await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
-						let characters = this.readPortfolio(portfolio.textContent);
-						for (let i=0; i<characters.length; i++) {
-							if (i > 0) result += '<hr>';
-							result += `<h${level+1}>Portfolio: ${characters[i].name}</h${level+1}>`;
-							result += characters[i].html;
+						let first=true;
+						for (let [charname, character] of this.readPortfolio(portfolio.textContent)) {
+							if (first) { result += '<hr>'; first=false }
+							let hdg=`h${level+1}`;
+							result += `<${hdg}>${character.name}</${hdg}>${this.Utf8ArrayToStr(character.html)}`;
 						}
 					}
 					break;
@@ -698,20 +676,6 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	getScenes(topic) {
-		let result = [];
-		function checkSnippets(node) {
-			for (const child of node.children) {
-				if (child.nodeName == 'smart_image')
-					result.push(child);
-				else if (child.nodeName != 'topic' && child.children.length > 0)
-					checkSnippets(child);
-			}
-		}
-		checkSnippets(topic);
-		return result;
-	}
-	
 	//
 	// Write one RW topic
 	//
@@ -747,7 +711,7 @@ class RealmWorksImporter extends Application
 			switch (node.nodeName) {
 			case 'alias':
 				// These come first
-				html += `<p><b>Aliases: </b><i>${node.getAttribute(' name ')}</i></p>`;
+				html += `<p><b>Alias: </b><i>${node.getAttribute('name')}</i></p>`;
 				break;
 			case 'section':
 				html += await this.writeSection(node, 1, linkage_names); // Start with H1
@@ -756,7 +720,7 @@ class RealmWorksImporter extends Application
 			case 'topic':
 				// No need to handle nested topics, since we found all of them at the start.
 				// Put link to child topic in original topic
-				// topicchild elements are added when parsing a LARGE file
+				// N.B. topicchild elements are added when parsing a LARGE file
 				if (!has_child_topics) {
 					html += '<h1>Governed Content</h1><ul>';
 					has_child_topics = true;
@@ -764,13 +728,11 @@ class RealmWorksImporter extends Application
 				html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
 				break;
 			case 'linkage':
-				var dir = node.getAttribute('direction');
-				if (dir == 'Outbound')
-					outbound.push(node);
-				else if (dir == 'Inbound')
-					inbound.push(node);
-				else if (dir == 'Both')
-					both.push(node);
+				switch (node.getAttribute('direction')) {
+				case 'Outbound': outbound.push(node); break;
+				case 'Inbound' : inbound.push(node);  break;
+				case 'Both'    : both.push(node);     break;
+				}
 				break;
 			case 'connection':
 				// <connection target_id="Topic_2" target_name="Child Feat 1" nature="Master_To_Minion" qualifier="Owner / Subsidiary"/>
@@ -798,34 +760,40 @@ class RealmWorksImporter extends Application
 			html += '</ul>';
 		}
 		// Add inbound and/or outbound link information (if requested)
-		if ((this.addInboundLinks || this.addOutboundLinks) && (inbound.length > 0 || outbound.length > 0 || both.length > 0)) {
-			if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
-				html += '<h1>Content Links: In</h1><p>';
-				for (const node of inbound) {
-					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-				}
-				for (const node of both) {
-					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-				}
-				html += '<\p>';
+		if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
+			html += '<h1>Content Links: In</h1><p>';
+			for (const node of inbound) {
+				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 			}
-			if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
-				html += '<h1>Content Links: Out</h1><p>';
-				for (const node of outbound) {
-					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-				}
-				for (const node of both) {
-					html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-				}
-				html += '<\p>';
+			for (const node of both) {
+				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
 			}
+			html += '</p>';
+		}
+		if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
+			html += '<h1>Content Links: Out</h1><p>';
+			for (const node of outbound) {
+				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
+			}
+			for (const node of both) {
+				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
+			}
+			html += '</p>';
 		}
 
-		// Create all the scenes now
-		await Promise.allSettled(Array.from(this.getScenes(topic)).map( async(smart_image) => {
-			await this.createScene(smart_image).catch(e => console.log(`Failed to create scene due to ${e}`));
-		}));
-
+		// Create all the scenes for this topic now
+		let scenethis = this;
+		async function createScenes(node) {
+			for (const child of node.children) {
+				if (child.nodeName == 'smart_image') {
+					await scenethis.createScene.call(scenethis, topic, child).catch(e => console.log(`Failed to create scene for ${topic.name} due to ${e}`));
+				} else if (child.nodeName != 'topic' && child.children.length > 0) {
+					createScenes(child);
+				}
+			}
+		}
+		await createScenes(topic);
+		
 		// Full title might have prefix and suffix
 		let journaltitle = topic.getAttribute("public_name");
 		let prefix = topic.getAttribute('prefix');
@@ -906,8 +874,9 @@ class RealmWorksImporter extends Application
 			if (!filename.endsWith('.por'))
 				throw('formatActors: Portfolio file does not end with .por');
 			//console.log(`Reading portfolio ${filename}`);
-			portfolio = this.readPortfolio(contents.textContent);
+			//portfolio = this.readPortfolio(contents.textContent);
 			// Upload images (if any)
+			portfolio = this.readPortfolio(contents.textContent);
 			for (let [charname, character] of portfolio) {
 				if (character.imgfilename) {
 					await this.uploadBinaryFile(character.imgfilename, character.imgdata);
@@ -929,11 +898,11 @@ class RealmWorksImporter extends Application
 				for (let [charname, character] of portfolio) {
 					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
-						const actorlist = await RWPF1Actor.createActorData(character.xml);
+						const actorlist = await RWPF1Actor.createActorData(this.Utf8ArrayToStr(character.xml)).catch(e => console.log(`RWPF1Actor.createActorData failed due to ${e}`));
 						for (let actor of actorlist) {
 							// Cater for MINIONS
 							let port = portfolio.get(actor.name);
-							actor.data.details.notes = { value : port.html };
+							actor.data.details.notes = { value : this.Utf8ArrayToStr(port.html) };
 							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
 							result.push(actor);
 						}
@@ -955,16 +924,16 @@ class RealmWorksImporter extends Application
 				for (let [charname, character] of portfolio) {
 					// TODO
 /*					if (character.xml) {
-						const actorlist = await DND5EActor.createActorData(character.xml);
+						const actorlist = await DND5EActor.createActorData(this.Utf8ArrayToStr(character.xml));
 						for (let actor of actorlist) {
 							// Cater for MINIONS
 							let port = portfolio.get(actor.name);
-							actor.data.details.biography = { value : port.html };
+							actor.data.details.biography = { value : this.Utf8ArrayToStr(port.html) };
 							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
 							result.push(actor);
 						}
 					}*/
-					actor.data = { details : { biography : { value : character.html }}};
+					actor.data = { details : { biography : { value : this.Utf8ArrayToStr(character.html) }}};
 					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename)
 					result.push(actor);
 				}
@@ -983,17 +952,17 @@ class RealmWorksImporter extends Application
 				for (let [charname, character] of portfolio) {
 					// TODO
 /*					if (character.xml) {
-						const actorlist = await GRPGAActor.createActorData(character.xml);
+						const actorlist = await GRPGAActor.createActorData(this.Utf8ArrayToStr(character.xml));
 						for (let actor of actorlist) {
 							// Cater for MINIONS
 							let port = portfolio.get(actor.name);
-							actor.data.biography = port.html;
+							actor.data.biography = this.Utf8ArrayToStr(port.html);
 							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
 							result.push(actor);
 						}
 					}*/
 					actor.type = 'CharacterD20';	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
-					actor.data = { biography : character.html };
+					actor.data = { biography : this.Utf8ArrayToStr(character.html) };
 					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
 					result.push(actor);
 				}
@@ -1086,12 +1055,12 @@ class RealmWorksImporter extends Application
 		for (let [charname, character] of portfolio) {
 			// no XML means it is a MINION, and has been created from the XML of another character.
 			if (character.xml) {
-				const actorlist = await RWPF1Actor.createActorData(character.xml);
+				const actorlist = await RWPF1Actor.createActorData(this.Utf8ArrayToStr(character.xml));
 				for (let actordata of actorlist) {
 					// Minion will have ITS data in a different place in the portfolio.
 					let port = portfolio.get(actordata.name);
 					actordata.data.details.notes = {
-						value: port.html
+						value: this.Utf8ArrayToStr(port.html)
 					};
 					if (port.imgfilename) {
 						await this.uploadBinaryFile(port.imgfilename, port.imgdata);
