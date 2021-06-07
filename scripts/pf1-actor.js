@@ -156,8 +156,8 @@ export class RWPF1Actor {
 		
 		let actor = {
 			name: character.name,
-			type: (character.type == 'Hero') ? 'character' : 'npc',		// 'npc' or 'character'
-			//type: (character.role == 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
+			//type: (character.type == 'Hero') ? 'character' : 'npc',		// 'npc' or 'character'
+			type: (character.role == 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
 			data: {
 				abilities: {},
 				attributes: {},
@@ -174,11 +174,12 @@ export class RWPF1Actor {
 		//
 
 		// data.attributes.hp.value/base/max/temp/nonlethal
+		let hp = +character.health.hitpoints;
 		actor.data.attributes.hp = {
-			value: +character.health.hitpoints,
-			base: +character.health.hitpoints,
-			min: 0,
-			max: +character.health.hitpoints,
+			value: hp,
+			base:  hp,
+			min:   0,
+			max:   hp,
 		};
 		// data.attributes.wounds.min/max/base/value
 		// data.attributes.vigor.min/value/temp/max/base
@@ -205,6 +206,56 @@ export class RWPF1Actor {
 		actor.data.details.gender = character.personal.gender;
 		actor.data.details.deity = character?.deity?.name;
 		actor.data.details.age = character.personal.age;
+
+		//
+		// CLASSES sub-tab (before RACE, in case we need to adjust HD by number of class levels)
+		//
+		//	<classes level="11" summary="bard (archaeologist) 2/unchained rogue 9" summaryabbr="Brd 2/Rog 9">
+		//		<class name="Bard (Archaeologist)" level="2" spells="Spontaneous" casterlevel="2" concentrationcheck="+5" overcomespellresistance="+2" basespelldc="13" castersource="Arcane">
+		//			<arcanespellfailure text="0%" value="0"/>
+		//		</class>
+		//		<class name="Rogue (Unchained)" level="9" spells="" casterlevel="0" concentrationcheck="+3" overcomespellresistance="+0" basespelldc="13" castersource=""/>
+		//	</classes>
+		let classlevels = 0;
+		const classes = character.classes?.["class"];
+		if (classes) {
+			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
+			
+			for (const cclass of toArray(classes)) {
+				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
+				const name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
+				//console.log(`Looking for class called '${name}'`);
+				// Strip trailing (...)  from class.name
+				const entry = class_pack.index.find(e => e.name === name);
+				if (entry) {
+					if (isNewerVersion(game.data.version, "0.8.0")) {
+						//console.log(`Class ${entry.name} at level ${cclass.level}`);
+						let itemdata = (await class_pack.getDocument(entry._id)).data.toObject();
+						itemdata.data.level = +cclass.level;		// TODO - pf1._onLevelChange isn't triggered on initial creation!
+						classlevels += itemdata.data.level;
+						actor.items.push(itemdata);
+					} else {
+						let itemdata =  await class_pack.getEntry(entry._id);
+						itemdata.data.level = +cclass.level;
+						classlevels += itemdata.data.level;
+						actor.items.push(itemdata);
+					}
+				} else {
+					// Create our own placemarker class.
+					const itemdata = {
+						name: cclass.name,
+						type: 'race',
+						data: { level : +cclass.level },
+						//data: { description : { value : addParas(feat.description['#text']) }}
+					};
+					classlevels += itemdata.data.level;
+					if (isNewerVersion(game.data.version, "0.8.0"))
+						actor.items.push(itemdata);
+					else
+						actor.items.push(new Item(itemdata));
+				}
+			}
+		}
 
 		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
 		const race_pack = await game.packs.find(p => p.metadata.name === 'races');
@@ -235,15 +286,15 @@ export class RWPF1Actor {
 		if (character.types.type && character.types.type.name != 'Humanoid') {
 			const racialhd_pack = await game.packs.find(p => p.metadata.name === 'racialhd');
 			const racehdlower = character.types.type.name.toLowerCase();
-			const racialhd = await racialhd_pack.index.find(e => e.name === racehdlower);
+			const racialhd = await racialhd_pack.index.find(e => e.name.toLowerCase() === racehdlower);
 			if (racialhd) {
 				if (isNewerVersion(game.data.version, "0.8.0")) {
 					let item = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
-					item.data.level = parseInt(character.health.hitdice);	// HD - read just leading digits
+					item.data.level = parseInt(character.health.hitdice) - classlevels;	// HD - read just leading digits
 					actor.items.push(item);
 				} else {
 					let item = await racialhd_pack.getEntry(racialhd._id);
-					item.data.level = parseInt(character.health.hitdice);	// HD - read just leading digits
+					item.data.level = parseInt(character.health.hitdice) - classlevels;	// HD - read just leading digits
 					actor.items.push(item);
 				}
 			} else {
@@ -260,52 +311,6 @@ export class RWPF1Actor {
 					actor.items.push(new Item(itemdata));
 			}
 		}
-		//
-		// CLASSES sub-tab
-		//
-		//	<classes level="11" summary="bard (archaeologist) 2/unchained rogue 9" summaryabbr="Brd 2/Rog 9">
-		//		<class name="Bard (Archaeologist)" level="2" spells="Spontaneous" casterlevel="2" concentrationcheck="+5" overcomespellresistance="+2" basespelldc="13" castersource="Arcane">
-		//			<arcanespellfailure text="0%" value="0"/>
-		//		</class>
-		//		<class name="Rogue (Unchained)" level="9" spells="" casterlevel="0" concentrationcheck="+3" overcomespellresistance="+0" basespelldc="13" castersource=""/>
-		//	</classes>		
-		const classes = character.classes?.["class"];
-		if (classes) {
-			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
-			
-			for (const cclass of toArray(classes)) {
-				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
-				const name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
-				//console.log(`Looking for class called '${name}'`);
-				// Strip trailing (...)  from class.name
-				const entry = class_pack.index.find(e => e.name === name);
-				if (entry) {
-					if (isNewerVersion(game.data.version, "0.8.0")) {
-						//console.log(`Class ${entry.name} at level ${cclass.level}`);
-						let itemdata = (await class_pack.getDocument(entry._id)).data.toObject();
-						itemdata.data.level = +cclass.level;		// TODO - doesn't work
-						actor.items.push(itemdata);
-					} else {
-						let itemdata =  await class_pack.getEntry(entry._id);
-						itemdata.data.level = cclass.level;
-						actor.items.push(itemdata);
-					}
-				} else {
-					// Create our own placemarker feat.
-					const itemdata = {
-						name: cclass.name,
-						type: 'race',
-						data: { level : cclass.level },
-						//data: { description : { value : addParas(feat.description['#text']) }}
-					};
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
-					else
-						actor.items.push(new Item(itemdata));
-				}
-			}
-		}
-		
 		//
 		// ATTRIBUTES tab
 		//
@@ -530,11 +535,15 @@ export class RWPF1Actor {
 		let numsub = { art: 0, crf: 0, lor: 0, prf: 0, pro: 0 };
 		let numcust = 0;
 		for (const skill of character.skills.skill) {
+			// <skill name="Acrobatics" ranks="5" attrbonus="5" attrname="DEX" value="10" armorcheck="yes" classskill="yes" trainedonly="yes" usable="no" tools="uses|needs">
 			let value = {
 				value:   +skill.value,
 				ability: RWPF1Actor.ability_names[skill.attrname.toLowerCase()],
 				rank:    +skill.ranks,
-				mod:     +skill.attrbonus
+				mod:     +skill.attrbonus,
+				acp:     (skill.armorcheck  === 'yes'),
+				rt:      (skill.trainedonly === 'yes'),
+				cs:      (skill.classskill  === 'yes'),		// overridden by class definitions
 				// rt, acp, background
 			}
 			if (!value.ability) {
