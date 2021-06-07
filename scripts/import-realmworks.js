@@ -390,7 +390,6 @@ class RealmWorksImporter extends Application
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
 	
 	readPortfolio(data) {
-		let result = new Map();
 		const buf = (data instanceof Uint8Array) ? data : Uint8Array.from(atob(data), c => c.charCodeAt(0));
 		const files = UZIP.parse(buf);
 		// Now have an object with "key : property" pairs  (key = filename [String]; property = file data [Uint8Array])
@@ -405,6 +404,7 @@ class RealmWorksImporter extends Application
 		//    <minions><character name="Flappy"> <summary><statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
 		
 		// For each character in the POR, extract the statblock with the corresponding format, and any minions with the corresponding statblock
+		let result = new Map();
 		for (const character of xmlDoc.getElementsByTagName('character')) {
 			let actordata = { name: character.getAttribute('name') };
 			if (!actordata.name) {
@@ -457,11 +457,12 @@ class RealmWorksImporter extends Application
 				return functhis.formatLink.call(functhis, undefined, p1);
 			});
 		}
+		function header(lvl, name) {
+			return `<h${lvl}>${name}</h${lvl}>`;
+		}
 		
 		// Process all the snippets and sections in order
-		const name = section.getAttribute("name");
-		//console.log(`writeSection(${level}, '${name}'})`);
-		let result = `<h${level}>${name}</h${level}>`;
+		let result = header(level, section.getAttribute("name"));
 		
 		// Process all child (not descendent) nodes in this section
 		for (const child of section.children) {
@@ -591,8 +592,7 @@ class RealmWorksImporter extends Application
 						let first=true;
 						for (let [charname, character] of this.readPortfolio(portfolio.textContent)) {
 							if (first) { result += '<hr>'; first=false }
-							let hdg=`h${level+1}`;
-							result += `<${hdg}>${character.name}</${hdg}>${this.Utf8ArrayToStr(character.html)}`;
+							result += header(level+1, character.name) + this.Utf8ArrayToStr(character.html);
 						}
 					}
 					break;
@@ -611,10 +611,10 @@ class RealmWorksImporter extends Application
 					const bin_contents   = this.getChild(bin_asset,      'contents');    
 					const bin_filename   = bin_asset.getAttribute('filename');
 					if (bin_contents) {
-						result += `<h${level+1}>${bin_ext_object.getAttribute('name')}</h${level+1}>`;
+						result += header(level+1, bin_ext_object.getAttribute('name'));
 						const fileext  = bin_filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
-							result += `${atob(bin_contents.textContent)}`;
+							result += atob(bin_contents.textContent);
 						else if (sntype == "Picture") {
 							//result += `<p><img src="data:image/${fileext};base64,${bin_contents.textContent}"></img></p>`;
 							await this.uploadFile(bin_filename, bin_contents.textContent);
@@ -645,7 +645,7 @@ class RealmWorksImporter extends Application
 					const map_filename = map_asset?.getAttribute('filename');
 					const map_format   = map_filename?.split('.').pop();	// extra suffix from asset filename
 					if (map_format && map_contents) {
-						result += `<h${level+1}>${smart_image.getAttribute('name')}</h${level+1}>`;
+						result += header(level+1, smart_image.getAttribute('name'));
 						//result += `<p><img src="data:image/${map_format};base64,${map_contents.textContent}"></img></p>`;
 						await this.uploadFile(map_filename, map_contents.textContent);
 						result += `<p><img src='${this.imageFilename(map_filename)}'></img></p>`;
@@ -672,7 +672,6 @@ class RealmWorksImporter extends Application
 			}	// switch child.nodeName
 		} // for children
 		
-		//console.log(`writeSection(${name}) returning ${result}`);
 		return result;
 	}
 

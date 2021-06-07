@@ -31,6 +31,46 @@ export class RWPF1Actor {
 		[ "Armor Proficiency (Medium)", "Armor Proficiency, Medium" ],
 		[ "Armor Proficiency (Heavy)", "Armor Proficiency, Heavy" ],
 	]);
+
+	static skill_mapping = new Map([
+		[ "Acrobatics", "acr" ],
+		[ "Appraise", "apr" ],
+		[ "Artistry", "art" ],
+		[ "Bluff", "blf" ],
+		[ "Climb", "clm" ],
+		[ "Craft", "crf" ],
+		[ "Diplomacy", "dip" ],
+		[ "Disguise", "dis" ],
+		[ "Disable Device", "dis" ],
+		[ "Escape Artist", "esc" ],
+		[ "Fly", "fly" ],
+		[ "Handle Animal", "han" ],
+		[ "Heal", "hea" ],
+		[ "Intimidate", "int" ],
+		[ "Knowledge (arcana)", "kar" ],
+		[ "Knowledge (dungeoneering)", "kdu" ],
+		[ "Knowledge (engineering)", "ken" ],
+		[ "Knowledge (geography)", "kge" ],
+		[ "Knowledge (history)", "khi" ],
+		[ "Knowledge (local)", "klo" ],
+		[ "Knowledge (nature)", "kna" ],
+		[ "Knowledge (nobility)", "kno" ],
+		[ "Knowledge (planes)", "kpl" ],
+		[ "Knowledge (religion)", "kre" ],
+		[ "Linguistics", "lin" ],
+		[ "Lore", "lor" ],
+		[ "Perception", "per" ],
+		[ "Perform", "prf" ],
+		[ "Profession", "pro" ],
+		[ "Ride", "rid" ],
+		[ "Sense Motive", "sen" ],
+		[ "Sleight of Hand", "slt" ],
+		[ "Spellcraft", "spl" ],
+		[ "Stealth", "ste" ],
+		[ "Survival", "sur" ],
+		[ "Swim", "swm" ],
+		[ "Use Magic Device", "umd" ],
+	]);
 	
 	static async initModule() {
 		// full list of packs: classes, mythicpaths, commonbuffs
@@ -485,10 +525,47 @@ export class RWPF1Actor {
 		}
 				
 		//
+		// SKILLS tab
+		//
+		let numsub = { art: 0, crf: 0, lor: 0, prf: 0, pro: 0 };
+		let numcust = 0;
+		for (const skill of character.skills.skill) {
+			let value = {
+				value:   +skill.value,
+				ability: RWPF1Actor.ability_names[skill.attrname.toLowerCase()],
+				rank:    +skill.ranks,
+				mod:     +skill.attrbonus
+				// rt, acp, background
+			}
+			if (!value.ability) {
+				console.log(`Failed to find an ability called '${skill.attrname}' for skill '${skill.name}' - SKIPPING`);
+				continue;
+			}
+			let baseskill = this.skill_mapping.get(skill.name);
+			if (baseskill) {
+				actor.data.skills[baseskill] = value;
+			} else {
+				let paren = skill.name.indexOf(' (');
+				baseskill = paren ? this.skill_mapping.get(skill.name.slice(0,paren)) : undefined;
+				if (baseskill) {
+					value.name = skill.name;
+					if (!actor.data.skills[baseskill]) actor.data.skills[baseskill] = {subSkills : {}};
+					else if (!actor.data.skills[baseskill].subSkills) actor.data.skills[baseskill].subSkills = {};
+					actor.data.skills[baseskill].subSkills[`${baseskill}${++numsub[baseskill]}`] = value;
+				} else {
+					console.log(`PF1 custom skill ${skill.name}`);
+					value.name = skill.name;
+					actor.data.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
+				}
+			}
+		}
+		
+		
+		//
 		// FEATURES tab
 		//
 		
-		// data.items (includes feats)
+		// data.items (includes feats) - must be done AFTER skills
 		if (character.feats?.feat) {
 			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
 			for (const feat of toArray(character.feats.feat)) {
@@ -501,12 +578,77 @@ export class RWPF1Actor {
 				
 				const entry = feat_pack.index.find(e => e.name === featname);
 				if (entry) {
-					if (isNewerVersion(game.data.version, "0.8.0")) {
-						let itemdata = (await feat_pack.getDocument(entry._id)).data.toObject();
-						itemdata.name = realname;	// TODO: in case we removed parentheses
-						actor.items.push(itemdata);
-					} else
-						actor.items.push(await feat_pack.getEntry(entry._id));
+					let itemdata;
+					if (isNewerVersion(game.data.version, "0.8.0"))
+						itemdata = (await feat_pack.getDocument(entry._id)).data.toObject();
+					else
+						itemdata = new Item(await feat_pack.getEntry(entry._id));
+					
+					itemdata.name = realname;	// TODO: in case we removed parentheses
+					
+					// Special additions:
+					if (feat.name.startsWith('Skill Focus (')) {
+						// Skill Focus (Profession [Merchant]) => Profession (Merchant)
+						let ranks;
+						let p1 = feat.name.indexOf(' (');
+						let p2 = feat.name.lastIndexOf(')');
+						let skillname = feat.name.slice(p1+2,p2).replace('[','(').replace(']',')');
+						console.log(`Adding Skill Focus for '${skillname}'`);
+						
+						// Find any descendent of actor.data.skills with a .name that matches the skill
+						let skill;
+						let baseskill = this.skill_mapping.get(skillname);
+						if (baseskill) {
+							ranks = actor.data.skills[baseskill].rank;
+							skill = 'skill.' + baseskill;
+						} else {
+							// Check for a subskill
+							let paren = skillname.indexOf(' (');
+							skill = paren ? this.skill_mapping.get(skillname.slice(0,paren)) : undefined;
+							if (skill) {
+								console.log(`Checking subskills of ${skill}`);
+								for (let skl2 of Object.keys(actor.data.skills[skill].subSkills)) {
+									console.log(`comparing attr '${skl2}' for '${actor.data.skills[skill].subSkills[skl2].name}'`);
+									if (actor.data.skills[skill].subSkills[skl2].name == skillname) {
+										ranks = actor.data.skills[skill].subSkills[skl2].rank;
+										skill = 'skill.' + skill + ".subSkills." + skl2;
+										break;
+									}
+								}
+							}
+							if (!skill) { 
+								// Check custom skills
+								// actor.data.skills.skill
+								// actor.data.skills.skill2
+								let i=0;
+								while (true) {
+									let name = (i==0) ? 'skill' : `skill${i}`;
+									if (!(name in actor.data.skills)) break;
+									if (actor.data.skills[name].name == skill.name) {
+										ranks = actor.data.skills[name].rank;
+										skill = 'skill.' + name;
+										break;
+									}
+								}
+							}
+						}
+						
+						console.log(`*** skill focus subTarget = '${skill}'`);
+						
+						if (skill) {
+							let bonus = (ranks >= 10) ? "6" : "3";
+							itemdata.data.changes = [
+							{
+								formula:   bonus,
+								operator:  "add",
+								subTarget: skill,
+								modifier:  "untyped",
+								priority:  0,
+								value:     bonus,
+							}];
+						}
+					}
+					actor.items.push(itemdata);
 				} else {
 					// Create our own placemarker feat.
 					const itemdata = {
@@ -534,136 +676,6 @@ export class RWPF1Actor {
 		// defensive.[special.shortname]  from 'class abilities'
 		
 
-		//
-		// SKILLS tab
-		//
-		let numart = 0;
-		let numcrf = 0;
-		let numlor = 0;
-		let numprf = 0;
-		let numpro = 0;
-		let numcust = 0;
-		for (const skill of character.skills.skill) {
-			let value = {
-				value:   +skill.value,
-				ability: RWPF1Actor.ability_names[skill.attrname.toLowerCase()],
-				rank:    +skill.ranks,
-				mod:     +skill.attrbonus
-				// rt, acp, background
-			}
-			if (!value.ability) {
-				console.log(`Failed to find an ability called '${skill.attrname}' for skill '${skill.name}' - SKIPPING`);
-				continue;
-			}
-			
-			if (skill.name == 'Acrobatics')
-				actor.data.skills.acr = value;
-			else if (skill.name == "Appraise")
-				actor.data.skills.apr = value;
-			else if (skill.name == "Artistry")
-				actor.data.skills.art = value;
-			else if (skill.name.startsWith("Artistry (")) {
-				value.name = skill.name;
-				if (!actor.data.skills.art) actor.data.skills.art = {subSkills : {}};
-				else if (!actor.data.skills.art.subSkills) actor.data.skills.art.subSkills = {};
-				actor.data.skills.art.subSkills[`art${++numart}`] = value;
-			} else if (skill.name == "Bluff")
-				actor.data.skills.blf = value;
-			else if (skill.name == "Climb")
-				actor.data.skills.clm = value;
-			else if (skill.name == "Craft")
-				actor.data.skills.crf = value; // special skills
-			else if (skill.name.startsWith("Craft (")) {
-				value.name = skill.name;
-				if (!actor.data.skills.crf) actor.data.skills.crf = {subSkills : {}};
-				else if (!actor.data.skills.crf.subSkills) actor.data.skills.crf.subSkills = {};
-				actor.data.skills.crf.subSkills[`crf${++numcrf}`] = value;
-			} else if (skill.name == "Diplomacy")
-				actor.data.skills.dip = value;
-			else if (skill.name == "Disguise")
-				actor.data.skills.dev = value;
-			else if (skill.name == "Disable Device")
-				actor.data.skills.dis = value;
-			else if (skill.name == "Escape Artist")
-				actor.data.skills.esc = value;
-			else if (skill.name == "Fly")
-				actor.data.skills.fly = value;
-			else if (skill.name == "Handle Animal")
-				actor.data.skills.han = value;
-			else if (skill.name == "Heal")
-				actor.data.skills.hea = value;
-			else if (skill.name == "Intimidate")
-				actor.data.skills.int = value;
-			else if (skill.name == "Knowledge (arcana)")
-				actor.data.skills.kar = value;
-			else if (skill.name == "Knowledge (dungeoneering)")
-				actor.data.skills.kdu = value;
-			else if (skill.name == "Knowledge (engineering)")
-				actor.data.skills.ken = value;
-			else if (skill.name == "Knowledge (geography)")
-				actor.data.skills.kge = value;
-			else if (skill.name == "Knowledge (history)")
-				actor.data.skills.khi = value;
-			else if (skill.name == "Knowledge (local)")
-				actor.data.skills.klo = value;
-			else if (skill.name == "Knowledge (nature)")
-				actor.data.skills.kna = value;
-			else if (skill.name == "Knowledge (nobility)")
-				actor.data.skills.kno = value;
-			else if (skill.name == "Knowledge (planes)")
-				actor.data.skills.kpl = value;
-			else if (skill.name == "Knowledge (religion)")
-				actor.data.skills.kre = value;
-			else if (skill.name == "Linguistics")
-				actor.data.skills.lin = value;
-			else if (skill.name == "Lore")
-				actor.data.skills.lor = value;
-			else if (skill.name.startsWith("Lore (")) {
-				value.name = skill.name;
-				if (!actor.data.skills.lor) actor.data.skills.lor = {subSkills : {}};
-				else if (!actor.data.skills.lor.subSkills) actor.data.skills.lor.subSkills = {};
-				actor.data.skills.lor.subSkills[`lor${++numlor}`] = value;
-			} else if (skill.name == "Perception")
-				actor.data.skills.per = value;
-			else if (skill.name == "Perform")
-				actor.data.skills.prf = value;
-			else if (skill.name.startsWith("Perform (")) {
-				value.name = skill.name;
-				if (!actor.data.skills.prf) actor.data.skills.prf = {subSkills : {}};
-				else if (!actor.data.skills.prf.subSkills) actor.data.skills.prf.subSkills = {};
-				actor.data.skills.prf.subSkills[`prf${++numprf}`] = value;
-			} else if (skill.name == "Profession")
-				actor.data.skills.pro = value;
-			else if (skill.name.startsWith("Profession (")) {
-				value.name = skill.name;
-				if (!actor.data.skills.pro) actor.data.skills.pro = {subSkills : {}};
-				else if (!actor.data.skills.pro.subSkills) actor.data.skills.pro.subSkills = {};
-				actor.data.skills.pro.subSkills[`pro${++numpro}`] = value;
-			} else if (skill.name == "Ride")
-				actor.data.skills.rid = value;
-			else if (skill.name == "Sense Motive")
-				actor.data.skills.sen = value;
-			else if (skill.name == "Sleight of Hand")
-				actor.data.skills.slt = value;
-			else if (skill.name == "Spellcraft")
-				actor.data.skills.spl = value;
-			else if (skill.name == "Stealth")
-				actor.data.skills.ste = value;
-			else if (skill.name == "Survival")
-				actor.data.skills.sur = value;
-			else if (skill.name == "Swim")
-				actor.data.skills.swm = value;
-			else if (skill.name == "Use Magic Device")
-				actor.data.skills.umd = value;
-			else
-			{
-				console.log(`PF1 custom skill ${skill.name}`);
-				value.name = skill.name;
-				actor.data.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
-			}
-		}
-		
-		
 		//
 		// BUFFS tab
 		//
