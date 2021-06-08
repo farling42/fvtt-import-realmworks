@@ -986,6 +986,76 @@ class RealmWorksImporter extends Application
 	}
 	
 	//
+	// Create a PLAYLIST for each topic, containing all AUDIO snippets from that topic
+	//
+	
+	async createPlaylists(topics) {
+		// Find all Audio snippets
+		let snippets;
+		function getSoundSnippets(node) {
+			for (const child of node.children) {
+				if (child.nodeName == 'snippet' && child.getAttribute('type') == 'Audio') {
+					snippets.push(child);
+				} else if (child.nodeName != 'topic' && child.children.length > 0) {
+					// Don't check nested topics
+					getSoundSnippets(child);
+				}
+			}
+		}
+
+		// Write out sounds that we find, as a playlist named after the topic.
+		for (const topic of topics) {
+			snippets = [];
+			getSoundSnippets(topic);
+			if (snippets.length == 0) continue;
+
+			let playlist = {
+				name: topic.getAttribute('public_name'),
+				description: "",
+				//	"mode": 0,
+				//	"playing": false,
+				//	"sort": 0,
+				//	"seed": 840,
+				sounds: [],
+			};
+			if (this.playlist_folder) playlist.folder = this.playlist_folder.id;
+			
+			// Sound file has already been uploaded
+			for (const snippet of snippets) {
+				const ext_object = this.getChild(snippet,    'ext_object'); 
+				const asset      = this.getChild(ext_object, 'asset');
+				const filename = asset?.getAttribute('filename');
+				if (!this.getChild(asset, 'contents')) continue;		// No contents means no file!
+				// ext_object.getAttribute('type') == 'Audio'
+				
+				let name = ext_object.getAttribute('name');
+				if (name === 'Audio File') {
+					// The default name is boring, find a better one
+					let last = filename.lastIndexOf('.');
+					name = (last > 0) ? filename.slice(0,last) : filename;
+				}
+				
+				let sound = {
+					name: name,
+					path: this.imageFilename(filename),		// including path
+					description: "",
+					//	"playing": false,
+					//	"pausedTime": null,
+					//	"repeat": false,
+					//	"volume": 0.5,
+					//	"flags": {},
+				};
+				
+				const annotation = this.getChild(snippet, 'annotation');
+				if (annotation) sound.description = this.stripPara(annotation.textContent);
+				
+				playlist.sounds.push(sound);
+			}
+			await Playlist.create(playlist);
+		}
+	}
+	
+	//
 	// Read a HeroLab portfolio file and create Actors directly from the contents
 	//
 	async parseHL(file)
@@ -1144,6 +1214,7 @@ class RealmWorksImporter extends Application
 				console.log('Creating folders');
 				this.actor_folder   = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
 				this.scene_folder   = await Folder.create({name: this.folderName, type: 'Scene', parent: null})
+				this.playlist_folder = await Folder.create({name: this.folderName, type: 'Playlist', parent: null})
 				//this.journal_folder = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
 				let journal_parent = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
 				this.journal_folders = new Map();  // actual journal entries will be in a folder with the TOPIC category name
@@ -1262,6 +1333,11 @@ class RealmWorksImporter extends Application
 				.catch(e => console.log(`Failed to create Actor due to ${e}`))
 			));
 		}
+		
+		// AUDIO snippets => PLAYLISTS
+		this.ui_message.val(`Generating playlists`);
+		console.log(`Generating playlists`);
+		this.createPlaylists(topics);
 		
 		console.log('******  Finished  ******');
 		this.ui_message.val('--- Finished ---');
