@@ -35,6 +35,13 @@ Any parent topic in the RWoutput file will have a list of children at the end of
 If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime) or [Paypal](https://paypal.me/farling)
 
 ## Changelog
+0.3.6 Audio snippets are placed into Playlists. One playlist per topic with each Audio snippet as a separate sound within the playlist.
+
+0.3.5 Hopefully faster processing of RW files. PF1 HL decoding has better feat detection, 
+correct number of monster levels, and Skill Focus feat modifies the relevant skill.
+
+0.3.4 HL portfolio can be read directly, to import your PF1 characters as Actors. HL portfolios have their minions processed properly.
+
 0.3.3 For PF1 actors, include weapons/armor/ammo/shield items, and improve logic for matching names of other items.
 Some attempts at speeding up the code a little.
 Decode embedded HL portfolios correctly in the case where a character has minions.
