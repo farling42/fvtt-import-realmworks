@@ -233,17 +233,36 @@ export class RWPF1Actor {
 				// Strip trailing (...)  from class.name
 				const entry = class_pack.index.find(e => e.name === name);
 				if (entry) {
-					if (isNewerVersion(game.data.version, "0.8.0")) {
+					let level = +cclass.level;
+					classlevels += level;					
+					
+					let classdata;
+					if (isNewerVersion(game.data.version, "0.8.0"))
 						//console.log(`Class ${entry.name} at level ${cclass.level}`);
-						let itemdata = (await class_pack.getDocument(entry._id)).data.toObject();
-						itemdata.data.level = +cclass.level;		// TODO - pf1._onLevelChange isn't triggered on initial creation!
-						classlevels += itemdata.data.level;
-						actor.items.push(itemdata);
-					} else {
-						let itemdata =  await class_pack.getEntry(entry._id);
-						itemdata.data.level = +cclass.level;
-						classlevels += itemdata.data.level;
-						actor.items.push(itemdata);
+						classdata = (await class_pack.getDocument(entry._id)).data.toObject();
+					else
+						classdata = await class_pack.getEntry(entry._id);
+
+					// Start by adding the class item with the correct number of levels
+					classdata.data.level = level;
+					actor.items.push(classdata);
+					
+					// Now add all the class features up to the level of the class.
+					// See PF1._onLevelChange (triggered by updateItem and createItem, but not create()
+					const classAssociations = (classdata.data.links.classAssociations || []).filter((o, index) => {
+						o.__index = index;
+						return o.level <= level;
+					});
+
+					for (let co of classAssociations) {
+						const collection = co.id.split(".").slice(0, 2).join(".");
+						const itemId = co.id.split(".")[2];
+						const pack = game.packs.get(collection);
+						const item = await pack.getDocument(itemId);
+						const itemData = duplicate(item.data);
+						// No record on each classFeature as to which class and level added it.
+						//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
+						actor.items.push(itemData);
 					}
 				} else {
 					// Create our own placemarker class.
@@ -259,10 +278,8 @@ export class RWPF1Actor {
 					else
 						actor.items.push(new Item(itemdata));
 				}
-				
-				// See PF1._onLevelChange (triggered by updateItem and createItem, but not create()
 			}
-		}
+		} // if (classes)
 
 		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
 		const race_pack = await game.packs.find(p => p.metadata.name === 'races');
@@ -406,10 +423,11 @@ export class RWPF1Actor {
 		//
 		
 		// data.attributes.init.value/bonus/total/ability
+		const initvalue = +character.initiative.misctext; //+character.initiative.total - +character.initiative.attrtext;
 		actor.data.attributes.init = {
-			value: +character.initiative.total,
-			bonus: +character.initiative.total,
-			total: +character.initiative.total,
+			value: initvalue,
+			bonus: initvalue,
+			total: initvalue,
 			ability: RWPF1Actor.ability_names[character.initiative.attrname]
 		};
 
@@ -588,7 +606,6 @@ export class RWPF1Actor {
 		if (character.feats?.feat) {
 			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
 			for (const feat of toArray(character.feats.feat)) {
-				// Ignore any feat with attribute: useradded="no"
 				// since that indicates a class or race-based feature.
 				let featname = feat.name;
 				let realname = featname;
@@ -596,18 +613,35 @@ export class RWPF1Actor {
 					realname = featname = RWPF1Actor.feat_name_mapping.get(featname);
 				else
 					featname = featname.replace(/ \(.*/,'').replace(/ -.*/,'');
+
+				if (feat.useradded == 'no') {
+					// Never manually add armor/shield/weapon proficiencies
+					if (feat.profgroup == 'yes') continue;
+						
+					// But don't add it if a copy has already been added when processing classes.
+					let acopy = false;
+					for (const item of actor.items) {
+						if (item.name == featname) {
+							acopy = true;
+							break;
+						}
+					}
+					if (acopy) continue;
+				}
 				
 				const entry = feat_pack.index.find(e => e.name === featname);
 				if (entry) {
 					let itemdata;
 					if (isNewerVersion(game.data.version, "0.8.0"))
-						itemdata = (await feat_pack.getDocument(entry._id)).data.toObject();
+						//itemdata = (await feat_pack.getDocument(entry._id)).data.toObject();
+						itemdata = duplicate((await feat_pack.getDocument(entry._id)).data);
 					else
 						itemdata = new Item(await feat_pack.getEntry(entry._id));
-					
+
 					itemdata.name = realname;	// TODO: in case we removed parentheses
-					
+
 					if (feat.useradded == 'no') {
+						// We are going to add it as a manual class feature.
 						itemdata.data.featType = 'classFeat';
 					}
 					
@@ -629,9 +663,7 @@ export class RWPF1Actor {
 							let paren = skillname.indexOf(' (');
 							skill = paren ? this.skill_mapping.get(skillname.slice(0,paren)) : undefined;
 							if (skill) {
-								console.log(`Checking subskills of ${skill}`);
 								for (let skl2 of Object.keys(actor.data.skills[skill].subSkills)) {
-									console.log(`comparing attr '${skl2}' for '${actor.data.skills[skill].subSkills[skl2].name}'`);
 									if (actor.data.skills[skill].subSkills[skl2].name == skillname) {
 										ranks = actor.data.skills[skill].subSkills[skl2].rank;
 										skill = 'skill.' + skill + ".subSkills." + skl2;
@@ -666,6 +698,7 @@ export class RWPF1Actor {
 								priority:  0,
 								value:     bonus,
 							}];
+							console.log(`Skill Focus: ${itemdata.data.changes[0].formula} to ${itemdata.data.changes[0].subTarget}`);
 						}
 					}
 					actor.items.push(itemdata);
