@@ -258,8 +258,12 @@ export class RWPF1Actor {
 						const collection = co.id.split(".").slice(0, 2).join(".");
 						const itemId = co.id.split(".")[2];
 						const pack = game.packs.get(collection);
-						const item = await pack.getDocument(itemId);
-						const itemData = duplicate(item.data);
+						let itemData;
+						if (isNewerVersion(game.data.version, "0.8.0"))
+							itemData = duplicate((await pack.getDocument(itemId)).data);
+						else
+							itemData = new Item(await pack.getEntry(itemId));
+						
 						// No record on each classFeature as to which class and level added it.
 						//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
 						actor.items.push(itemData);
@@ -698,7 +702,7 @@ export class RWPF1Actor {
 								priority:  0,
 								value:     bonus,
 							}];
-							console.log(`Skill Focus: ${itemdata.data.changes[0].formula} to ${itemdata.data.changes[0].subTarget}`);
+							//console.log(`Skill Focus: ${itemdata.data.changes[0].formula} to ${itemdata.data.changes[0].subTarget}`);
 						}
 					}
 					actor.items.push(itemdata);
