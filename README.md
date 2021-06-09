@@ -32,7 +32,8 @@ Each *HL portfolio* will be extracted and Actors created for each character in t
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
 ## Patreon
-If you like what it does, then contributions will be gratefully received at [Patreon](https://www.patreon.com/amusingtime) or [Paypal](https://paypal.me/farling)
+If you like what it does, then all contributions will be gratefully received at [Kofi]https://ko-fi.com/farling or [Paypal](https://paypal.me/farling)
+or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
 0.3.6 Audio snippets are placed into Playlists. One playlist per topic with each Audio snippet as a separate sound within the playlist.
