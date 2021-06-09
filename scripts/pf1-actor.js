@@ -24,6 +24,10 @@ export class RWPF1Actor {
 		[ "thieves' tools, masterwork",  "tools, thieves' (masterwork)" ],
 		[ "thieves' tools, concealable",  "tools, thieves' (concealable)" ],
 		[ "pot", "pot, cooking (iron)" ],
+		[ "feed", "feed, animal" ],
+		[ "riding saddle", "saddle (riding)" ],
+		[ "military saddle", "saddle (military)" ],
+		[ "exotic saddle", "saddle (exotic)" ],
 	]);
 	
 	static feat_name_mapping = new Map([
@@ -41,7 +45,7 @@ export class RWPF1Actor {
 		[ "Craft", "crf" ],
 		[ "Diplomacy", "dip" ],
 		[ "Disguise", "dis" ],
-		[ "Disable Device", "dis" ],
+		[ "Disable Device", "dev" ],
 		[ "Escape Artist", "esc" ],
 		[ "Fly", "fly" ],
 		[ "Handle Animal", "han" ],
@@ -220,6 +224,7 @@ export class RWPF1Actor {
 		const classes = character.classes?.["class"];
 		if (classes) {
 			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
+			const feature_pack = await game.packs.find(p => p.metadata.name === 'classes');
 			
 			for (const cclass of toArray(classes)) {
 				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
@@ -254,6 +259,8 @@ export class RWPF1Actor {
 					else
 						actor.items.push(new Item(itemdata));
 				}
+				
+				// See PF1._onLevelChange (triggered by updateItem and createItem, but not create()
 			}
 		}
 
@@ -326,19 +333,19 @@ export class RWPF1Actor {
 		for (const child of character.saves.save) {
 			if (child.abbr == "Fort") {
 				actor.data.attributes.savingThrows.fort = {
-					base:  +child.base,
+					base:  0, //+child.base,
 					total: +child.save,
 					ability: "con"
 				};
 			} else if (child.abbr == "Ref") {
 				actor.data.attributes.savingThrows.ref = {
-					base:  +child.base,
+					base:  0, //+child.base,
 					total: +child.save,
 					ability: "dex"
 				};
 			} else if (child.abbr == "Will") {
 				actor.data.attributes.savingThrows.will = {
-					base:  +child.base,
+					base:  0, //+child.base,
 					total: +child.save,
 					ability: "wis"
 				};
@@ -476,7 +483,8 @@ export class RWPF1Actor {
 				let lower = item.name.toLowerCase();
 				let singular, reversed, pack, entry;
 				// Remove container "(x @ y lbs)"
-				if (!entry && lower.endsWith('lbs)')) lower = lower.slice(0,lower.lastIndexOf(' ('));
+				if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)')))
+					lower = lower.slice(0,lower.lastIndexOf(' ('));
 				// Remove plurals
 				if (lower.endsWith('s')) singular = lower.slice(0,-1);
 				// Handle names like "bear trap" => "trap, bear"
@@ -486,8 +494,10 @@ export class RWPF1Actor {
 				if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
 				
 				for (const p of packs) {
-					entry = p.index.find(e => {	const elc = e.name.toLowerCase(); 
-						return elc === lower || (singular && elc === singular) || (reversed && elc === reversed)});
+					entry = p.index.find(e => {	
+						const elc = e.name.toLowerCase(); 
+						return elc === lower || (singular && elc === singular) || (reversed && elc === reversed)
+					});
 					if (entry) {
 						pack = p;
 						break;
@@ -578,6 +588,8 @@ export class RWPF1Actor {
 		if (character.feats?.feat) {
 			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
 			for (const feat of toArray(character.feats.feat)) {
+				// Ignore any feat with attribute: useradded="no"
+				// since that indicates a class or race-based feature.
 				let featname = feat.name;
 				let realname = featname;
 				if (RWPF1Actor.feat_name_mapping.has(featname))
@@ -595,6 +607,10 @@ export class RWPF1Actor {
 					
 					itemdata.name = realname;	// TODO: in case we removed parentheses
 					
+					if (feat.useradded == 'no') {
+						itemdata.data.featType = 'classFeat';
+					}
+					
 					// Special additions:
 					if (feat.name.startsWith('Skill Focus (')) {
 						// Skill Focus (Profession [Merchant]) => Profession (Merchant)
@@ -602,8 +618,6 @@ export class RWPF1Actor {
 						let p1 = feat.name.indexOf(' (');
 						let p2 = feat.name.lastIndexOf(')');
 						let skillname = feat.name.slice(p1+2,p2).replace('[','(').replace(']',')');
-						console.log(`Adding Skill Focus for '${skillname}'`);
-						
 						// Find any descendent of actor.data.skills with a .name that matches the skill
 						let skill;
 						let baseskill = this.skill_mapping.get(skillname);
@@ -641,9 +655,6 @@ export class RWPF1Actor {
 								}
 							}
 						}
-						
-						console.log(`*** skill focus subTarget = '${skill}'`);
-						
 						if (skill) {
 							let bonus = (ranks >= 10) ? "6" : "3";
 							itemdata.data.changes = [
@@ -681,6 +692,30 @@ export class RWPF1Actor {
 				}
 			}
 		}
+		
+		// Traits (on FEATURES tab)
+		// <trait name="Dangerously Curious" categorytext="Magic">
+		if (character.traits?.trait) {
+			const trait_pack = await game.packs.find(p => p.metadata.name === 'feats');
+			for (const trait of toArray(character.traits.trait)) {
+				const subtype = trait.categorytext;		// Magic, Racial, Social
+				const itemdata = {
+					name: trait.name,
+					type: 'feat',
+					data: {
+						featType: (subtype == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+						description: {
+							value: addParas(trait.description['#text'])
+						}
+					}
+				};
+				if (isNewerVersion(game.data.version, "0.8.0"))
+					actor.items.push(itemdata);
+				else
+					actor.items.push(new Item(itemdata));
+			}
+		}
+		
 		
 		// defensive.[special.shortname]  from 'class abilities'
 		
