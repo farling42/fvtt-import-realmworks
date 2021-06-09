@@ -18,14 +18,16 @@ Maybe modify which options you want to work with.
 
 Press the IMPORT button at the bottom of the window and wait for the contents to be imported.
 
-New folders will be created in the Scenes, Actors and Journal sections containing the imported data.
+New folders will be created in the Scenes, Actors, Journal and Playlist sections containing the imported data.
 
 
-Each *Smart_Image* is converted into a scene, with map pins and connected to the originating topic for scene notes.
+Each *Smart_Image* is converted into a scene, with map pins and scene notes connected to the relevant journal entries.
 
 Each *Topic* will be converted into a separate Journal Entry, placed in a sub-folder based on the Category of the topic.
 
 Each *image or embedded file* will be extracted and located in the subdirectory \[data]world/<world-name/realmworksimport
+
+Each *Audio* snippet will be extracted and placed into a Playlist named after the topic.
 
 Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1 game system).
 
