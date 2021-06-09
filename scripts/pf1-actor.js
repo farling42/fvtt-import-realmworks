@@ -680,10 +680,13 @@ export class RWPF1Actor {
 							}
 						}
 					};
+					if (feat.useradded == 'no') {
+						itemdata.data.featType = 'classFeat';
+					}					
 					if (feat.featcategory) {
 						let cats = [[feat.featcategory['#text']]];
-						//item.data.tags = new Map();
-						//item.data.tags.insert( cats );
+						//itemdata.data.tags = new Map();
+						//itemdata.data.tags.insert( cats );
 					}
 					if (isNewerVersion(game.data.version, "0.8.0"))
 						actor.items.push(itemdata);
@@ -715,6 +718,8 @@ export class RWPF1Actor {
 					actor.items.push(new Item(itemdata));
 			}
 		}
+		// and otherspecials.special with sourcetext attribute set to one of the classes
+		// find items in "class-abilities"
 		
 		
 		// defensive.[special.shortname]  from 'class abilities'
