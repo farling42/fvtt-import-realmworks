@@ -838,7 +838,7 @@ class RealmWorksImporter extends Application
 				if (child.nodeName == 'smart_image') {
 					await scenethis.createScene.call(scenethis, topic, child).catch(e => console.log(`Failed to create scene for ${topic.name} due to ${e}`));
 				} else if (child.nodeName != 'topic' && child.children.length > 0) {
-					createScenes(child);
+					await createScenes(child);
 				}
 			}
 		}
@@ -950,14 +950,16 @@ class RealmWorksImporter extends Application
 					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
 						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
-						const actorlist = await RWPF1Actor.createActorData(json.document.public.character).catch(e => console.log(`RWPF1Actor.createActorData failed due to ${e}`));
-						for (let actor of actorlist) {
-							// Cater for MINIONS
-							let port = portfolio.get(actor.name);
-							actor.data.details.notes = { value : this.Utf8ArrayToStr(port.html) };
-							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
-							result.push(actor);
-						}
+						await RWPF1Actor.createActorData(json.document.public.character)
+						.then(actorlist => {
+							for (let actor of actorlist) {
+								// Cater for MINIONS
+								let port = portfolio.get(actor.name);
+								actor.data.details.notes = { value : this.Utf8ArrayToStr(port.html) };
+								if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
+								result.push(actor);
+						}})
+						.catch(e => console.log(`RWPF1Actor.createActorData failed in ${filename} due to ${e}`));
 					}
 				}
 			} else {

@@ -18,6 +18,18 @@ export class RWPF1Actor {
 		"cha" : "cha"
 	};
 
+	static spellschool_names = {
+		"abjuration": "abj",
+		"conjuration": "con",
+		"divination": "div",
+		"enchantment": "enc",
+		"evocation": "evo",
+		"illusion": "ill",
+		"necromancy": "nec",
+		"transmutation": "trs",
+		"universal": "uni",
+	};
+	
 	// Items whose name doesn't fit into one of the pattern matches.
 	static item_name_mapping = new Map([
 		[ "thieves' tools", "tools, thieves' (common)" ],
@@ -120,7 +132,7 @@ export class RWPF1Actor {
 		let actor = {
 			name: character.name,
 			//type: (character.type == 'Hero') ? 'character' : 'npc',		// 'npc' or 'character'
-			type: (character.role == 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
+			type: (character.challengerating) ? 'npc' : 'character',		// 'npc' or 'character'
 			data: {
 				abilities: {},
 				attributes: {},
@@ -153,7 +165,7 @@ export class RWPF1Actor {
 			let cr = +character.challengerating.value;
 			actor.data.details.cr = { base: cr, total: cr };
 		}
-		if (actor.type == 'npc') {
+		if (character.xpaward) {
 			actor.data.details.xp = { value : +character.xpaward.value };
 		} else {	
 			// data.details.xp.value/min/max
@@ -748,6 +760,7 @@ export class RWPF1Actor {
 		//			<spellcomp>Somatic</spellcomp>
 		//			<spellcomp>Material</spellcomp>
 		//			<spellschool>Illusion</spellschool>
+		//			<spellschool>Void Elemental</spellschool>
 		//			<spellsubschool>Figment</spellsubschool>
 		//		</spell>
 		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
@@ -759,36 +772,97 @@ export class RWPF1Actor {
 			if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
 			actor.data.attributes.spells.usedSpellbooks.push(book);
 				
+			// <spell name="Eagle's Splendor" level="2" class="Sorcerer" casttime="1 action" range="touch" target="creature touched" area="" effect="" duration="1 min./level" 
+			//		save="Will negates (harmless)" resist="yes" dc="18" casterlevel="7" componenttext="Verbal, Somatic, Material or Divine Focus"
+			//		schooltext="Transmutation" subschooltext="" descriptortext="" savetext="Harmless, Will negates" resisttext="Yes" spontaneous="yes">
+			// <special name="Serpentfriend (At will) (Ex)" shortname="Serpentfriend (At will)" type="Extraordinary Ability" sourcetext="Sorcerer">
+
 			for (const spell of toArray(nodes)) {
 				const lowername = spell.name.toLowerCase();
 				const shortpos = lowername.indexOf(' (');
 				const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
 					
 				const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
-				if (entry) {
-					if (isNewerVersion(game.data.version, "0.8.0")) {
-						let itemdata = (await spell_pack.getDocument(entry._id)).data.toObject();
-						itemdata.data.spellbook = book;
-						if (memorized.includes(lowername)) itemdata.data.preparation = { preparedAmount : 1};
-						if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
-						if (lowername.endsWith('at will)')) itemdata.data.atWill = true;
-						if (lowername.endsWith('/day)')) {
-							itemdata.data.uses.max = parseInt(lowername.slice(-6));	// assume one digit
-							itemdata.data.uses.value = itemdata.data.uses.max;
-							itemdata.data.uses.per = 'day';
+				if (isNewerVersion(game.data.version, "0.8.0")) {
+					let itemdata;
+					if (entry)
+						itemdata = (await spell_pack.getDocument(entry._id)).data.toObject();
+					else {
+						// Manually create a spell item
+						try {
+							itemdata = {
+								name: spell.shortname ?? spell.name,
+								type: 'spell',
+								data: {
+									uses: {}
+								},
+							};
+							if (spell.type == 'Extraordinary Ability') {
+								itemdata.data.abilityType = 'ex';
+							}
+							itemdata.data.description = {
+								value: spell.description['#text']
+							};
+
+							// spell not special
+							if (spell.spellschool) {
+								// There might be more than one spellschool child.
+								let school = (spell.spellschool instanceof Array ? spell.spellschool[0] : spell.spellschool)['#text'];
+								itemdata.data.level = +spell.level;
+								itemdata.data.school = RWPF1Actor.spellschool_names[school.toLowerCase()] ?? school;
+								itemdata.data.subschool = spell.subschool;
+								if (spell.spelldescript) {
+									itemdata.data.types = toArray(spell.spelldescript).map(el => el['#text']).join(';');
+								}
+								let comps = toArray(spell.spellcomp).map(el => el['#text']);
+								let material = (spell.componenttext.indexOf('Material') >= 0);
+								let sfocus = (spell.componenttext.indexOf('Divine Focus') >= 0);
+								itemdata.data.components = {
+									//value: spell.componenttext,
+									verbal: comps.includes('Verbal'),
+									somatic: comps.includes('Somatic'),
+									material: comps.includes('Material'),
+									"focus": comps.includes('Focus'),
+									divineFocus: // 0=no, 1=DF, 2=M/DF, 3=F/DF
+										comps.includes('Focus or Divine Focus') ? 3 :
+										comps.includes('Material or Divine Focus') ? 2 :	
+										comps.includes('Divine Focus') ? 1 :
+										0,
+								};
+								itemdata.data.castTime = spell.casttime;
+								itemdata.data.sr = (spell.resisttext == 'Yes');
+								itemdata.data.spellDuration = spell.duration;
+								itemdata.data.spellEffect = spell.effect;
+								itemdata.data.spellArea = spell.area;
+								//itemdata.data.materials.value/focus/gpValue
+								// itemdata.data.preparation.preparedAmount/maxAmount/autoDeductCharges/spontaneousPrepared
+								if (spell.spontaneous == 'Yes')
+									itemdata.data.preparation = {
+										spontaneousPrepared: true
+									};
+							}
+						} catch (e) {
+							console.log(`Failed to create custom version of '${spell.name}' for '${actor.name}' due to ${e}`);
+							continue;
 						}
-						//itemdata.data.learnedAt = { 'class': [  };
-						actor.items.push(itemdata);
-					} else {
-						let itemdata = await spell_pack.getEntry(entry._id);
-						itemdata.data.spellbook = book;
-						if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
-						if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
-						actor.items.push(itemdata);
 					}
+					itemdata.data.spellbook = book;
+					if (memorized.includes(lowername)) itemdata.data.preparation = { preparedAmount : 1};
+					if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
+					if (lowername.indexOf('at will)') >= 0) itemdata.data.atWill = true;
+					if (lowername.endsWith('/day)')) {
+						itemdata.data.uses.max   = parseInt(lowername.slice(-6));	// assume one digit
+						itemdata.data.uses.value = itemdata.data.uses.max;
+						itemdata.data.uses.per   = 'day';
+					}
+					//itemdata.data.learnedAt = { 'class': [  };
+					actor.items.push(itemdata);
 				} else {
-					// Manually create a spell
-					console.log(`Add entry to ${book} manually for spell '${spell.name}'`);
+					let itemdata = await spell_pack.getEntry(entry._id);
+					itemdata.data.spellbook = book;
+					if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
+					if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
+					actor.items.push(itemdata);
 				}
 			}
 			return true;
