@@ -94,13 +94,14 @@ class RealmWorksImporter extends Application
 				this.ui_message.val('--- Finished ---');
 				return;
 			}
+
+			if (!this.parser) this.parser = new DOMParser();
 			
 			// Javascript string has a maximum size of 512 MB, so can't pass the entire file to parseFromString,
 			// so read chunks of the file and look for topics within the chunks.
 			const chunkSize = 5000000;	// ~5 MB
 			let buffer = "";
 			let topic_nodes = [];
-			let parser = new DOMParser();
 			let start = 0;
 			let first=true;
 			while (start < file.size) {
@@ -127,11 +128,11 @@ class RealmWorksImporter extends Application
 					// Find the start-of-topic marker for that end-marker
 					const topic_start = buffer.lastIndexOf('<topic ', topic_end);
 					if (topic_start < 0) break;
-					//let docnode = parser.parseFromString('<?xml version="1.0" encoding="utf-8"?>' + buffer.slice(topic_start, topic_end+8), "text/xml");
+					//let docnode = this.parser.parseFromString('<?xml version="1.0" encoding="utf-8"?>' + buffer.slice(topic_start, topic_end+8), "text/xml");
 					const block = buffer.slice(topic_start, topic_end+8);
 					try {
 						// parseFromString returns a #Document node as the top node.
-						const topicnode = this.getChild(parser.parseFromString(block, "text/xml"), 'topic');
+						const topicnode = this.getChild(this.parser.parseFromString(block, "text/xml"), 'topic');
 						if (topicnode) {
 							topic_nodes.push(topicnode);
 							// Replace extracted topic with a marker to correctly identify child topics.
@@ -182,6 +183,14 @@ class RealmWorksImporter extends Application
 		return pack;
 	}
 
+	async getFolder(folderName, type, parentid=undefined) {
+		const found = game.folders.filter(e => e.type === type && e.name == folderName);
+		if (found?.length > 0)
+			return found[0];
+		else
+			return await Folder.create({name: folderName, type: type, parent: parentid});
+	}
+	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
 	formatLink(topic_id, link_name) {
 		const id = this.entity_for_topic[topic_id]?.data._id;
@@ -395,8 +404,8 @@ class RealmWorksImporter extends Application
 		// Now have an object with "key : property" pairs  (key = filename [String]; property = file data [Uint8Array])
 
 		// Process the index.xml in the root of the portfolio file.
-		let parser = new DOMParser();
-		const xmlDoc = parser.parseFromString(this.Utf8ArrayToStr(files['index.xml']),"text/xml");
+		if (!this.parser) this.parser = new DOMParser();
+		const xmlDoc = this.parser.parseFromString(this.Utf8ArrayToStr(files['index.xml']),"text/xml");
 		// <document><characters>
 		//   <character name="Fantastic">
 		//    <statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
@@ -431,6 +440,48 @@ class RealmWorksImporter extends Application
 		//console.log(`...found ${result.length} sheets`);
 		return result;
 	}
+
+	// 
+	// Convert the XML read from a portfolio file into an Object hierarchy
+	//
+	static xmlToObject(xmlDoc, arrayTags) {
+
+		function parseNode(xmlNode, result) {
+			if (xmlNode.nodeName == "#text") {
+				let v = xmlNode.nodeValue;
+				if (v.trim())
+					result['#text'] = v;
+				return;
+			}
+			let jsonNode = {},
+			existing = result[xmlNode.nodeName];
+			if (existing) {
+				if (!Array.isArray(existing))
+					result[xmlNode.nodeName] = [existing, jsonNode];
+				else
+					result[xmlNode.nodeName].push(jsonNode);
+			} else {
+				if (arrayTags && arrayTags.indexOf(xmlNode.nodeName) != -1)
+					result[xmlNode.nodeName] = [jsonNode];
+				else
+					result[xmlNode.nodeName] = jsonNode;
+			}
+			if (xmlNode.attributes) {
+				for (let attribute of xmlNode.attributes) {
+					jsonNode[attribute.nodeName] = attribute.nodeValue;
+				}
+			}
+			for (let node of xmlNode.childNodes) {
+				parseNode(node, jsonNode);
+			}
+		}
+		let result = {};
+		for (let node of xmlDoc.childNodes) {
+			parseNode(node, result);
+		}
+		return result;
+	}
+
 
 	//
 	// Write one RW section
@@ -890,14 +941,16 @@ class RealmWorksImporter extends Application
 		// TODO - call the ACTOR creator for the specific GAME SYSTEM that is installed
 		//console.log(`ACTOR ${topic.getAttribute('public_name')} = HTML '${html}'`);
 		let result = [];
-		
+		if (!this.parser) this.parser = new DOMParser();
+
 		if (game.system.id == 'pf1') {
 			// Test, put all the information into data.details.notes.value
 			if (portfolio) {
 				for (let [charname, character] of portfolio) {
 					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
-						const actorlist = await RWPF1Actor.createActorData(this.Utf8ArrayToStr(character.xml)).catch(e => console.log(`RWPF1Actor.createActorData failed due to ${e}`));
+						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
+						const actorlist = await RWPF1Actor.createActorData(json.document.public.character).catch(e => console.log(`RWPF1Actor.createActorData failed due to ${e}`));
 						for (let actor of actorlist) {
 							// Cater for MINIONS
 							let port = portfolio.get(actor.name);
@@ -923,7 +976,8 @@ class RealmWorksImporter extends Application
 				for (let [charname, character] of portfolio) {
 					// TODO
 /*					if (character.xml) {
-						const actorlist = await DND5EActor.createActorData(this.Utf8ArrayToStr(character.xml));
+						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
+						const actorlist = await DND5EActor.createActorData(json.document.public.character);
 						for (let actor of actorlist) {
 							// Cater for MINIONS
 							let port = portfolio.get(actor.name);
@@ -951,7 +1005,8 @@ class RealmWorksImporter extends Application
 				for (let [charname, character] of portfolio) {
 					// TODO
 /*					if (character.xml) {
-						const actorlist = await GRPGAActor.createActorData(this.Utf8ArrayToStr(character.xml));
+						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
+						const actorlist = await GRPGAActor.createActorData(json.document.public.character);
 						for (let actor of actorlist) {
 							// Cater for MINIONS
 							let port = portfolio.get(actor.name);
@@ -1107,24 +1162,20 @@ class RealmWorksImporter extends Application
 				this.actor_pack_name = actor_pack.collection;	// the full name of the compendium
 			}
 		} else {
-			if (this.folderName) {
-				const found = game.folders.filter(e => e.type === 'Actor' && e.name == this.folderName);
-				if (found?.length > 0)
-					this.actor_folder = found[0];
-				else
-					this.actor_folder = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
-			}
+			this.actor_folder = this.folderName ? await this.getFolder(this.folderName, 'Actor') : undefined;
 		}
 		// Create the image folder if it doesn't already exist.
 		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData()).catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
 
-
+		if (!this.parser) this.parser = new DOMParser();
 		let portfolio = this.readPortfolio(new Uint8Array(data));
 		// Upload images (if any)
 		for (let [charname, character] of portfolio) {
 			// no XML means it is a MINION, and has been created from the XML of another character.
 			if (character.xml) {
-				const actorlist = await RWPF1Actor.createActorData(this.Utf8ArrayToStr(character.xml));
+				const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
+				const actorlist = await RWPF1Actor.createActorData(json.document.public.character);
+				
 				for (let actordata of actorlist) {
 					// Minion will have ITS data in a different place in the portfolio.
 					let port = portfolio.get(actordata.name);
@@ -1212,14 +1263,14 @@ class RealmWorksImporter extends Application
 		} else {
 			if (this.folderName) {
 				console.log('Creating folders');
-				this.actor_folder   = await Folder.create({name: this.folderName, type: 'Actor', parent: null});
-				this.scene_folder   = await Folder.create({name: this.folderName, type: 'Scene', parent: null})
-				this.playlist_folder = await Folder.create({name: this.folderName, type: 'Playlist', parent: null})
-				//this.journal_folder = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
-				let journal_parent = await Folder.create({name: this.folderName, type: 'JournalEntry', parent: null})
+				this.actor_folder    = await this.getFolder(this.folderName, 'Actor');
+				this.scene_folder    = await this.getFolder(this.folderName, 'Scene');
+				this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
+				//this.journal_folder= await this.getFolder(this.folderName, 'JournalEntry');
+				let journal_parent   = await this.getFolder(this.folderName, 'JournalEntry');
 				this.journal_folders = new Map();  // actual journal entries will be in a folder with the TOPIC category name
 				for (const category_name of category_names) {
-					let folder = await Folder.create({name : category_name, type: 'JournalEntry', parent: journal_parent.id})
+					let folder = await this.getFolder(category_name, 'JournalEntry', journal_parent.id)
 						.catch(`Failed to create Journal folder for ${category_name}`);
 					if (folder) this.journal_folders.set(category_name, folder);
 				}

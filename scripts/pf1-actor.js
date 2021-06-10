@@ -94,48 +94,7 @@ export class RWPF1Actor {
 	}
 
 	
-	static parseXml(xmlDoc, arrayTags) {
-
-		function parseNode(xmlNode, result) {
-			if (xmlNode.nodeName == "#text") {
-				let v = xmlNode.nodeValue;
-				if (v.trim())
-					result['#text'] = v;
-				return;
-			}
-			let jsonNode = {},
-			existing = result[xmlNode.nodeName];
-			if (existing) {
-				if (!Array.isArray(existing))
-					result[xmlNode.nodeName] = [existing, jsonNode];
-				else
-					result[xmlNode.nodeName].push(jsonNode);
-			} else {
-				if (arrayTags && arrayTags.indexOf(xmlNode.nodeName) != -1)
-					result[xmlNode.nodeName] = [jsonNode];
-				else
-					result[xmlNode.nodeName] = jsonNode;
-			}
-			if (xmlNode.attributes) {
-				for (let attribute of xmlNode.attributes) {
-					jsonNode[attribute.nodeName] = attribute.nodeValue;
-				}
-			}
-			for (let node of xmlNode.childNodes) {
-				parseNode(node, jsonNode);
-			}
-		}
-		let result = {};
-		for (let node of xmlDoc.childNodes) {
-			parseNode(node, result);
-		}
-		return result;
-	}
-
-	static async createActorData(xmlString) {
-		let parser = new DOMParser();
-		const json = RWPF1Actor.parseXml(parser.parseFromString(xmlString, "text/xml"));
-		const character = json.document.public.character;
+	static async createActorData(character) {
 		// The main character
 		let result = [ await RWPF1Actor.createOneActorData(character) ];
 		// The minions
