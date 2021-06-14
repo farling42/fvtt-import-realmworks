@@ -102,7 +102,7 @@ Hooks.once('init', () => {
 // Set up the user interface
 
 Hooks.on("renderSidebarTab", async (app, html) => {
-    if (app.options.id == "compendium") {
+    if (app.options.id === "compendium") {
       let button = $("<button class='import-cd'><i class='fas fa-file-import'></i> Realm Works Import</button>")
       button.click(function () {
         new RealmWorksImporter().render(true);
@@ -165,7 +165,7 @@ class RealmWorksImporter extends Application
 			
 			// Try to load the file
 			let fileinput = html.find('[name=rwoutputFile]')?.[0];
-			if (!fileinput?.files || fileinput.files.length == 0)
+			if (!fileinput?.files || fileinput.files.length === 0)
 			{
 				this.ui_message.val(`Please select a file.`);
 				return;
@@ -195,7 +195,7 @@ class RealmWorksImporter extends Application
 			while (start < file.size) {
 				// Read another chunk onto the end of the buffer.
 				const blob = await file.slice(start, start+chunkSize);
-				if (blob.size == 0) break;
+				if (blob.size === 0) break;
 				start += blob.size;
 				buffer += await blob.text();
 				
@@ -250,7 +250,7 @@ class RealmWorksImporter extends Application
 	}
 
 	async getFolder(folderName, type, parentid=undefined) {
-		const found = game.folders.filter(e => e.type === type && e.name == folderName);
+		const found = game.folders.filter(e => e.type === type && e.name === folderName);
 		if (found?.length > 0)
 			return found[0];
 		else
@@ -405,7 +405,7 @@ class RealmWorksImporter extends Application
 			if (desc.length > 0) label += '\n' + desc.replace('&#xd;\n','\n');
 			if (gmdir) label += '\nGMDIR: ' + gmdir.replace('&#xd;\n','\n');
 			// Embellish title if there is more to follow in the note
-			if (label.length == 0) 
+			if (label.length === 0) 
 				label = pinname;
 			else
 				label = '**' + pinname + '**' + label;
@@ -444,7 +444,7 @@ class RealmWorksImporter extends Application
 			// children   = only element children
 			// childNodes = all child nodes
 			for (const child of node.children) {
-				if (child.nodeName == name) return child;
+				if (child.nodeName === name) return child;
 			}
 		}
 		return undefined;
@@ -477,7 +477,7 @@ class RealmWorksImporter extends Application
 				continue;
 			}
 			for (const statblock of this.getChild(character,'statblocks').children) {
-				if (statblock.nodeName == 'statblock') {
+				if (statblock.nodeName === 'statblock') {
 					const format = statblock.getAttribute('format');
 					const folder = statblock.getAttribute('folder');
 					const filename = statblock.getAttribute('filename');
@@ -503,7 +503,7 @@ class RealmWorksImporter extends Application
 	static xmlToObject(xmlDoc, arrayTags) {
 
 		function parseNode(xmlNode, result) {
-			if (xmlNode.nodeName == "#text") {
+			if (xmlNode.nodeName === "#text") {
 				let v = xmlNode.nodeValue;
 				if (v.trim())
 					result['#text'] = v;
@@ -517,7 +517,7 @@ class RealmWorksImporter extends Application
 				else
 					result[xmlNode.nodeName].push(jsonNode);
 			} else {
-				if (arrayTags && arrayTags.indexOf(xmlNode.nodeName) != -1)
+				if (arrayTags && arrayTags.indexOf(xmlNode.nodeName) !== -1)
 					result[xmlNode.nodeName] = [jsonNode];
 				else
 					result[xmlNode.nodeName] = jsonNode;
@@ -556,7 +556,7 @@ class RealmWorksImporter extends Application
 				function (match, p1, offset, string) {
 				for (const [topic_id, labels] of linkage_names) {
 					// case insensitive search across all entries in the Array() stored in the map.
-					if (labels.some(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) == 0))) {
+					if (labels.some(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) === 0))) {
 						return functhis.formatLink.call(functhis, topic_id, p1);
 					}
 				};
@@ -596,17 +596,17 @@ class RealmWorksImporter extends Application
 					margin = 'border:1px solid black;margin-top:2px;margin-bottom:2px;';
 					in_section = true;
 				}
-				if (style && style != 'Normal') {
-					if (style == 'Read_Aloud') { // 209,223,242
+				if (style && style !== 'Normal') {
+					if (style === 'Read_Aloud') { // 209,223,242
 						bgcol = 'background-color:#d1dff2;padding:1px;';
 						in_section = true;
-					} else if (style == 'Handout') { // 232,225,217
+					} else if (style === 'Handout') { // 232,225,217
 						bgcol = 'background-color:#e8e1d9;padding:1px;';
 						in_section = true;
-					} else if (style == 'Flavor') {  // 239,212,210
+					} else if (style === 'Flavor') {  // 239,212,210
 						bgcol = 'background-color:#efd4d2;padding:1px;';
 						in_section = true;
-					} else if (style == 'Callout') { // 190,190,190
+					} else if (style === 'Callout') { // 190,190,190
 						bgcol = 'background-color:#bebebe;padding:1px;';
 						in_section = true;
 					}
@@ -645,7 +645,7 @@ class RealmWorksImporter extends Application
 					// <tag_assign tag_name="Manufacturing" domain_name="Commerce Activity" type="Indirect" />
 					let tags = [];
 					for (const snip of child.children) {
-						if (snip.nodeName == 'tag_assign') {
+						if (snip.nodeName === 'tag_assign') {
 							let tag = snip.getAttribute('tag_name');
 							if (tag) tags.push(tag);
 						}
@@ -659,7 +659,7 @@ class RealmWorksImporter extends Application
 				case "Tag_Multi_Domain":
 					let tagmulti = [];
 					for (const snip of child.children) {
-						if (snip.nodeName == "tag_assign") {
+						if (snip.nodeName === "tag_assign") {
 							if (snip.hasAttribute('tag_name')) {
 								tagmulti.push(snip.getAttribute('domain_name') + ': ' + snip.getAttribute('tag_name'));
 							}
@@ -720,15 +720,15 @@ class RealmWorksImporter extends Application
 					if (bin_contents) {
 						result += header(level+1, bin_ext_object.getAttribute('name'));
 						const fileext  = bin_filename.split('.').pop();	// extra suffix from asset filename
-						if (fileext == 'html' || fileext == 'htm' || fileext == "rtf")
+						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf")
 							result += atob(bin_contents.textContent);
-						else if (sntype == "Picture") {
+						else if (sntype === "Picture") {
 							//result += `<p><img src="data:image/${fileext};base64,${bin_contents.textContent}"></img></p>`;
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += `<p><img src='${this.imageFilename(bin_filename)}'></img></p>`;
 						} else {
 							let format = 'binary/octet-stream';
-							if (fileext == 'pdf') {
+							if (fileext === 'pdf') {
 								format = 'application/pdf';
 							}
 							//result += `<p><a href="data:${format};base64,${bin_contents.textContent}"></a></p>`;
@@ -793,7 +793,7 @@ class RealmWorksImporter extends Application
 		//   <linkage target_id="Topic_345" target_name="Air/Raft" direction="Outbound" />
 		let linkage_names = new Map();
 		for (const node of topic.children) {
-			if (node.nodeName == "linkage" && node.getAttribute('direction') != 'Inbound') {
+			if (node.nodeName === "linkage" && node.getAttribute('direction') !== 'Inbound') {
 				const target_id = node.getAttribute('target_id');
 				// In partial output, all linkages are reported even if the target topic is not present.
 				if (this.topic_names.has(target_id)) {
@@ -891,9 +891,9 @@ class RealmWorksImporter extends Application
 		let scenethis = this;
 		async function createScenes(node) {
 			for (const child of node.children) {
-				if (child.nodeName == 'smart_image') {
+				if (child.nodeName === 'smart_image') {
 					await scenethis.createScene.call(scenethis, topic, child).catch(e => console.log(`Failed to create scene for ${topic.name} due to ${e}`));
-				} else if (child.nodeName != 'topic' && child.children.length > 0) {
+				} else if (child.nodeName !== 'topic' && child.children.length > 0) {
 					await createScenes(child);
 				}
 			}
@@ -923,11 +923,11 @@ class RealmWorksImporter extends Application
 	// i.e. it contains a Portfolio or Statblock snippet type directly, not in a child topic.
 	getActorSnippet(node) {
 		for (const child of node.children) {
-			if (child.nodeName == 'snippet' && 
-				(child.getAttribute('type') == 'Portfolio' || 
-				 child.getAttribute('type') == 'Statblock')) {
+			if (child.nodeName === 'snippet' && 
+				(child.getAttribute('type') === 'Portfolio' || 
+				 child.getAttribute('type') === 'Statblock')) {
 				return child;
-			} else if (child.nodeName != 'topic' && child.children.length > 0) {
+			} else if (child.nodeName !== 'topic' && child.children.length > 0) {
 				// Don't check nested topics
 				let result = this.getActorSnippet(child);
 				if (result) return result;
@@ -973,7 +973,7 @@ class RealmWorksImporter extends Application
 
 		let statblock;
 		let portfolio;
-		if (sntype == 'Portfolio') {
+		if (sntype === 'Portfolio') {
 			if (!filename.endsWith('.por'))
 				throw('formatActors: Portfolio file does not end with .por');
 			//console.log(`Reading portfolio ${filename}`);
@@ -985,7 +985,7 @@ class RealmWorksImporter extends Application
 					await this.uploadBinaryFile(character.imgfilename, character.imgdata);
 				}
 			}				
-		} else { // (sntype == 'Statblock')
+		} else { // (sntype === 'Statblock')
 			if (!filename.endsWith('.html') && !filename.endsWith('.htm') && !filename.endsWith('.rtf'))
 				throw('formatActors: Statblock file does not end with .htm or .html or .rtf');
 			statblock = atob(contents.textContent);
@@ -996,7 +996,7 @@ class RealmWorksImporter extends Application
 		let result = [];
 		if (!this.parser) this.parser = new DOMParser();
 
-		if (game.system.id == 'pf1') {
+		if (game.system.id === 'pf1') {
 			// Test, put all the information into data.details.notes.value
 			if (portfolio) {
 				for (let [charname, character] of portfolio) {
@@ -1025,7 +1025,7 @@ class RealmWorksImporter extends Application
 				result.push(actor);
 			}
 			
-		} else if (game.system.id == 'dnd5e') {
+		} else if (game.system.id === 'dnd5e') {
 			actor.type = 'Player Character';
 			if (portfolio) {
 				for (let [charname, character] of portfolio) {
@@ -1055,7 +1055,7 @@ class RealmWorksImporter extends Application
 				result.push(actor);
 			}
 			
-		} else if (game.system.id == 'grpga') {
+		} else if (game.system.id === 'grpga') {
 			if (portfolio) {
 				for (let [charname, character] of portfolio) {
 					// TODO
@@ -1103,9 +1103,9 @@ class RealmWorksImporter extends Application
 		let snippets;
 		function getSoundSnippets(node) {
 			for (const child of node.children) {
-				if (child.nodeName == 'snippet' && child.getAttribute('type') == 'Audio') {
+				if (child.nodeName === 'snippet' && child.getAttribute('type') === 'Audio') {
 					snippets.push(child);
-				} else if (child.nodeName != 'topic' && child.children.length > 0) {
+				} else if (child.nodeName !== 'topic' && child.children.length > 0) {
 					// Don't check nested topics
 					getSoundSnippets(child);
 				}
@@ -1116,7 +1116,7 @@ class RealmWorksImporter extends Application
 		for (const topic of topics) {
 			snippets = [];
 			getSoundSnippets(topic);
-			if (snippets.length == 0) continue;
+			if (snippets.length === 0) continue;
 
 			let playlist = {
 				name: topic.getAttribute('public_name'),
@@ -1135,7 +1135,7 @@ class RealmWorksImporter extends Application
 				const asset      = this.getChild(ext_object, 'asset');
 				const filename = asset?.getAttribute('filename');
 				if (!this.getChild(asset, 'contents')) continue;		// No contents means no file!
-				// ext_object.getAttribute('type') == 'Audio'
+				// ext_object.getAttribute('type') === 'Audio'
 				
 				let name = ext_object.getAttribute('name');
 				if (name === 'Audio File') {
@@ -1172,14 +1172,14 @@ class RealmWorksImporter extends Application
 		let data = await file.arrayBuffer();
 		if (!data) throw "Failed to read .por file";
 		
-		if (game.system.id == 'pf1') {
+		if (game.system.id === 'pf1') {
 			await RWPF1Actor.initModule();
 		}
 
 		// Maybe delete old items
 		if (this.deleteOldFolders) {
 			// Delete folders with the given name.
-			for (let folder of game.folders.filter(e => e.type === 'Actor' && e.name == this.folderName)) {
+			for (let folder of game.folders.filter(e => e.type === 'Actor' && e.name === this.folderName)) {
 				await folder.delete({
 					deleteSubfolders: true,
 					deleteContents: true
@@ -1187,10 +1187,11 @@ class RealmWorksImporter extends Application
 			}
 		}
 
-		let actor_folder = await this.getFolder(this.folderName, 'Actor');
+		let actor_folder_id = await this.getFolder(this.folderName, 'Actor').id;
 		
 		// Create the image folder if it doesn't already exist.
-		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData()).catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
+		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData())
+			.catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
 
 		if (!this.parser) this.parser = new DOMParser();
 		let portfolio = this.readPortfolio(new Uint8Array(data));
@@ -1200,25 +1201,39 @@ class RealmWorksImporter extends Application
 			if (character.xml) {
 				const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
 				const actorlist = 
-					(game.system.id == 'pf1') ? await RWPF1Actor.createActorData(json.document.public.character) :
-					//(game.system.id == 'dnd5e') ? await RWDND5EActor.createActorData(json.document.public.character) :
-					//(game.system.id == 'grpga') ? await RWGRPGAActor.createActorData(json.document.public.character) :
+					(game.system.id === 'pf1') ? await RWPF1Actor.createActorData(json.document.public.character) :
+					//(game.system.id === 'dnd5e') ? await RWDND5EActor.createActorData(json.document.public.character) :
+					//(game.system.id === 'grpga') ? await RWGRPGAActor.createActorData(json.document.public.character) :
 					[];
 					
 				for (let actordata of actorlist) {
 					// Minion will have ITS data in a different place in the portfolio.
 					let port = portfolio.get(actordata.name);
-					actordata.data.details.notes = {
-						value:  this.Utf8ArrayToStr(port.html),
-					};
-					actordata.folder = actor_folder.id;
+					
+					// Store the raw statblock
+					let statblock = this.Utf8ArrayToStr(port.html);
+					switch (game.system.id) {
+					case 'pf1':
+						actordata.data.details.notes = { value: statblock };
+						break;
+					case 'dnd5e':
+						actor.data.details.biography = { value: statblock };
+						break;
+					case 'grpga':
+						actor.data.biography = statblock;
+						break;
+					} // switch
+
+					actordata.folder = actor_folder_id;
 					if (port.imgfilename) {
+						// If we don't "await", then Actor.create will fail since the image doesn't exist
 						await this.uploadBinaryFile(port.imgfilename, port.imgdata);
 						actordata.img = this.imageFilename(port.imgfilename);
 					}
 			
-					let existing = game.actors.contents.find(o => o.name === actordata.name);
-					if (existing) await existing.delete();
+					// Delete any existing actor with the same name
+					//let existing = game.actors.contents.find(o => o.name === actordata.name);
+					//if (existing) await existing.delete();
 
 					await Actor.create(actordata)
 						.catch(e => console.log(`Failed to create Actor '${actordata.name}' due to ${e}`));
@@ -1241,7 +1256,7 @@ class RealmWorksImporter extends Application
 		// Maybe delete the old folders before creating a new one?
 		if (this.deleteOldFolders) {
 			// Delete folders with the given name.
-			for (let folder of game.folders.filter(e => e.name == this.folderName)) {
+			for (let folder of game.folders.filter(e => e.name === this.folderName)) {
 				await folder.delete({
 					deleteSubfolders: true,
 					deleteContents: true
@@ -1262,8 +1277,8 @@ class RealmWorksImporter extends Application
 				.catch(err => `Failed to create Journal folder for ${category_name} due to ${err}`);
 		}
 		// Create the image folder if it doesn't already exist.
-		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData()).catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
-		
+		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData())
+		.catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
 		// Create a mapping from topic_id to public_name for all topic elements, required for creating "@JournalEntry["mapping[linkage:target_id]"]{"linkage:target_name"}" entries.
 		// Also collect aliases for each topic:
 		// <alias alias_id="Alias_1" name="Barracks Emperors" />
@@ -1274,13 +1289,12 @@ class RealmWorksImporter extends Application
 			let names = new Array();
 			names.push(topic_name);
 			
-			for (const alias of child.children) {
-				if (alias.nodeName == "alias") {
-					names.push(alias.getAttribute('name'));
+			for (const subchild of child.children) {
+				if (subchild.nodeName === "alias") {
+					names.push(subchild.getAttribute('name'));
 				}
 			};
-			const topic_id = child.getAttribute("topic_id");
-			this.topic_names.set(topic_id, names);
+			this.topic_names.set(child.getAttribute("topic_id"), names);
 		};
 
 		//
@@ -1289,66 +1303,68 @@ class RealmWorksImporter extends Application
 		// Generate empty topic entries first, so that we have Foundry id's for each topic.
 		this.ui_message.val(`Creating ${topics.length} empty journal entries`);
 		console.log(`Creating ${topics.length} empty journal entries`);
-		this.entity_for_topic = new Map();
-		for (const topic of topics) {
-			const topic_name = topic.getAttribute('public_name');
-			const category_name = topic.getAttribute('category_name');
-			let initdata = {
-				name   : topic_name,
-				folder : journal_folders.get(category_name).id,
-			};
-			let item = await JournalEntry.create(initdata);
-			//console.log(`Item ${topic_name} has _id = ${item.data._id}`);
-			this.entity_for_topic[topic.getAttribute("topic_id")] = item;
-		}
-		//console.log(this.entity_for_topic);
 		
+		this.entity_for_topic = new Map();
+		await Promise.allSettled(topics.map(async(topic) => {
+				return {
+					topic_id: topic.getAttribute("topic_id"),
+					topic: await JournalEntry.create({
+						name: topic.getAttribute('public_name'),
+						folder: journal_folders.get(topic.getAttribute('category_name')).id,
+					}),
+				}
+			}))
+		// Now add all valid entries to entity_for_topic synchronously
+		.then(results => results.forEach(result => {
+				if (result.status === 'fulfilled')
+					this.entity_for_topic[result.value.topic_id] = result.value.topic;
+			}));
 		// Asynchronously generate each of the Journal Entries
-		this.ui_message.val(`Generating ${topics.length} journal contents`);		
-		console.log(`Generating ${topics.length} journal contents`);	
-		await Promise.allSettled(Array.from(topics).map(async (topic_node) =>
-			await this.formatOneTopic(topic_node)
+		this.ui_message.val(`Generating ${topics.length} journal contents`);
+		console.log(`Generating ${topics.length} journal contents`);
+		await Promise.allSettled(topics.map(async(topic_node) =>
+				await this.formatOneTopic(topic_node)
 				.then(async(topic) => {
 					if (isNewerVersion(game.data.version, "0.8.0"))
-						await JournalEntry.updateDocuments([topic])
-							//.then(console.log(`Topic ${topic.name} added to World directory`))
-							.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
+						await JournalEntry.updateDocuments([topic]).catch(p => console.log(`Update JE failed for '${topic.name}':\n${p}`));
 					else
-						await JournalEntry.update(topic)
-							//.then(console.log(`Topic ${topic.name} added to World directory`))
-							.catch(p => console.log(`Update JE failed for '${topic.name}' because ${p}`));
+						await JournalEntry.update(topic).catch(p => console.log(`Update JE failed for '${topic.name}':\n${p}`));
 				})
-				.catch(e => console.log(`Failed to create topic ${topic_node.getAttribute("public_name")} due to ${e}`))
-			));
-			
+				.catch(e => console.log(`formatOneTopic failed for ${topic_node.getAttribute("public_name")}:\n${e}`))));
 		//
 		// HL PORTFOLIOS => ACTORS
 		//
 
-		if (game.system.id == 'pf1' || game.system.id == 'dnd5e' || game.system.id == 'grpga') {
+		if (game.system.id === 'pf1' || game.system.id === 'dnd5e' || game.system.id === 'grpga') {
 			
-			if (game.system.id == 'pf1') {
+			if (game.system.id === 'pf1') {
 				await RWPF1Actor.initModule();
 			}
 			
+			console.log('Finding Topics with Actors');
 			let actor_topics = this.getActorTopics(topics);
 			this.ui_message.val(`Generating ${actor_topics.length} Actors`);
 			console.log(`Generating actors from ${actor_topics.length} Topics`);
 			
-			// Asynchronously create all the actors (now that we have full HTML for the relevant topics)
-			let actors = [];
-			await Promise.allSettled(actor_topics.map(async (topic_node) =>
-				await this.formatActors(topic_node)
-					.catch(error => console.log(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))
-			))
+			// Asynchronously get the data for all the actors,
+			// don't CREATE the Actors until we've had a chance to remove duplicates
+			//let actors = [];
+			await Promise.allSettled(actor_topics.map(async(topic_node) =>
+					await this.formatActors(topic_node)
+					.then(async(actors) => await Actor.create(actors))
+					.catch(error => console.log(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))))
+/*
+THIS CODE IS INTENDED TO DELAY CREATION UNTIL _AFTER_ ALL DUPLICATES HAVE BEEN REMOVED
 			.then(results => results.forEach(result => {
-				if (result.status === 'fulfilled' && result.value.length > 0)
-					actors.push(...result.value)
-			}));
-			
+					if (result.status === 'fulfilled' && result.value.length > 0)
+						actors.push(...result.value) // concat to SAME array
+				})
+
 			console.log(`Found ${actors.length} Actors`);
-			
+
 			// remove duplicates - does not remove any
+			// equality on objects only checks that they are the SAME object,
+			// not that all the fields are equal between two different objects!
 			actors = [...new Set(actors)];
 			console.log(`Reduced to ${actors.length} Actors after removing duplicates`);
 			
@@ -1357,6 +1373,7 @@ class RealmWorksImporter extends Application
 				await Actor.create(actor_data)
 				.catch(e => console.log(`Failed to create Actor due to ${e}`))
 			));
+*/
 		}
 		
 		// AUDIO snippets => PLAYLISTS
