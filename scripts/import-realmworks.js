@@ -1220,7 +1220,7 @@ class RealmWorksImporter extends Application
 					let existing = game.actors.contents.find(o => o.name === actordata.name);
 					if (existing) await existing.delete();
 
-					await Actor.create(actordata, { displaySheet: false })
+					await Actor.create(actordata)
 						.catch(e => console.log(`Failed to create Actor '${actordata.name}' due to ${e}`));
 				}
 			}
@@ -1297,7 +1297,7 @@ class RealmWorksImporter extends Application
 				name   : topic_name,
 				folder : journal_folders.get(category_name).id,
 			};
-			let item = await JournalEntry.create(initdata, { displaySheet: false });
+			let item = await JournalEntry.create(initdata);
 			//console.log(`Item ${topic_name} has _id = ${item.data._id}`);
 			this.entity_for_topic[topic.getAttribute("topic_id")] = item;
 		}
@@ -1354,7 +1354,7 @@ class RealmWorksImporter extends Application
 			
 			// Now create the actual Actor elements
 			await Promise.allSettled(actors.map(async(actor_data) =>
-				await Actor.create(actor_data, { displaySheet: false })
+				await Actor.create(actor_data)
 				.catch(e => console.log(`Failed to create Actor due to ${e}`))
 			));
 		}
