@@ -151,6 +151,12 @@ class RealmWorksImporter extends Application
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteOldFolders = html.find('[name=deleteOldFolders]').is(':checked');
+
+			// Ensure folder name is present.
+			if (this.folderName.length === 0) {
+				this.ui_message.val('Folder name is missing!');
+				return;
+			}
 			
 			// Save the selections.
 			game.settings.set(GS_MODULE_NAME, GS_CREATE_INBOUND_LINKS,  this.addInboundLinks);
@@ -244,6 +250,9 @@ class RealmWorksImporter extends Application
 			// Do the actual work!
 			console.log(`Found ${topic_nodes.length} topics`);
 			await this.parseXML(topic_nodes);
+			
+			console.log('******  Finished  ******');
+			this.ui_message.val('--- Finished ---');
 			// Automatically close the window after the import is finished
 			//this.close();
 		});
@@ -1381,9 +1390,6 @@ THIS CODE IS INTENDED TO DELAY CREATION UNTIL _AFTER_ ALL DUPLICATES HAVE BEEN R
 		// AUDIO snippets => PLAYLISTS
 		this.ui_message.val(`Generating playlists`);
 		console.log(`Generating playlists`);
-		this.createPlaylists(topics);
-		
-		console.log('******  Finished  ******');
-		this.ui_message.val('--- Finished ---');
+		await this.createPlaylists(topics);
 	}
 } // class

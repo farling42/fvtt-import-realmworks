@@ -38,6 +38,16 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.8 Core: Remove use of compendiums. Add saving of entered settings. Reduce amount of unnecessary code.
+Always expect a top-level folder name to be present.
+Hopefully speed up processing time.
+Add one entry in "module settings" window of Foundry to support configuring the upload folder for assets (pictures, videos, sounds, etc.).
+
+0.3.7 README.md and FUNDING.yml updated with Ko-Fi link.
+Move XML-to-Object function to main module, and pass decoded Object to the game-system specific Actor generator.
+PF1: Improve generation of Class Features based on the level of the class; add generation of traits.
+
+
 0.3.6 Audio snippets are placed into Playlists. One playlist per topic with each Audio snippet as a separate sound within the playlist.
 
 0.3.5 Hopefully faster processing of RW files. PF1 HL decoding has better feat detection, 
