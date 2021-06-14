@@ -1347,44 +1347,22 @@ class RealmWorksImporter extends Application
 		//
 
 		if (game.system.id === 'pf1' || game.system.id === 'dnd5e' || game.system.id === 'grpga') {
-			
 			if (game.system.id === 'pf1') {
 				await RWPF1Actor.initModule();
 			}
-			
+
 			console.log('Finding Topics with Actors');
 			let actor_topics = this.getActorTopics(topics);
 			this.ui_message.val(`Generating ${actor_topics.length} Actors`);
 			console.log(`Generating actors from ${actor_topics.length} Topics`);
-			
+
 			// Asynchronously get the data for all the actors,
 			// don't CREATE the Actors until we've had a chance to remove duplicates
-			//let actors = [];
+			// TODO: if actors.length > 1 then put them inside a folder named after the topic.
 			await Promise.allSettled(actor_topics.map(async(topic_node) =>
 					await this.formatActors(topic_node)
 					.then(async(actors) => await Actor.create(actors))
 					.catch(error => console.log(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))))
-/*
-THIS CODE IS INTENDED TO DELAY CREATION UNTIL _AFTER_ ALL DUPLICATES HAVE BEEN REMOVED
-			.then(results => results.forEach(result => {
-					if (result.status === 'fulfilled' && result.value.length > 0)
-						actors.push(...result.value) // concat to SAME array
-				})
-
-			console.log(`Found ${actors.length} Actors`);
-
-			// remove duplicates - does not remove any
-			// equality on objects only checks that they are the SAME object,
-			// not that all the fields are equal between two different objects!
-			actors = [...new Set(actors)];
-			console.log(`Reduced to ${actors.length} Actors after removing duplicates`);
-			
-			// Now create the actual Actor elements
-			await Promise.allSettled(actors.map(async(actor_data) =>
-				await Actor.create(actor_data)
-				.catch(e => console.log(`Failed to create Actor due to ${e}`))
-			));
-*/
 		}
 		
 		// AUDIO snippets => PLAYLISTS
