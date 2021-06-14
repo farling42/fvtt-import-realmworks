@@ -108,7 +108,7 @@ Hooks.on("renderSidebarTab", async (app, html) => {
         new RealmWorksImporter().render(true);
       });
       
-      html.find(".directory-footer").append(button);
+      html.find(".directory-header").append(button);
     }
 })
 
@@ -1187,7 +1187,7 @@ class RealmWorksImporter extends Application
 			}
 		}
 
-		let actor_folder_id = await this.getFolder(this.folderName, 'Actor').id;
+		let actor_folder_id = (await this.getFolder(this.folderName, 'Actor')).id;
 		
 		// Create the image folder if it doesn't already exist.
 		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData())
@@ -1195,6 +1195,7 @@ class RealmWorksImporter extends Application
 
 		if (!this.parser) this.parser = new DOMParser();
 		let portfolio = this.readPortfolio(new Uint8Array(data));
+		let actors = [];
 		// Upload images (if any)
 		for (let [charname, character] of portfolio) {
 			// no XML means it is a MINION, and has been created from the XML of another character.
@@ -1234,12 +1235,13 @@ class RealmWorksImporter extends Application
 					// Delete any existing actor with the same name
 					//let existing = game.actors.contents.find(o => o.name === actordata.name);
 					//if (existing) await existing.delete();
-
-					await Actor.create(actordata)
-						.catch(e => console.log(`Failed to create Actor '${actordata.name}' due to ${e}`));
+					actors.push(actordata);
 				}
 			}
 		}
+		if (actors.length > 0) await Actor.create(actors)
+			.catch(e => console.log(`Failed to create Actors due to ${e}`));
+
 	}
 	
 	//
