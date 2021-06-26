@@ -560,17 +560,22 @@ class RealmWorksImporter extends Application
 		// Only <contents> can contain <span> which identify links.
 		function replaceLinks(original, linkage_names) {
 			// Replace '<scan>something</scan>' with '@JournalEntry[<topic-for-something>]{something}'
+			// RW v267 might also use '<scan class="RWSnippet">something</scan>' for links, which is the same as for normal paragraphs!
 			// @JournalEntry is case sensitive when using names!
-			return original.replace(/<span>([^<]+)<\/span>/g,
-				function (match, p1, offset, string) {
+			return original.replace(/(<span[^>]*>)([^<]+)<\/span>/g,
+				function (match, p1, p2, offset, string) {
 				for (const [topic_id, labels] of linkage_names) {
 					// case insensitive search across all entries in the Array() stored in the map.
-					if (labels.some(item => (item.localeCompare(p1, undefined, { sensitivity: 'base' }) === 0))) {
-						return functhis.formatLink.call(functhis, topic_id, p1);
+					if (labels.some(item => (item.localeCompare(p2, undefined, { sensitivity: 'base' }) === 0))) {
+						return functhis.formatLink.call(functhis, topic_id, p2);
 					}
 				};
-				// Not found in map, so just create a broken link.
-				return functhis.formatLink.call(functhis, undefined, p1);
+				// Not found in map, so just create a broken link for <span>, since we're fairly sure that's what it is.
+				// Whereas <span class="RWSnippet"> is just regular text everywhere!
+				if (p1 === '<span>')
+					return functhis.formatLink.call(functhis, undefined, p2);
+				else
+					return p1 + p2 + '</span>';
 			});
 		}
 		function header(lvl, name) {
