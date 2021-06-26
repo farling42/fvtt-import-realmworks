@@ -38,6 +38,12 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.11 Update ChangeLog and compatibleCoreVersion to 0.8.8
+
+0.3.10 Fix the default location for uploaded asset files (worlds, not world)
+
+0.3.9 Fix link detection, some spans for links contain class="RWSnippet" rather than just being a plain span.
+
 0.3.8 Core: Remove use of compendiums. Add saving of entered settings. Reduce amount of unnecessary code.
 Always expect a top-level folder name to be present.
 Hopefully speed up processing time.
