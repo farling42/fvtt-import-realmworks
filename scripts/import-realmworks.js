@@ -40,7 +40,7 @@ Hooks.once('init', () => {
 		hint: "Folder within [User Data] area where assets (e.g. sounds, PDFs, videos) embedded in the RWoutput file will be placed.",
 		scope: "world",
 		type:  String,
-		default: 'world/' + (isNewerVersion(game.data.version, "0.8.0") ? game.world.data.name : game.world.name) + '/realmworksimport',
+		default: 'worlds/' + (isNewerVersion(game.data.version, "0.8.0") ? game.world.data.name : game.world.name) + '/realmworksimport',
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
 		config: true,
 	});
