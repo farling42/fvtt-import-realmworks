@@ -260,7 +260,7 @@ class RealmWorksImporter extends Application
 
 	async getFolder(folderName, type, parentid=null) {
 		// Need to check PARENT as well!
-		const found = game.folders.filter(e => e.type === type && e.name === folderName);
+		const found = game.folders.filter(e => e.type === type && e.name === folderName && e.parent === parentid);
 		if (found?.length > 0)
 			return found[0];
 		else
