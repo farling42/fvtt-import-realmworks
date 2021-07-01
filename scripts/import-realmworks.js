@@ -391,7 +391,7 @@ class RealmWorksImporter extends Application
 		
 		// The file was uploaded when the TOPIC was processed, so can simply read it here.
 		const imagename = this.imageFilename(filename);
-		const tex = await loadTexture(imagename);	// this works for .tif and .bmp, but scenedata.img won't support those
+		const tex = await loadTexture(imagename);	// when previously uploaded, bmp/tif/tiff files were converted to png.
 		let scenedata = {
 			name   : scenename,
 			img    : imagename,

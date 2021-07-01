@@ -38,6 +38,11 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.13 Convert .bmp .tif and .tiff images to .png before uploading.
+Ensure journal folders are created in the correct parent.
+
+0.3.12 Get it working on Foundry 0.7.x
+
 0.3.11 Update ChangeLog and compatibleCoreVersion to 0.8.8
 
 0.3.10 Fix the default location for uploaded asset files (worlds, not world)
