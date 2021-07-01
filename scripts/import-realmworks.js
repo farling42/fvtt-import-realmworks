@@ -21,6 +21,7 @@
 import UZIP from "./UZIP.js";
 import { RWPF1Actor } from "./pf1-actor.js";
 //import DirectoryPicker from "../../lib/DirectoryPicker.js";
+import "./jimp.js";
 
 const GS_MODULE_NAME = "realm-works-import";
 const GS_CREATE_INBOUND_LINKS = "createInboundLinks";
@@ -329,14 +330,29 @@ class RealmWorksImporter extends Application
 		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
 	}
 
+	// Some image files are changed to .png (from .bmp .tif .tiff)
+	validfilename(filename) {
+		if (filename.endsWith('.bmp') || filename.endsWith('.tif'))
+			return filename.slice(0,-4) + '.png';
+		else if (filename.endsWith('.tiff'))
+			return filename.slice(0,-5) + '.png';
+		else
+			return filename;
+	}
+	
 	imageFilename(filename) {
-		return this.filedirectory + '/' + filename;
+		return this.filedirectory + '/' + this.validfilename(filename);
 	}
 
 	// Upload the specified binary data to a file in this.filedirectory
-	async uploadBinaryFile(filename, data) {
+	async uploadBinaryFile(filename, srcdata) {
+		let data = srcdata;
+		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.tiff'))
+		{
+			data = await Jimp.read(Buffer.from(srcdata)).then(image => image.getBufferAsync('image/png'));
+		}
 		// data = base64 string
-		const file = new File([data], filename);
+		const file = new File([data], this.validfilename(filename));
 		await FilePicker.upload(this.filesource, this.filedirectory, file)
 			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
@@ -344,7 +360,7 @@ class RealmWorksImporter extends Application
 
 	// Convert a string in base64 format into binary and upload to this.filedirectory,
 	async uploadFile(filename, base64) {
-		this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
+		await this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
 	// Convert a Smart_Image into a scene
