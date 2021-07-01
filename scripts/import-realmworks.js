@@ -258,7 +258,8 @@ class RealmWorksImporter extends Application
 		});
 	}
 
-	async getFolder(folderName, type, parentid=undefined) {
+	async getFolder(folderName, type, parentid=null) {
+		// Need to check PARENT as well!
 		const found = game.folders.filter(e => e.type === type && e.name === folderName);
 		if (found?.length > 0)
 			return found[0];
@@ -1140,7 +1141,7 @@ class RealmWorksImporter extends Application
 				//	"sort": 0,
 				//	"seed": 840,
 				sounds: [],
-				folder: this.playlist_folder.id,
+				folder: this.playlist_folder?.id,
 			};
 			
 			// Sound file has already been uploaded
@@ -1284,7 +1285,9 @@ class RealmWorksImporter extends Application
 		console.log('Creating folders');
 		this.actor_folder    = await this.getFolder(this.folderName, 'Actor');
 		this.scene_folder    = await this.getFolder(this.folderName, 'Scene');
-		this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
+		if (isNewerVersion(game.data.version, "0.8.0")) {
+			this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
+		}
 		let journal_parent   = await this.getFolder(this.folderName, 'JournalEntry');
 		let journal_folders  = new Map();  // actual journal entries will be in a folder with the TOPIC category name
 		for (const category_name of category_names) {

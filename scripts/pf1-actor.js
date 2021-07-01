@@ -208,8 +208,8 @@ export class RWPF1Actor {
 					classlevels += level;					
 					
 					let classdata;
+					//console.log(`Class ${entry.name} at level ${cclass.level}`);
 					if (isNewerVersion(game.data.version, "0.8.0"))
-						//console.log(`Class ${entry.name} at level ${cclass.level}`);
 						classdata = (await class_pack.getDocument(entry._id)).data.toObject();
 					else
 						classdata = await class_pack.getEntry(entry._id);
@@ -611,7 +611,7 @@ export class RWPF1Actor {
 						//itemdata = (await feat_pack.getDocument(entry._id)).data.toObject();
 						itemdata = duplicate((await feat_pack.getDocument(entry._id)).data);
 					else
-						itemdata = new Item(await feat_pack.getEntry(entry._id));
+						itemdata = duplicate(await feat_pack.getEntry(entry._id));
 
 					itemdata.name = realname;	// TODO: in case we removed parentheses
 
