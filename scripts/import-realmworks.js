@@ -29,6 +29,7 @@ const GS_CREATE_OUTBOUND_LINKS = "createOutboundLinks";
 const GS_FOLDER_NAME = "folderName";
 const GS_DELETE_OLD_FOLDERS = "deleteOldFolders";
 const GS_UPDATE_EXISTING = "updateExisting";
+const GS_ASSETS_LOCATION = "assetsLocation";
 
 //
 // Register game settings
@@ -36,7 +37,7 @@ const GS_UPDATE_EXISTING = "updateExisting";
 Hooks.once('init', () => {
 	
 	// See API documentation "ClientSettings"
-	game.settings.register(GS_MODULE_NAME, "assetsLocation", {
+	game.settings.register(GS_MODULE_NAME, GS_ASSETS_LOCATION, {
 		name: "Location of Extracted Assets",
 		hint: "Folder within [User Data] area where assets (e.g. sounds, PDFs, videos) embedded in the RWoutput file will be placed.",
 		scope: "world",
@@ -164,10 +165,10 @@ class RealmWorksImporter extends Application
 			game.settings.set(GS_MODULE_NAME, GS_CREATE_OUTBOUND_LINKS, this.addOutboundLinks);
 			game.settings.set(GS_MODULE_NAME, GS_FOLDER_NAME,           this.folderName);
 			game.settings.set(GS_MODULE_NAME, GS_DELETE_OLD_FOLDERS,    this.deleteOldFolders);
-			//game.settings.set(GS_MODULE_NAME, 'updateExisting', ); // not implemented yet
+			//game.settings.set(GS_MODULE_NAME, GS_UPDATE_EXISTING, ); // not implemented yet
 			
 			// Where image files should be stored...
-			this.filedirectory = game.settings.get(GS_MODULE_NAME, 'assetsLocation');		// no trailing "/"
+			this.filedirectory = game.settings.get(GS_MODULE_NAME, GS_ASSETS_LOCATION);		// no trailing "/"
 			this.filesource = 'data';	// or 'core' or 's3'
 			
 			// Try to load the file
