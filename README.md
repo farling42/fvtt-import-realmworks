@@ -29,7 +29,7 @@ Each *image or embedded file* will be extracted and located in the subdirectory 
 
 Each *Audio* snippet will be extracted and placed into a Playlist named after the topic.
 
-Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1 game system).
+Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1 game system). All actors for a single topic are placed into a sub-folder named after the folder.
 
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
@@ -38,6 +38,11 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.15 Update README.md with extra information about Actors being placed into sub-folders.
+
+0.3.14 Actors are now put into a sub-folder named after the containing topic (but if there is only one actor in the topic with the same name as the topic, then no sub-folder is created).
+The UZIP module is reverted back to its original code (removing export).
+
 0.3.13 Convert .bmp .tif and .tiff images to .png before uploading.
 Ensure journal folders are created in the correct parent.
 
