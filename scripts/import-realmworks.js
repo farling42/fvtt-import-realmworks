@@ -18,7 +18,7 @@
 
 // Nested "section" elements increase the Hx number by one for the section heading.
 
-import UZIP from "./UZIP.js";
+import "./UZIP.js";
 import { RWPF1Actor } from "./pf1-actor.js";
 //import DirectoryPicker from "../../lib/DirectoryPicker.js";
 import "./jimp.js";
@@ -1118,9 +1118,16 @@ class RealmWorksImporter extends Application
 			}
 		}
 
-		// Set the folder for each
+		// If there is only more than one actor in the topic,
+		// or the name of the actor does NOT match the name of the topic,
+		// then put the actors in a sub-folder named after the topic.
+		if (result.length === 0) return result;
+		let topic_name = topic.getAttribute('public_name');
+		let folderid = (result.length === 1 && result[0].name === topic_name) ? this.actor_folder.id : (await this.getFolder(topic_name, 'Actor', this.actor_folder.id)).id;
+
+		// Set the folder for each actor.
 		for (let i=0; i<result.length; i++)
-			result[i].folder = this.actor_folder.id;
+			result[i].folder = folderid;
 		//console.log(`Actor data for ${actor.name} in folder ${actor.folder}`);
 		
 		return result;

@@ -1,8 +1,6 @@
 var UZIP = {};
 if(typeof module == "object") module.exports = UZIP;
 
-export default UZIP;
-
 UZIP["parse"] = function(buf, onlyNames)	// ArrayBuffer
 {
 	var rUs = UZIP.bin.readUshort, rUi = UZIP.bin.readUint, o = 0, out = {};
