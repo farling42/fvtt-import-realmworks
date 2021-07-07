@@ -997,12 +997,6 @@ class RealmWorksImporter extends Application
 		if (!contents)   throw('formatActors: no <contents> for actor');
 		const filename   = asset.getAttribute('filename');
 
-		let actor = { 
-			name: topic.getAttribute('public_name'),
-			type: 'npc',
-			//folder: this.actor_folder.id
-		};		
-
 		let statblock;
 		let portfolio;
 		if (sntype === 'Portfolio') {
@@ -1028,10 +1022,11 @@ class RealmWorksImporter extends Application
 		let result = [];
 		if (!this.parser) this.parser = new DOMParser();
 
-		if (game.system.id === 'pf1') {
+		switch (game.system.id) {
+		case 'pf1':
 			// Test, put all the information into data.details.notes.value
 			if (portfolio) {
-				for (let [charname, character] of portfolio) {
+				for (let[charname, character]of portfolio) {
 					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
 						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
@@ -1040,83 +1035,248 @@ class RealmWorksImporter extends Application
 							for (let actor of actorlist) {
 								// Cater for MINIONS
 								let port = portfolio.get(actor.name);
-								actor.data.details.notes = { value : this.Utf8ArrayToStr(port.html) };
-								if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
+								actor.data.details.notes = { value: this.Utf8ArrayToStr(port.html) };
+								if (port?.imgfilename)
+									actor.img = this.imageFilename(port.imgfilename);
 								result.push(actor);
-						}})
+							}
+						})
 						.catch(e => console.log(`RWPF1Actor.createActorData failed in ${filename} due to ${e}`));
 					}
 				}
 			} else {
-				actor = { 
-					name: topic.getAttribute('public_name'),
+				let actor = {
+					name : topic.getAttribute('public_name'),
 					type: 'npc',
 					//folder: this.actor_folder.id
-					data: { details : { notes : { value : statblock }}}
-				};		
+					data: { details: { notes: { value: statblock }}}
+				};
 				result.push(actor);
 			}
-			
-		} else if (game.system.id === 'dnd5e') {
-			actor.type = 'Player Character';
+			break;
+
+		case 'dnd5e':
 			if (portfolio) {
-				for (let [charname, character] of portfolio) {
-					// TODO
-/*					if (character.xml) {
-						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
-						const actorlist = await DND5EActor.createActorData(json.document.public.character);
-						for (let actor of actorlist) {
-							// Cater for MINIONS
-							let port = portfolio.get(actor.name);
-							actor.data.details.biography = { value : this.Utf8ArrayToStr(port.html) };
-							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
-							result.push(actor);
-						}
-					}*/
-					actor.data = { details : { biography : { value : this.Utf8ArrayToStr(character.html) }}};
-					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename)
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character',
+						data: { details: { biography: { value: this.Utf8ArrayToStr(character.html) }}},
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename)
 					result.push(actor);
 				}
 			} else {
-				actor = { 
+				let actor = {
 					name: topic.getAttribute('public_name'),
 					type: 'npc',
-					//folder: this.actor_folder.id
-					data: { details : { biography : { value : statblock }}}
-				};		
+					data: { details: { biography: { value: statblock }}}
+				};
 				result.push(actor);
 			}
-			
-		} else if (game.system.id === 'grpga') {
+			break;
+
+		case 'pf2e':
 			if (portfolio) {
-				for (let [charname, character] of portfolio) {
-					// TODO
-/*					if (character.xml) {
-						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
-						const actorlist = await GRPGAActor.createActorData(json.document.public.character);
-						for (let actor of actorlist) {
-							// Cater for MINIONS
-							let port = portfolio.get(actor.name);
-							actor.data.biography = this.Utf8ArrayToStr(port.html);
-							if (port?.imgfilename) actor.img = this.imageFilename(port.imgfilename);
-							result.push(actor);
-						}
-					}*/
-					actor.type = 'CharacterD20';	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
-					actor.data = { biography : this.Utf8ArrayToStr(character.html) };
-					if (character.imgfilename) actor.img = this.imageFilename(character.imgfilename);
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character', // Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+						data: { details: { biography: { value: this.Utf8ArrayToStr(character.html) }}},
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
 					result.push(actor);
 				}
 			} else {
-				actor = { 
+				let actor = {
 					name: topic.getAttribute('public_name'),
-					type: 'CharacterD20',	// Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+					type: 'character', // Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+					data: { details: { biography: { value: statblock }}},
+				};
+				result.push(actor);
+			}
+			break;
+
+		case 'grpga':
+			// GRPGA display raw HTML rather than formatted.
+			if (portfolio) {
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'CharacterD20', // Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+						data: { biography: this.Utf8ArrayToStr(character.html) },
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				let actor = {
+					name: topic.getAttribute('public_name'),
+					type: 'CharacterD20', // Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
+					data: { biography: statblock },
+				};
+				result.push(actor);
+			}
+			break;
+
+		case 'wfrp4e':
+			if (portfolio) {
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character', // character | npc | creature | vehicle
+						data: { details: { gmnotes: { value: this.Utf8ArrayToStr(character.html) }}},
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				let actor = {
+					name: topic.getAttribute('public_name'),
+					type: 'character', // character | npc | creature | vehicle
+					data: { details: { gmnotes: { value: statblock }}},
+				};
+				result.push(actor);
+			}
+			break;
+
+		case 'CoC7':
+			// CoC7 shows raw HTML code, not formatted
+			if (portfolio) {
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character', // character | npc | creature | vehicle
+						data: { biography: { personalDescription: { value: this.Utf8ArrayToStr(character.html) }}},
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				let actor = {
+					name: topic.getAttribute('public_name'),
+					type: 'character', // character | npc | creature | vehicle
+					data: { biography: { personalDescription: { value: statblock }}},
+				};
+				result.push(actor);
+			}
+			break;
+			
+		case 'swade':
+			if (portfolio) {
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character', // character | npc | vehicle
+						data: { details: { biography: { value: this.Utf8ArrayToStr(character.html) }}},
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				let actor = {
+					name: topic.getAttribute('public_name'),
+					type: 'character', // character | npc | vehicle
+					data: { details: { biography: { value: statblock }}}
+				};
+				result.push(actor);
+			}
+			break;
+		
+		case 'pbta':
+/*		
+			// Creates error "One of original or other are not Objects!"
+			if (portfolio) {
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character', // character | npc | other
+						data: { details: { biography: this.Utf8ArrayToStr(character.html) }},
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				let actor = {
+					name: topic.getAttribute('public_name'),
+					type: 'character', // character | npc | other
+					data: { details: { biography: statblock }},
+				};
+				result.push(actor);
+			}
+*/
+			break;
+
+		case 'alienrpg':
+			// Creates error "One of original or other are not Objects!"
+			if (portfolio) {
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character', // character | npc | other
+						data: { notes: this.Utf8ArrayToStr(character.html) },
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				let actor = {
+					name: topic.getAttribute('public_name'),
+					type: 'character', // character | npc | other
+					data: { notes: statblock },
+				};
+				result.push(actor);
+			}
+			break;
+
+		default:
+			// Attempt at a generic solution for other game systems
+			if (portfolio) {
+				for (let[charname, character]of portfolio) {
+					// TODO - XML conversion
+					let actor = {
+						name: character.name,
+						type: 'character', // character | npc | vehicle
+						data: {
+							// One of these might work
+							details: { biography: this.Utf8ArrayToStr(character.html) },
+							biography: { personalDescription: { value: this.Utf8ArrayToStr(character.html) }},
+						},
+					};
+					if (character.imgfilename)
+						actor.img = this.imageFilename(character.imgfilename);
+					result.push(actor);
+				}
+			} else {
+				let actor = {
+					name: topic.getAttribute('public_name'),
+					type: 'character', // character | npc | vehicle
 					//folder: this.actor_folder.id,
-					data: { biography : statblock }
-				};		
+					data: { 
+						details: { biography: statblock },
+						biography: { personalDescription: { value: statblock }},
+					}
+				};
 				result.push(actor);
 			}
-		}
+			break;
+		} // switch (game.system.id)
 
 		// If there is only more than one actor in the topic,
 		// or the name of the actor does NOT match the name of the topic,
@@ -1378,25 +1538,23 @@ class RealmWorksImporter extends Application
 		// HL PORTFOLIOS => ACTORS
 		//
 
-		if (game.system.id === 'pf1' || game.system.id === 'dnd5e' || game.system.id === 'grpga') {
-			if (game.system.id === 'pf1') {
-				await RWPF1Actor.initModule();
-			}
-
-			console.log('Finding Topics with Actors');
-			let actor_topics = this.getActorTopics(topics);
-			this.ui_message.val(`Generating ${actor_topics.length} Actors`);
-			console.log(`Generating actors from ${actor_topics.length} Topics`);
-
-			// Asynchronously get the data for all the actors,
-			// don't CREATE the Actors until we've had a chance to remove duplicates
-			// TODO: if actors.length > 1 then put them inside a folder named after the topic.
-			await Promise.allSettled(actor_topics.map(async(topic_node) =>
-					await this.formatActors(topic_node)
-					.then(async(actors) => await Actor.create(actors))
-					.catch(error => console.log(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))))
+		if (game.system.id === 'pf1') {
+			await RWPF1Actor.initModule();
 		}
-		
+
+		console.log('Finding Topics with Actors');
+		let actor_topics = this.getActorTopics(topics);
+		this.ui_message.val(`Generating ${actor_topics.length} Actors`);
+		console.log(`Generating actors from ${actor_topics.length} Topics`);
+
+		// Asynchronously get the data for all the actors,
+		// don't CREATE the Actors until we've had a chance to remove duplicates
+		// TODO: if actors.length > 1 then put them inside a folder named after the topic.
+		await Promise.allSettled(actor_topics.map(async(topic_node) =>
+				await this.formatActors(topic_node)
+				.then(async(actors) => await Actor.create(actors))
+				.catch(error => console.log(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))))
+
 		// AUDIO snippets => PLAYLISTS
 		this.ui_message.val(`Generating playlists`);
 		console.log(`Generating playlists`);
