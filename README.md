@@ -39,16 +39,16 @@ or if you're feeling really generous you could set up a regular contribution at 
 
 ## Changelog
 0.3.16 Attempt to create Actors regardless of the game system, putting the stat block in the Notes, Biography, or similar named section of the character sheet:
-pf1 - Formatted statblock put into Notes, and also attempts to populate other fields.
-pf2e - Formatted statblock put into Private Notes.
-dnd5e - Formatted statblock put into Biography.
-swade - Formatted statblock put into About/Biography.
-CoC7  - raw HTML of statblock put into biography/Personal Description.
-grpga - raw HTML of statblock put into Main/Notes.
-alienrpg - Formatted statblock put into Description.
-wfrp4e - HTML put into Details/GMNotes.
-pbta - generates an error when creating Actors (system-specific issue), so no Actors will be created.
-anything else - attempt to put into details/biography and biography/personalDescription.
+- pf1 - Formatted statblock put into Notes, and also attempts to populate other fields.
+- pf2e - Formatted statblock put into Private Notes.
+- dnd5e - Formatted statblock put into Biography.
+- swade - Formatted statblock put into About/Biography.
+- CoC7  - raw HTML of statblock put into biography/Personal Description.
+- grpga - raw HTML of statblock put into Main/Notes.
+- alienrpg - Formatted statblock put into Description.
+- wfrp4e - HTML put into Details/GMNotes.
+- pbta - generates an error when creating Actors (system-specific issue), so no Actors will be created.
+- anything else - attempt to put into details/biography and biography/personalDescription.
 
 0.3.15 Update README.md with extra information about Actors being placed into sub-folders.
 
