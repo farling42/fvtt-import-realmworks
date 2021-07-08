@@ -88,6 +88,8 @@ export class RWPF1Actor {
 		[ "Use Magic Device", "umd" ],
 	]);
 	
+	static wizard_subclasses = [ 'Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Evoker', 'Illusionist', 'Necromancer', 'Transmuter', 'Universalist' ];
+	
 	static async initModule() {
 		// full list of packs: classes, mythicpaths, commonbuffs
 		// spells, feats, items, armors-and-shields, weapons-and-ammo, racialhd
@@ -131,8 +133,7 @@ export class RWPF1Actor {
 		
 		let actor = {
 			name: character.name,
-			//type: (character.type == 'Hero') ? 'character' : 'npc',		// 'npc' or 'character'
-			type: (character.challengerating) ? 'npc' : 'character',		// 'npc' or 'character'
+			type: (character.role === 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
 			data: {
 				abilities: {},
 				attributes: {},
@@ -149,12 +150,12 @@ export class RWPF1Actor {
 		//
 
 		// data.attributes.hp.value/base/max/temp/nonlethal
-		let hp = +character.health.hitpoints;
+		//let hp = +character.health.hitpoints;
 		actor.data.attributes.hp = {
-			value: hp,
-			base:  hp,
+			value: +character.health.currenthp,
+			//base:  +character.health.hitpoints,		// This screws up PF1E if automatic HP calculation is enabled
 			min:   0,
-			max:   hp,
+			max:   +character.health.hitpoints,
 		};
 		// data.attributes.wounds.min/max/base/value
 		// data.attributes.vigor.min/value/temp/max/base
@@ -165,15 +166,15 @@ export class RWPF1Actor {
 			let cr = +character.challengerating.value;
 			actor.data.details.cr = { base: cr, total: cr };
 		}
-		if (character.xpaward) {
-			actor.data.details.xp = { value : +character.xpaward.value };
-		} else {	
+		if (character.role === 'pc') {
 			// data.details.xp.value/min/max
 			actor.data.details.xp = {
 				value: +character.xp.total,
 				min  : 0,
 				max  : +character.xp.total
 			};
+		} else {	
+			actor.data.details.xp = { value : +character.xpaward.value };
 		};
 		// data.details.height/weight/gender/deity/age
 		actor.data.details.height = character.personal.charheight.text;
@@ -182,6 +183,18 @@ export class RWPF1Actor {
 		actor.data.details.deity = character?.deity?.name;
 		actor.data.details.age = character.personal.age;
 
+		const hitdice = character.health.hitdice;		// either "9d8+16" or "12 HD; 7d6+5d10+67"
+		const hitpoints = +character.health.hitpoints;
+		let addpos = hitdice.lastIndexOf('+');
+		let hp_bonus = (addpos > 0) ? parseInt(hitdice.slice(addpos+1)) : 0;
+		let total_hd = parseInt(hitdice);
+		let classes_hd = parseInt(character.classes.level);
+		let races_hd  = total_hd - classes_hd;
+		
+		let remain_hp = hitpoints - hp_bonus;
+		let races_hp  = (races_hd > 0) ? Math.round(remain_hp * races_hd / total_hd) : 0;
+		let classes_hp = remain_hp - races_hp;
+		
 		//
 		// CLASSES sub-tab (before RACE, in case we need to adjust HD by number of class levels)
 		//
@@ -191,38 +204,66 @@ export class RWPF1Actor {
 		//		</class>
 		//		<class name="Rogue (Unchained)" level="9" spells="" casterlevel="0" concentrationcheck="+3" overcomespellresistance="+0" basespelldc="13" castersource=""/>
 		//	</classes>
-		let classlevels = 0;
+		//	<favoredclasses>
+		//		<favoredclass name="Rogue (Unchained)"/>  <-- to set fc.hp.value, fc.skill.value, fc.alt.value/notes
+		//	</favoredclasses>
+		let favclasses = [];
+		let charfav = character.favoredclasses?.favoredclass;
+		if (charfav) {
+			for (const fc of toArray(charfav)) {
+				favclasses.push(fc.name);
+			}
+		}
 		const classes = character.classes?.["class"];
 		if (classes) {
 			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
-			const feature_pack = await game.packs.find(p => p.metadata.name === 'classes');
+			//const feature_pack = await game.packs.find(p => p.metadata.name === 'class-abilities');
 			
 			for (const cclass of toArray(classes)) {
+				// Calculate how many class HP belong to this class; and remove from the pool.
+				let levels = +cclass.level;
+				let class_hp = Math.round((classes_hp * levels) / classes_hd);
+				classes_hp -= class_hp;
+				classes_hd -= levels;
+				
 				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
-				const name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
+				let name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
+				// Special case for wizard classes
+				if (this.wizard_subclasses.includes(name)) {
+					name = 'Wizard';
+				}
 				//console.log(`Looking for class called '${name}'`);
 				// Strip trailing (...)  from class.name
 				const entry = class_pack.index.find(e => e.name === name);
 				if (entry) {
-					let level = +cclass.level;
-					classlevels += level;					
-					
 					let classdata;
-					//console.log(`Class ${entry.name} at level ${cclass.level}`);
+					//console.log(`Class ${entry.name} at level ${cclass.levels}`);
 					if (isNewerVersion(game.data.version, "0.8.0"))
 						classdata = (await class_pack.getDocument(entry._id)).data.toObject();
 					else
 						classdata = await class_pack.getEntry(entry._id);
 
-					// Start by adding the class item with the correct number of levels
-					classdata.data.level = level;
+					// class.hp needs setting to the amount of HP gained from levelling in this class.
+					// class.fc needs setting for the favoured class with information as to how the point was spent.
+					// Do all NPCs really get the HP favoured class bonus on their stats?
+					if (favclasses.includes(cclass.name) || character.role === 'npc') {
+						// This is NOT a favoured class, so cancel any favoured class bonuses.
+						console.log(`Setting favoured class for ${cclass.name}`);
+						classdata.data.fc.hp.value = levels;
+						classdata.data.fc.skill.value = 0;
+						classdata.data.fc.alt.value = 0;
+					}
+					
+					// Start by adding the class item with the correct number of levels & HP
+					classdata.data.level = levels;
+					classdata.data.hp = class_hp;		// how do we work this out?
 					actor.items.push(classdata);
 					
 					// Now add all the class features up to the level of the class.
 					// See PF1._onLevelChange (triggered by updateItem and createItem, but not create()
 					const classAssociations = (classdata.data.links.classAssociations || []).filter((o, index) => {
 						o.__index = index;
-						return o.level <= level;
+						return o.level <= levels;
 					});
 
 					for (let co of classAssociations) {
@@ -244,10 +285,12 @@ export class RWPF1Actor {
 					const itemdata = {
 						name: cclass.name,
 						type: 'race',
-						data: { level : +cclass.level },
+						data: { 
+							level : levels,
+							hp    : class_hp,
+						},
 						//data: { description : { value : addParas(feat.description['#text']) }}
 					};
-					classlevels += itemdata.data.level;
 					if (isNewerVersion(game.data.version, "0.8.0"))
 						actor.items.push(itemdata);
 					else
@@ -282,18 +325,26 @@ export class RWPF1Actor {
 		}
 		// <types><type name="Humanoid" active="yes"/>
 		// <subtypes><subtype name="Human"/>
-		if (character.types.type && character.types.type.name != 'Humanoid') {
+		if (character.types.type) {
 			const racialhd_pack = await game.packs.find(p => p.metadata.name === 'racialhd');
 			const racehdlower = character.types.type.name.toLowerCase();
 			const racialhd = await racialhd_pack.index.find(e => e.name.toLowerCase() === racehdlower);
 			if (racialhd) {
 				if (isNewerVersion(game.data.version, "0.8.0")) {
 					let item = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
-					item.data.level = parseInt(character.health.hitdice) - classlevels;	// HD - read just leading digits
+					item.data.level = races_hd;
+					item.data.hp = races_hp;
+					if (races_hd == 0) {
+						item.data.skillsPerLevel = 0;
+						item.data.savingThrows.fort.value = "Low";
+						item.data.savingThrows.ref.value = "Low";
+						item.data.savingThrows.will.value = "Low";
+					}					
 					actor.items.push(item);
 				} else {
 					let item = await racialhd_pack.getEntry(racialhd._id);
-					item.data.level = parseInt(character.health.hitdice) - classlevels;	// HD - read just leading digits
+					item.data.level = races_hd;
+					item.data.hp = races_hp;
 					actor.items.push(item);
 				}
 			} else {
@@ -302,6 +353,7 @@ export class RWPF1Actor {
 					name: character.types.type.name,
 					type: 'class',
 					classType: 'racial',
+					hp : races_hp,
 					//data: { description : { value : addParas(character.racialhd.name['#text']) }}
 				};
 				if (isNewerVersion(game.data.version, "0.8.0"))
@@ -313,36 +365,38 @@ export class RWPF1Actor {
 		//
 		// ATTRIBUTES tab
 		//
+		// attrvalue.base is unmodified by magical items
+		// attrvalue.modified includes bonuses
 		for (const attr of character.attributes.attribute) {
 			actor.data.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
-				total: +attr.attrvalue.modified,
 				value: +attr.attrvalue.base,
-				mod:   attr.attrbonus?.base ? +attr.attrbonus.base : 0
 			}
 		}
 
-		actor.data.attributes.savingThrows = {};
+		// Saving Throws are calculated automatically
+/*		actor.data.attributes.savingThrows = {};
 		for (const child of character.saves.save) {
 			if (child.abbr == "Fort") {
 				actor.data.attributes.savingThrows.fort = {
-					base:  0, //+child.base,
-					total: +child.save,
+					base:  +child.fromresist, //+child.base,
+					//total: +child.save - +child.fromattr,
 					ability: "con"
 				};
 			} else if (child.abbr == "Ref") {
 				actor.data.attributes.savingThrows.ref = {
-					base:  0, //+child.base,
-					total: +child.save,
+					base:  +child.fromresist,
+					//total: +child.save - +child.fromattr,
 					ability: "dex"
 				};
 			} else if (child.abbr == "Will") {
 				actor.data.attributes.savingThrows.will = {
-					base:  0, //+child.base,
-					total: +child.save,
+					base:  +child.fromresist,
+					//total: +child.save - +child.fromattr,
 					ability: "wis"
 				};
 			}
 		};
+*/
 
 		// data.attributes.vision.lowLight/darkvision
 		actor.data.attributes.vision = {
@@ -420,7 +474,8 @@ export class RWPF1Actor {
 			total: +character.maneuvers.cmb,
 		}
 
-		actor.data.attributes.naturalAC = +character.armorclass.fromnatural;
+		// AC will be calculated automatically
+/*		actor.data.attributes.naturalAC = +character.armorclass.fromnatural;
 		actor.data.attributes.ac = {
 			normal: {
 				value: +character.armorclass.ac,
@@ -435,7 +490,7 @@ export class RWPF1Actor {
 				total: +character.armorclass.flatfooted
 			}
 		};
-
+*/
 
 		//
 		// INVENTORY tab
@@ -465,16 +520,31 @@ export class RWPF1Actor {
 		};
 
 		// gear.[item.name/quantity/weight/cost/description
-		if (character.gear?.item) {
+		let items = [];
+		if (character.gear?.item) items = items.concat(toArray(character.gear.item));
+		if (character.magicitems?.item) items = items.concat(toArray(character.magicitems.item));
+		
+		if (items.length > 0) {
+			// Core System compendiums
 			const item_pack   = await game.packs.find(p => p.metadata.name === 'items');
 			const armor_pack  = await game.packs.find(p => p.metadata.name === 'armors-and-shields');
 			const weapon_pack = await game.packs.find(p => p.metadata.name === 'weapons-and-ammo');
 			let packs = [ item_pack,armor_pack,weapon_pack ];
+			// PF1 Content compendiums
+			const pg_magic_pack = await game.packs.find(p => p.metadata.name === 'pf-magic');
+			if (pg_magic_pack) packs.push(pg_magic_pack);
+			const pg_items_pack = await game.packs.find(p => p.metadata.name === 'pf-items');
+			if (pg_items_pack) packs.push(pg_items_pack);
+			const wondrous_pack = await game.packs.find(p => p.metadata.name === 'pf-wondrous');
+			if (wondrous_pack) packs.push(wondrous_pack);
+			const goods_services_pack = await game.packs.find(p => p.metadata.name === 'pf-goods-services');
+			if (goods_services_pack) packs.push(goods_services_pack);
 			
-			for (const item of toArray(character.gear.item)) {
+			
+			for (const item of items) {
 				// Get all forms of item's name once, since we search each pack.
 				let lower = item.name.toLowerCase();
-				let singular, reversed, pack, entry;
+				let singular, reversed, pack, entry, noparen;
 				// Remove container "(x @ y lbs)"
 				if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)')))
 					lower = lower.slice(0,lower.lastIndexOf(' ('));
@@ -483,13 +553,19 @@ export class RWPF1Actor {
 				// Handle names like "bear trap" => "trap, bear"
 				const words = lower.split(' ');
 				if (words.length == 2) reversed = words[1] + ', ' + words[0];
+				// Handle "Something (else)" -> "Something, else"
+				if (lower.endsWith(')')) {
+					let pos = lower.lastIndexOf(' (');
+					noparen = lower.slice(0,pos) + ', ' + lower.slice(pos+2,-1);
+				}
+				
 				// Finally, some name changes aren't simple re-mappings
 				if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
 				
 				for (const p of packs) {
 					entry = p.index.find(e => {	
 						const elc = e.name.toLowerCase(); 
-						return elc === lower || (singular && elc === singular) || (reversed && elc === reversed)
+						return elc === lower || (singular && elc === singular) || (reversed && elc === reversed) || (noparen && elc === noparen)
 					});
 					if (entry) {
 						pack = p;
@@ -540,13 +616,13 @@ export class RWPF1Actor {
 		for (const skill of character.skills.skill) {
 			// <skill name="Acrobatics" ranks="5" attrbonus="5" attrname="DEX" value="10" armorcheck="yes" classskill="yes" trainedonly="yes" usable="no" tools="uses|needs">
 			let value = {
-				value:   +skill.value,
+				//value:   +skill.value,
 				ability: RWPF1Actor.ability_names[skill.attrname.toLowerCase()],
-				rank:    +skill.ranks,
-				mod:     +skill.attrbonus,
-				acp:     (skill.armorcheck  === 'yes'),
 				rt:      (skill.trainedonly === 'yes'),
-				cs:      (skill.classskill  === 'yes'),		// overridden by class definitions
+				acp:     (skill.armorcheck  === 'yes'),
+				rank:    +skill.ranks,
+				//mod:     +skill.attrbonus,
+				//cs:      (skill.classskill  === 'yes'),		// overridden by class definitions
 				// rt, acp, background
 			}
 			if (!value.ability) {
