@@ -1268,8 +1268,8 @@ class RealmWorksImporter extends Application
 					// Minion will have ITS data in a different place in the portfolio.
 					let port = portfolio.get(actordata.name);
 					
-					// Store the raw statblock
-					actordata.data = this.actor_data_func(this.Utf8ArrayToStr(port.html));
+					// Store the raw statblock (but don't overwrite the rest of data)
+					actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
 					actordata.folder = actor_folder_id;
 					if (port.imgfilename) {
 						// If we don't "await", then Actor.create will fail since the image doesn't exist
