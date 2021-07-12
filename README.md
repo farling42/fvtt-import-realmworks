@@ -38,6 +38,9 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.17 Faster handling of import of data of lots of Actors for different game systems.
+Improve PF1 actor creation, especially regarding HP calculation.
+
 0.3.16 Attempt to create Actors regardless of the game system, putting the stat block in the Notes, Biography, or similar named section of the character sheet:
 - pf1 - Formatted statblock put into Notes, and also attempts to populate other fields.
 - pf2e - Formatted statblock put into Private Notes.
