@@ -1269,7 +1269,11 @@ class RealmWorksImporter extends Application
 					let port = portfolio.get(actordata.name);
 					
 					// Store the raw statblock (but don't overwrite the rest of data)
-					actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
+					if (isNewerVersion(game.data.version, "0.8.0"))
+						actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
+					else
+						actordata.data = mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
+					
 					actordata.folder = actor_folder_id;
 					if (port.imgfilename) {
 						// If we don't "await", then Actor.create will fail since the image doesn't exist

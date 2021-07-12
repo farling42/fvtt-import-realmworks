@@ -217,7 +217,6 @@ export class RWPF1Actor {
 		const classes = character.classes?.["class"];
 		if (classes) {
 			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
-			//const feature_pack = await game.packs.find(p => p.metadata.name === 'class-abilities');
 			
 			for (const cclass of toArray(classes)) {
 				// Calculate how many class HP belong to this class; and remove from the pool.
