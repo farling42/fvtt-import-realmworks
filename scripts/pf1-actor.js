@@ -131,9 +131,10 @@ export class RWPF1Actor {
 			return (!thing || Array.isArray(thing)) ? thing : [thing];
 		}
 		
+		// A HL file will have EITHER <xp> or <challengerating> & <xpaward>
 		let actor = {
 			name: character.name,
-			type: (character.role === 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
+			type: (character.challengerating === undefined) ? 'character' : 'npc',		// 'npc' or 'character'
 			data: {
 				abilities: {},
 				attributes: {},
@@ -143,7 +144,6 @@ export class RWPF1Actor {
 			},
 			items: []		// add items with :   items.push(new Item(itemdata).data)
 		};
-
 
 		//
 		// SUMMARY tab
@@ -162,18 +162,16 @@ export class RWPF1Actor {
 		// data.attributes.woundThresholds.penalty/mod/level/override
 
 		// data.details.cr.base/total
-		if (character.challengerating) {
-			let cr = +character.challengerating.value;
-			actor.data.details.cr = { base: cr, total: cr };
-		}
-		if (character.role === 'pc') {
+		if (character.challengerating === undefined) {
 			// data.details.xp.value/min/max
 			actor.data.details.xp = {
 				value: +character.xp.total,
 				min  : 0,
 				max  : +character.xp.total
 			};
-		} else {	
+		} else {
+			let cr = +character.challengerating.value;
+			actor.data.details.cr = { base: cr, total: cr };
 			actor.data.details.xp = { value : +character.xpaward.value };
 		};
 		// data.details.height/weight/gender/deity/age
@@ -183,11 +181,18 @@ export class RWPF1Actor {
 		actor.data.details.deity = character?.deity?.name;
 		actor.data.details.age = character.personal.age;
 
-		const hitdice = character.health.hitdice;		// either "9d8+16" or "12 HD; 7d6+5d10+67"
 		const hitpoints = +character.health.hitpoints;
-		let addpos = hitdice.lastIndexOf('+');
-		let hp_bonus = (addpos > 0) ? parseInt(hitdice.slice(addpos+1)) : 0;
-		let total_hd = parseInt(hitdice);
+		// Ignore any possible "12 HD;" prefix, putting just the second half into justdice
+		// Calculate total number of HD for the character
+		const hitdice = character.health.hitdice;		// either "9d8+16" or "12 HD; 7d6+5d10+67" or just "7d6+5d10+67"
+		let t1 = hitdice.split(';');
+		let justdice = t1[t1.length - 1];
+		let hdparts = justdice.split('+');
+		let lastpart = hdparts[hdparts.length - 1];
+		let hp_bonus = lastpart.includes('d') ? 0 : parseInt(lastpart);
+		let total_hd = 0;
+		for (let i = 0; i<hdparts.length-1; i++)
+			total_hd += parseInt(hdparts[i]);
 		let classes_hd = parseInt(character.classes.level);
 		let races_hd  = total_hd - classes_hd;
 		
