@@ -214,6 +214,11 @@ class RealmWorksImporter extends Application
 				this.actor_data_func = function(html) { return { biography: html } };
 				break;
 			
+			case 'cyphersystem':
+				this.actor_type = 'PC'; // or 'NPC' or 'Companion'
+				this.actor_data_func = function(html) { return { basic: { notes: html }} };
+				break;
+			
 			default:
 				this.actor_type = 'character';
 				//this.actor_data_func = function(html) { return { details: { biography: { value: html }} };
@@ -1256,7 +1261,7 @@ class RealmWorksImporter extends Application
 		// Upload images (if any)
 		for (let [charname, character] of portfolio) {
 			// no XML means it is a MINION, and has been created from the XML of another character.
-			if (character.xml) {
+			if (character.xml && game.system.id === 'pf1') {
 				const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
 				const actorlist = 
 					(game.system.id === 'pf1') ? await RWPF1Actor.createActorData(json.document.public.character) :
@@ -1286,6 +1291,17 @@ class RealmWorksImporter extends Application
 					//if (existing) await existing.delete();
 					actors.push(actordata);
 				}
+			} else if (character.html) {
+				// Not supported for system-specific actor creation, so just put in the HTML
+				let actordata = {
+					name: character.name,
+					type: this.actor_type,
+					data: this.actor_data_func(this.Utf8ArrayToStr(character.html)),
+					folder: actor_folder_id,
+				};
+				if (character.imgfilename)
+					actordata.img = this.imageFilename(character.imgfilename)
+				actors.push(actordata);
 			}
 		}
 		if (actors.length > 0) await Actor.create(actors)
