@@ -38,6 +38,9 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.18 Put HTML in correct place for worlds using the Cypher system (cyphersystem).
+When importing a Hero Lab .por file, store just the HTML if the tool doesn't support full Actor creation.
+
 0.3.17 Faster handling of import of data of lots of Actors for different game systems.
 Improve PF1 actor creation, especially regarding HP calculation.
 
