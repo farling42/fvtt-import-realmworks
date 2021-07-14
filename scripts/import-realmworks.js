@@ -30,6 +30,7 @@ const GS_FOLDER_NAME = "folderName";
 const GS_DELETE_OLD_FOLDERS = "deleteOldFolders";
 const GS_UPDATE_EXISTING = "updateExisting";
 const GS_ASSETS_LOCATION = "assetsLocation";
+const GS_ACTOR_TYPE = "actorType";
 
 //
 // Register game settings
@@ -44,6 +45,20 @@ Hooks.once('init', () => {
 		type:  String,
 		default: 'worlds/' + (isNewerVersion(game.data.version, "0.8.0") ? game.world.data.name : game.world.name) + '/realmworksimport',
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
+		config: true,
+	});
+	let actors = {};
+	for (let label of game.system.entityTypes.Actor) {
+		actors[label] = label
+	}
+	// Get the list of Actor choices Actor.types[] system/template.json
+    game.settings.register(GS_MODULE_NAME, GS_ACTOR_TYPE, {
+		name: "Default Actor Type",
+		hint: "When a statblock is encountered in the RW/HL file, an Actor of this type will be created",
+		scope: "world",
+		type:  String,
+		choices: actors,
+		default: game.system.entityTypes.Actor[0],
 		config: true,
 	});
 /*	
@@ -161,67 +176,59 @@ class RealmWorksImporter extends Application
 			}
 			
 			// Set the correct function to use based on the game system
+			this.actor_type = game.settings.get(GS_MODULE_NAME, GS_ACTOR_TYPE);
 			switch (game.system.id) {
 			case 'pf1':
-				this.actor_type = 'character';
 				this.actor_data_func = function(html) { return { details: { notes: { value: html }}} };
 				break;
 
 			case 'dnd5e':
-				this.actor_type = 'character';
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
 				break;
 				
 			case 'pf2e':
-				this.actor_type = 'character';
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
 				break;
 				
 			case 'grpga':
-				this.actor_type = 'CharacterD20'; // Character3D6 | CharacterVsD | CharacterD100 | CharacterOaTS | CharacterD20
 				this.actor_data_func = function(html) { return { biography: html }};
 				break;
 				
 			case 'wfrp4e':
-				this.actor_type = 'character';
-				this.actor_data_func = function(html) { return { details: { gmnotes: { value: html }}} };
+				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
 				break;
 				
 			case 'CoC7':
 				// CoC7 shows raw HTML code, not formatted
-				this.actor_type = 'character'; // character | npc | creature | vehicle
 				this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
 				break;
 				
 			case 'swade':
-				this.actor_type = 'character'; // character | npc | vehicle
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
 				break;
 				
 			case 'pbta':
 				// Creates error "One of original or other are not Objects!"
-				this.actor_type = 'character'; // character | npc | other
 				this.actor_data_func = function(html) { return { details: { biography: html }} };
 				break;
 
 			case 'alienrpg':
-				this.actor_type = 'character'; // character | npc | other
+				// This system doesn't have a biography/notes section on the Actor sheet
 				this.actor_data_func = function(html) { return { notes: html } };
 				break;
 				
 			case 'worldbuilding':
-				this.actor_type = 'character';
 				this.actor_data_func = function(html) { return { biography: html } };
 				break;
 			
 			case 'cyphersystem':
-				this.actor_type = 'PC'; // or 'NPC' or 'Companion'
-				this.actor_data_func = function(html) { return { basic: { notes: html }} };
+				if (this.actor_type === 'PC')
+					this.actor_data_func = function(html) { return { basic: { notes: html }} };
+				else
+					this.actor_data_func = function(html) { return { description: html } };
 				break;
 			
 			default:
-				this.actor_type = 'character';
-				//this.actor_data_func = function(html) { return { details: { biography: { value: html }} };
 				this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
 				break;
 			} // switch (game.system.id)
