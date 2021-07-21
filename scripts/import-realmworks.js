@@ -333,16 +333,23 @@ class RealmWorksImporter extends Application
 				}
 			}
 			// Collect parent information
-			let parents = new Map();
+			let parent_map = new Map();
+			let child_map = new Map();
 			for (let topic of topic_nodes) {
 				let parent_id = topic.getAttribute('topic_id');
 				for (let child of topic.getElementsByTagName('topicchild')) {
-					parents.set(child.getAttribute('topic_id'), parent_id);
+					const child_id = child.getAttribute('topic_id');
+					parent_map.set(child_id, parent_id);
+					if (!child_map.has(parent_id))
+						child_map.set(parent_id, [child_id]);
+					else
+						child_map.get(parent_id).push(child_id);	// append to end of array
 				}
 			}
+			
 			// Do the actual work!
-			console.log(`Found ${topic_nodes.length} topics and ${parents.size} parents`);
-			await this.parseXML(topic_nodes, parents);
+			console.log(`Found ${topic_nodes.length} topics and ${parent_map.size} parents`);
+			await this.parseXML(topic_nodes, parent_map, child_map);
 			
 			console.log('******  Finished  ******');
 			this.ui_message.val('--- Finished ---');
@@ -908,8 +915,8 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async formatOneTopic(topic, parent_id) {
-		//console.log(`Formatting topic '${topic.getAttribute("public_name")}' with parent ${parent_id}`);
+	async formatOneTopic(topic, child_map, parent_id) {
+		//console.log(`formatOneTopic('${topic.getAttribute("public_name")}', ${child_map}, ${parent_id}`);
 
 		// Extract only the links that we know are in this topic (if any).
 		// Collect linkage children and create an alias/title-to-topic map:
@@ -933,6 +940,16 @@ class RealmWorksImporter extends Application
 		let html = "";
 		if (parent_id) {
 			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.topic_names.get(parent_id)) + '</p>';
+		}
+		
+		let functhis = this;
+		function addDescendents(top_id) {
+			let result = "";
+			if (!child_map.has(top_id)) return result;
+			for (const child_id of child_map.get(top_id)) {
+				result += '<li>' + functhis.formatLink(child_id, functhis.topic_names.get(child_id)) + addDescendents(child_id) + '</li>';
+			}
+			return `<ul>${result}</ul>`;
 		}
 		
 		// Generate the HTML for the sections within the topic
@@ -959,7 +976,7 @@ class RealmWorksImporter extends Application
 					html += '<h1>Governed Content</h1><ul>';
 					has_child_topics = true;
 				}
-				html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}</li>`;
+				html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}${addDescendents(node.getAttribute("topic_id"))}</li>`;
 				break;
 			case 'linkage':
 				switch (node.getAttribute('direction')) {
@@ -1343,7 +1360,7 @@ class RealmWorksImporter extends Application
 	// Parse the entire Realm Works file supplied in 'xmlString'
 	// and extract each element into relevant areas of the world DB
 	//
-	async parseXML(topics, parent_map)
+	async parseXML(topics, parent_map, child_map)
 	{
 		let category_names = new Set();
 		for (const topic of topics)  {
@@ -1422,7 +1439,7 @@ class RealmWorksImporter extends Application
 		this.ui_message.val(`Generating ${topics.length} journal contents`);
 		console.log(`Generating ${topics.length} journal contents`);
 		await Promise.allSettled(topics.map(async(topic_node) =>
-				await this.formatOneTopic(topic_node, parent_map.get(topic_node.getAttribute('topic_id')))
+				await this.formatOneTopic(topic_node, child_map, parent_map.get(topic_node.getAttribute('topic_id')))
 				.then(async(topic) => {
 					if (isNewerVersion(game.data.version, "0.8.0"))
 						await JournalEntry.updateDocuments([topic]).catch(p => console.log(`Update JE failed for '${topic.name}':\n${p}`));
