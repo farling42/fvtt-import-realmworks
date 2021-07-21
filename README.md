@@ -38,6 +38,9 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.20 The "Governed Content" will now contain the full hierarchy of descendents rather than only the direct children.
+Provide link from Scene Notes journal entry back to the Scene.
+
 0.3.19 Add module configuration setting to set the preferred Actor type when generating Actors from statblocks.
 When decoding PF1 Actors, check for presence of "challengerating" element to choose 'npc' Actor type instead of 'character'.
 Better fix for HP calculation of PF1 Actors for Actors with multiple types of hit dice.

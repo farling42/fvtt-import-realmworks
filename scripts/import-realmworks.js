@@ -463,7 +463,7 @@ class RealmWorksImporter extends Application
 	}
 
 	// Convert a Smart_Image into a scene
-	async createScene(topic, smart_image) {
+	async createScene(topic_id, smart_image) {
 		//<snippet facet_name="Map" type="Smart_Image" search_text="">
 		//  <smart_image name="Map">
 		//    <asset filename="n5uvmpam.eb4.png">
@@ -481,8 +481,7 @@ class RealmWorksImporter extends Application
 		if (!filename) throw('<smart_image><asset> is missing filename attribute');
 		
 		// Name comes from topic name + facet_name
-		const scenename = topic.getAttribute('public_name') + ':' + smart_image.getAttribute('name');
-		const topic_id  = topic.getAttribute('topic_id');
+		const scenename = this.topic_names.get(topic_id) + ':' + smart_image.getAttribute('name');
 		//console.log(`smart_image: scene name = ${scenename} from topic_id ${topic_id}`);
 	
 		// Firstly, put the file into the files area.
@@ -561,6 +560,7 @@ class RealmWorksImporter extends Application
 		}
 		this.ui_message.val(`Created scene ${scenename}`);
 		//console.log(`Created scene ${scenename}`);
+		return isNewerVersion(game.data.version, "0.8.0") ? scene.id : scene._id;
 	}
 		
 	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
@@ -667,7 +667,7 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW section
 	//
-	async writeSection(section, level, linkage_names) {
+	async writeSection(this_topic_id, section, level, linkage_names) {
 
 		// We can't access "this" inside the replaceLinks function
 		let functhis = this;
@@ -706,7 +706,7 @@ class RealmWorksImporter extends Application
 			switch (child.nodeName) {
 			case 'section':
 				// Subsections increase the HEADING number
-				result += await this.writeSection(child, level+1, linkage_names);
+				result += await this.writeSection(this_topic_id, child, level+1, linkage_names);
 				break;
 				
 			case 'snippet':
@@ -886,6 +886,10 @@ class RealmWorksImporter extends Application
 						//result += `<p><img src="data:image/${map_format};base64,${map_contents.textContent}"></img></p>`;
 						await this.uploadFile(map_filename, map_contents.textContent);
 						result += `<p><img src='${this.imageFilename(map_filename)}'></img></p>`;
+
+						// Create the scene now
+						const sceneid = await this.createScene(this_topic_id, smart_image).catch(e => console.log(`Failed to create scene for ${topic.name} due to ${e}`));
+						result += `<p>@Scene[${sceneid}]{${smart_image.getAttribute('name')}}</p>`;
 					}
 					break;
 				case "tag_assign":
@@ -965,7 +969,7 @@ class RealmWorksImporter extends Application
 				html += `<p><b>Alias: </b><i>${node.getAttribute('name')}</i></p>`;
 				break;
 			case 'section':
-				html += await this.writeSection(node, 1, linkage_names); // Start with H1
+				html += await this.writeSection(this_topic_id, node, 1, linkage_names); // Start with H1
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1032,19 +1036,6 @@ class RealmWorksImporter extends Application
 			html += '</p>';
 		}
 
-		// Create all the scenes for this topic now
-		let scenethis = this;
-		async function createScenes(node) {
-			for (const child of node.children) {
-				if (child.nodeName === 'smart_image') {
-					await scenethis.createScene.call(scenethis, topic, child).catch(e => console.log(`Failed to create scene for ${topic.name} due to ${e}`));
-				} else if (child.nodeName !== 'topic' && child.children.length > 0) {
-					await createScenes(child);
-				}
-			}
-		}
-		await createScenes(topic);
-		
 		// Full title might have prefix and suffix
 		let journaltitle = topic.getAttribute("public_name");
 		let prefix = topic.getAttribute('prefix');
