@@ -31,6 +31,7 @@ const GS_DELETE_OLD_FOLDERS = "deleteOldFolders";
 const GS_UPDATE_EXISTING = "updateExisting";
 const GS_ASSETS_LOCATION = "assetsLocation";
 const GS_ACTOR_TYPE = "actorType";
+const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
 
 //
 // Register game settings
@@ -59,6 +60,14 @@ Hooks.once('init', () => {
 		type:  String,
 		choices: actors,
 		default: game.system.entityTypes.Actor[0],
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL, {
+		name: "Governing Content Label",
+		hint: "The label to appear to identify the link to a parent Journal Entry",
+		scope: "world",
+		type:  String,
+		default: 'Governing Content: ',
 		config: true,
 	});
 /*	
@@ -177,6 +186,7 @@ class RealmWorksImporter extends Application
 			
 			// Set the correct function to use based on the game system
 			this.actor_type = game.settings.get(GS_MODULE_NAME, GS_ACTOR_TYPE);
+			this.governing_content_label = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
 			switch (game.system.id) {
 			case 'pf1':
 				this.actor_data_func = function(html) { return { details: { notes: { value: html }}} };
@@ -322,9 +332,17 @@ class RealmWorksImporter extends Application
 					}
 				}
 			}
+			// Collect parent information
+			let parents = new Map();
+			for (let topic of topic_nodes) {
+				let parent_id = topic.getAttribute('topic_id');
+				for (let child of topic.getElementsByTagName('topicchild')) {
+					parents.set(child.getAttribute('topic_id'), parent_id);
+				}
+			}
 			// Do the actual work!
-			console.log(`Found ${topic_nodes.length} topics`);
-			await this.parseXML(topic_nodes);
+			console.log(`Found ${topic_nodes.length} topics and ${parents.size} parents`);
+			await this.parseXML(topic_nodes, parents);
 			
 			console.log('******  Finished  ******');
 			this.ui_message.val('--- Finished ---');
@@ -890,8 +908,8 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async formatOneTopic(topic) {
-		//console.log(`Formatting topic '${topic.getAttribute("public_name")}'`);
+	async formatOneTopic(topic, parent_id) {
+		//console.log(`Formatting topic '${topic.getAttribute("public_name")}' with parent ${parent_id}`);
 
 		// Extract only the links that we know are in this topic (if any).
 		// Collect linkage children and create an alias/title-to-topic map:
@@ -911,8 +929,13 @@ class RealmWorksImporter extends Application
 		if (this.topic_names.has(this_topic_id)) {
 			linkage_names.set(this_topic_id, this.topic_names.get(this_topic_id));
 		}
-		// Generate the HTML for the sections within the topic
+		// Start the HTML with a link to the parent (if known)
 		let html = "";
+		if (parent_id) {
+			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.topic_names.get(parent_id)) + '</p>';
+		}
+		
+		// Generate the HTML for the sections within the topic
 		let inbound = [];
 		let outbound = [];
 		let both = [];
@@ -1320,7 +1343,7 @@ class RealmWorksImporter extends Application
 	// Parse the entire Realm Works file supplied in 'xmlString'
 	// and extract each element into relevant areas of the world DB
 	//
-	async parseXML(topics)
+	async parseXML(topics, parent_map)
 	{
 		let category_names = new Set();
 		for (const topic of topics)  {
@@ -1399,7 +1422,7 @@ class RealmWorksImporter extends Application
 		this.ui_message.val(`Generating ${topics.length} journal contents`);
 		console.log(`Generating ${topics.length} journal contents`);
 		await Promise.allSettled(topics.map(async(topic_node) =>
-				await this.formatOneTopic(topic_node)
+				await this.formatOneTopic(topic_node, parent_map.get(topic_node.getAttribute('topic_id')))
 				.then(async(topic) => {
 					if (isNewerVersion(game.data.version, "0.8.0"))
 						await JournalEntry.updateDocuments([topic]).catch(p => console.log(`Update JE failed for '${topic.name}':\n${p}`));
