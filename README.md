@@ -38,6 +38,8 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.21 Provide a configuration setting to specify the maximum depth of content to display in the Governed Content section of journal entries.
+
 0.3.20 The "Governed Content" will now contain the full hierarchy of descendents rather than only the direct children.
 Provide link from Scene Notes journal entry back to the Scene.
 
