@@ -32,6 +32,7 @@ const GS_UPDATE_EXISTING = "updateExisting";
 const GS_ASSETS_LOCATION = "assetsLocation";
 const GS_ACTOR_TYPE = "actorType";
 const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
+const GS_GOVERNED_MAX_DEPTH = "governingMaxDepth";
 
 //
 // Register game settings
@@ -68,6 +69,14 @@ Hooks.once('init', () => {
 		scope: "world",
 		type:  String,
 		default: 'Governing Content: ',
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH, {
+		name: "Max Depth for Governing Content",
+		hint: "The maximum depth of ancestors to be displayed in a journal entry's governed content hierarchy (0 = do not include governed content",
+		scope: "world",
+		type:  Number,
+		default: 99,
 		config: true,
 	});
 /*	
@@ -187,6 +196,8 @@ class RealmWorksImporter extends Application
 			// Set the correct function to use based on the game system
 			this.actor_type = game.settings.get(GS_MODULE_NAME, GS_ACTOR_TYPE);
 			this.governing_content_label = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
+			this.governed_max_depth = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
+			
 			switch (game.system.id) {
 			case 'pf1':
 				this.actor_data_func = function(html) { return { details: { notes: { value: html }}} };
@@ -947,11 +958,11 @@ class RealmWorksImporter extends Application
 		}
 		
 		let functhis = this;
-		function addDescendents(top_id) {
+		function addDescendents(depth, top_id) {
 			let result = "";
-			if (!child_map.has(top_id)) return result;
+			if (depth < 1 || !child_map.has(top_id)) return result;
 			for (const child_id of child_map.get(top_id)) {
-				result += '<li>' + functhis.formatLink(child_id, functhis.topic_names.get(child_id)) + addDescendents(child_id) + '</li>';
+				result += '<li>' + functhis.formatLink(child_id, functhis.topic_names.get(child_id)) + addDescendents(depth-1, child_id) + '</li>';
 			}
 			return `<ul>${result}</ul>`;
 		}
@@ -976,11 +987,13 @@ class RealmWorksImporter extends Application
 				// No need to handle nested topics, since we found all of them at the start.
 				// Put link to child topic in original topic
 				// N.B. topicchild elements are added when parsing a LARGE file
-				if (!has_child_topics) {
-					html += '<h1>Governed Content</h1><ul>';
-					has_child_topics = true;
+				if (this.governed_max_depth > 0) {
+					if (!has_child_topics) {
+						html += '<h1>Governed Content</h1><ul>';
+						has_child_topics = true;
+					}
+					html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}${addDescendents(this.governed_max_depth-1, node.getAttribute("topic_id"))}</li>`;
 				}
-				html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}${addDescendents(node.getAttribute("topic_id"))}</li>`;
 				break;
 			case 'linkage':
 				switch (node.getAttribute('direction')) {
