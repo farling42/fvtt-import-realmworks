@@ -20,7 +20,6 @@ Press the IMPORT button at the bottom of the window and wait for the contents to
 
 New folders will be created in the Scenes, Actors, Journal and Playlist sections containing the imported data.
 
-
 Each *Smart_Image* is converted into a scene, with map pins and scene notes connected to the relevant journal entries.
 
 Each *Topic* will be converted into a separate Journal Entry, placed in a sub-folder based on the Category of the topic.
@@ -33,11 +32,19 @@ Each *HL portfolio* will be extracted and Actors created for each character in t
 
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
+## Libraries
+This module uses the following libraries from other sources:
+- UZIP for decoding HL portfolio files (MIT/GPLv3 license, from https://stuk.github.io/jszip/)
+- JIMP for converting TIF and BMP images to PNG (MIT license, from https://github.com/oliver-moran/jimp)
+- DirectoryPicker to allow assset files to be stored in S3 rather than just the local 'user data' area (MIT license, from https://github.com/MrPrimate/ddb-importer)
+
 ## Support
 If you like what it does, then all contributions will be gratefully received at [Kofi](https://ko-fi.com/farling) or [Paypal](https://paypal.me/farling)
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.3.22 Use DirectoryPicker from dnd-importer to allow asset files to be stored in S3 storage instead of only in the 'data' area.
+
 0.3.21 Provide a configuration setting to specify the maximum depth of content to display in the Governed Content section of journal entries.
 
 0.3.20 The "Governed Content" will now contain the full hierarchy of descendents rather than only the direct children.
