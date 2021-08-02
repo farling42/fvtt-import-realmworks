@@ -20,8 +20,8 @@
 
 import "./UZIP.js";
 import { RWPF1Actor } from "./pf1-actor.js";
-//import DirectoryPicker from "../../lib/DirectoryPicker.js";
 import "./jimp.js";
+import { DirectoryPicker } from "./DirectoryPicker.js";
 
 const GS_MODULE_NAME = "realm-works-import";
 const GS_CREATE_INBOUND_LINKS = "createInboundLinks";
@@ -44,8 +44,8 @@ Hooks.once('init', () => {
 		name: "Location of Extracted Assets",
 		hint: "Folder within [User Data] area where assets (e.g. sounds, PDFs, videos) embedded in the RWoutput file will be placed.",
 		scope: "world",
-		type:  String,
-		default: 'worlds/' + (isNewerVersion(game.data.version, "0.8.0") ? game.world.data.name : game.world.name) + '/realmworksimport',
+		type:  DirectoryPicker.Directory,
+		default: '[data] worlds/' + (isNewerVersion(game.data.version, "0.8.0") ? game.world.data.name : game.world.name) + '/realmworksimport',
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
 		config: true,
 	});
@@ -262,8 +262,14 @@ class RealmWorksImporter extends Application
 			//game.settings.set(GS_MODULE_NAME, GS_UPDATE_EXISTING, ); // not implemented yet
 			
 			// Where image files should be stored...
-			this.filedirectory = game.settings.get(GS_MODULE_NAME, GS_ASSETS_LOCATION);		// no trailing "/"
-			this.filesource = 'data';	// or 'core' or 's3'
+			this.asset_directory = game.settings.get(GS_MODULE_NAME, GS_ASSETS_LOCATION);		// no trailing "/"
+			const options = DirectoryPicker.parse(this.asset_directory);
+			// Create the prefix when referencing the location of uploaded files
+			if (options.activeSource === 's3')
+				this.asset_url = game.data.files.s3.endpoint.protocol + '//' + options.bucket + '.' +
+					game.data.files.s3.endpoint.hostname + '/' + options.current + '/';
+			else
+				this.asset_url = options.current + '/';
 			
 			// Try to load the file
 			let fileinput = html.find('[name=rwoutputFile]')?.[0];
@@ -451,10 +457,10 @@ class RealmWorksImporter extends Application
 	}
 	
 	imageFilename(filename) {
-		return this.filedirectory + '/' + this.validfilename(filename);
+		return this.asset_url + this.validfilename(filename);
 	}
 
-	// Upload the specified binary data to a file in this.filedirectory
+	// Upload the specified binary data to a file in this.asset_directory
 	async uploadBinaryFile(filename, srcdata) {
 		let data = srcdata;
 		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.tiff'))
@@ -463,12 +469,12 @@ class RealmWorksImporter extends Application
 		}
 		// data = base64 string
 		const file = new File([data], this.validfilename(filename));
-		await FilePicker.upload(this.filesource, this.filedirectory, file)
+		await DirectoryPicker.uploadToPath(this.asset_directory, file)
 			//.then(console.log(`Uploaded file ${filename}`))
 			.catch(e => console.log(`Failed to upload ${filename}: ${e}`));
 	}
 
-	// Convert a string in base64 format into binary and upload to this.filedirectory,
+	// Convert a string in base64 format into binary and upload to this.asset_directory,
 	async uploadFile(filename, base64) {
 		await this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
@@ -1303,8 +1309,9 @@ class RealmWorksImporter extends Application
 		let actor_folder_id = (await this.getFolder(this.folderName, 'Actor')).id;
 		
 		// Create the image folder if it doesn't already exist.
-		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData())
-			.catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
+		const options = DirectoryPicker.parse(this.asset_directory);
+		await FilePicker.createDirectory(options.activeSource, options.current, new FormData())
+			.catch(e => `Creating folder '${this.asset_directory}' failed due to ${e}`);
 
 		if (!this.parser) this.parser = new DOMParser();
 		let portfolio = this.readPortfolio(new Uint8Array(data));
@@ -1397,8 +1404,9 @@ class RealmWorksImporter extends Application
 				.catch(err => `Failed to create Journal folder for ${category_name} due to ${err}`);
 		}
 		// Create the image folder if it doesn't already exist.
-		await FilePicker.createDirectory(this.filesource, this.filedirectory, new FormData())
-		.catch(e => `Creating folder ${this.filedirectory} failed due to ${e}`);
+		const options = DirectoryPicker.parse(this.asset_directory);
+		await FilePicker.createDirectory(options.activeSource, options.current, new FormData())
+		.catch(e => `Creating folder '${this.asset_directory}' failed due to ${e}`);
 		// Create a mapping from topic_id to public_name for all topic elements, required for creating "@JournalEntry["mapping[linkage:target_id]"]{"linkage:target_name"}" entries.
 		// Also collect aliases for each topic:
 		// <alias alias_id="Alias_1" name="Barracks Emperors" />
