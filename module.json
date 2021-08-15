@@ -7,8 +7,8 @@
 	"minimumCoreVersion": "0.7.9",
 	"compatibleCoreVersion": "0.8.8",
 
-	"esmodules": ["scripts/import-realmworks.js"],
-	"scripts": ["scripts/UZIP.js", "scripts/pf1-actor.js", "scripts/jimp.js", "scripts/DirectoryPicker.js"],
+	"esmodules": ["scripts/import-realmworks.js", "scripts/pf1-actor.js", "scripts/DirectoryPicker.js"],
+	"scripts": ["scripts/UZIP.js", "scripts/jimp.js"],
 	"styles": ["styles/style.css"],
     "socket": true,
     "url": "https://github.com/farling42/fvtt-import-realmworks",
