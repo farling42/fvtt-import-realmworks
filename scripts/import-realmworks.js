@@ -19,7 +19,7 @@
 // Nested "section" elements increase the Hx number by one for the section heading.
 
 import "./UZIP.js";
-import { RWPF1Actor } from "./pf1-actor.js";
+import { RWPF1Actor } from "./actor-pf1.js";
 import "./jimp.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
 
@@ -201,10 +201,12 @@ class RealmWorksImporter extends Application
 			switch (game.system.id) {
 			case 'pf1':
 				this.actor_data_func = function(html) { return { details: { notes: { value: html }}} };
+				this.create_actor_data = RWPF1Actor.createActorData;
 				break;
 
 			case 'dnd5e':
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
+				this.create_actor_data = RWDND5EActor.createActorData;
 				break;
 				
 			case 'pf2e':
@@ -1145,14 +1147,14 @@ class RealmWorksImporter extends Application
 		let result = [];
 		if (!this.parser) this.parser = new DOMParser();
 
-		if (game.system.id === 'pf1') {
+		if (this.create_actor_data) {
 			// Test, put all the information into data.details.notes.value
 			if (portfolio) {
 				for (let[charname, character]of portfolio) {
 					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
 						const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
-						await RWPF1Actor.createActorData(json.document.public.character)
+						await this.create_actor_data(json.document.public.character)
 						.then(actorlist => {
 							for (let actor of actorlist) {
 								// Cater for MINIONS
@@ -1163,7 +1165,7 @@ class RealmWorksImporter extends Application
 								result.push(actor);
 							}
 						})
-						.catch(e => console.log(`RWPF1Actor.createActorData failed in ${filename} due to ${e}`));
+						.catch(e => console.log(`createActorData failed in ${filename} due to ${e}`));
 					}
 				}
 			} else {
@@ -1321,12 +1323,8 @@ class RealmWorksImporter extends Application
 			// no XML means it is a MINION, and has been created from the XML of another character.
 			if (character.xml && game.system.id === 'pf1') {
 				const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
-				const actorlist = 
-					(game.system.id === 'pf1') ? await RWPF1Actor.createActorData(json.document.public.character) :
-					//(game.system.id === 'dnd5e') ? await RWDND5EActor.createActorData(json.document.public.character) :
-					//(game.system.id === 'grpga') ? await RWGRPGAActor.createActorData(json.document.public.character) :
-					[];
-					
+				const actorlist = this.create_actor_data ? await this.create_actor_data(json.document.public.character) : [];
+
 				for (let actordata of actorlist) {
 					// Minion will have ITS data in a different place in the portfolio.
 					let port = portfolio.get(actordata.name);
