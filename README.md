@@ -1,5 +1,5 @@
 # Realm-Works-Import
-A module to create a compendium pack from a user's RWoutput from the Realm Works® campaign management tool created by LWD, available from https://www.wolflair.com/realmworks/
+A module to import information from a user's RWoutput from the Realm Works® campaign management tool created by LWD, available from https://www.wolflair.com/realmworks/
 
 You can install the module by updating your module list with the following additional URL: https://github.com/farling42/fvtt-import-realmworks/releases/latest/download/module.json
 
@@ -28,7 +28,7 @@ Each *image or embedded file* will be extracted and located in the subdirectory 
 
 Each *Audio* snippet will be extracted and placed into a Playlist named after the topic.
 
-Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1 game system). All actors for a single topic are placed into a sub-folder named after the folder.
+Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1 and D&D 5E game systems). All actors for a single topic are placed into a sub-folder named after the folder.
 
 Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
 
