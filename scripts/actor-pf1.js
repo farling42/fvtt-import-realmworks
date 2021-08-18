@@ -240,12 +240,8 @@ export class RWPF1Actor {
 				// Strip trailing (...)  from class.name
 				const entry = class_pack.index.find(e => e.name === name);
 				if (entry) {
-					let classdata;
+					let classdata = (await class_pack.getDocument(entry._id)).data.toObject();
 					//console.log(`Class ${entry.name} at level ${cclass.levels}`);
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						classdata = (await class_pack.getDocument(entry._id)).data.toObject();
-					else
-						classdata = await class_pack.getEntry(entry._id);
 
 					// class.hp needs setting to the amount of HP gained from levelling in this class.
 					// class.fc needs setting for the favoured class with information as to how the point was spent.
@@ -274,11 +270,7 @@ export class RWPF1Actor {
 						const collection = co.id.split(".").slice(0, 2).join(".");
 						const itemId = co.id.split(".")[2];
 						const pack = game.packs.get(collection);
-						let itemData;
-						if (isNewerVersion(game.data.version, "0.8.0"))
-							itemData = duplicate((await pack.getDocument(itemId)).data);
-						else
-							itemData = new Item(await pack.getEntry(itemId));
+						const itemData = duplicate((await pack.getDocument(itemId)).data);
 						
 						// No record on each classFeature as to which class and level added it.
 						//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
@@ -295,10 +287,7 @@ export class RWPF1Actor {
 						},
 						//data: { description : { value : addParas(feat.description['#text']) }}
 					};
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
-					else
-						actor.items.push(new Item(itemdata));
+					actor.items.push(itemdata);
 				}
 			}
 		} // if (classes)
@@ -308,10 +297,7 @@ export class RWPF1Actor {
 		const lowerrace = character.race.name.toLowerCase();
 		const race = await race_pack.index.find(e => e.name.toLowerCase() === lowerrace);
 		if (race) {
-			if (isNewerVersion(game.data.version, "0.8.0"))
-				actor.items.push((await race_pack.getDocument(race._id)).data.toObject());
-			else
-				actor.items.push(await race_pack.getEntry(race._id));
+			actor.items.push((await race_pack.getDocument(race._id)).data.toObject());
 		} else if (character.types.type?.name == 'Humanoid') {
 			// Only do manual entry for humanoids, since monstrous races
 			// have "classes" of the monster/animal levels
@@ -322,10 +308,7 @@ export class RWPF1Actor {
 				creatureType: character.types?.type?.name,
 				//data: { description : { value : addParas(character.race.name['#text']) }}
 			};
-			if (isNewerVersion(game.data.version, "0.8.0"))
-				actor.items.push(itemdata);
-			else
-				actor.items.push(new Item(itemdata));
+			actor.items.push(itemdata);
 		}
 		// <types><type name="Humanoid" active="yes"/>
 		// <subtypes><subtype name="Human"/>
@@ -334,23 +317,16 @@ export class RWPF1Actor {
 			const racehdlower = character.types.type.name.toLowerCase();
 			const racialhd = await racialhd_pack.index.find(e => e.name.toLowerCase() === racehdlower);
 			if (racialhd) {
-				if (isNewerVersion(game.data.version, "0.8.0")) {
-					let item = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
-					item.data.level = races_hd;
-					item.data.hp = races_hp;
-					if (races_hd == 0) {
-						item.data.skillsPerLevel = 0;
-						item.data.savingThrows.fort.value = "Low";
-						item.data.savingThrows.ref.value = "Low";
-						item.data.savingThrows.will.value = "Low";
-					}					
-					actor.items.push(item);
-				} else {
-					let item = await racialhd_pack.getEntry(racialhd._id);
-					item.data.level = races_hd;
-					item.data.hp = races_hp;
-					actor.items.push(item);
-				}
+				let item = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
+				item.data.level = races_hd;
+				item.data.hp = races_hp;
+				if (races_hd == 0) {
+					item.data.skillsPerLevel = 0;
+					item.data.savingThrows.fort.value = "Low";
+					item.data.savingThrows.ref.value = "Low";
+					item.data.savingThrows.will.value = "Low";
+				}					
+				actor.items.push(item);
 			} else {
 				//console.log(`racialhd '${character.racialhd.name.toLowerCase()}' not in 'racialhd' pack`);
 				const itemdata = {
@@ -360,10 +336,7 @@ export class RWPF1Actor {
 					hp : races_hp,
 					//data: { description : { value : addParas(character.racialhd.name['#text']) }}
 				};
-				if (isNewerVersion(game.data.version, "0.8.0"))
-					actor.items.push(itemdata);
-				else
-					actor.items.push(new Item(itemdata));
+				actor.items.push(itemdata);
 			}
 		}
 		//
@@ -578,16 +551,9 @@ export class RWPF1Actor {
 				}
 				
 				if (entry) {
-					let itemdata;
-					if (isNewerVersion(game.data.version, "0.8.0")) {
-						itemdata = (await pack.getDocument(entry._id)).data.toObject();
-						itemdata.data.quantity = +item.quantity;
-						actor.items.push(itemdata);
-					} else {
-						itemdata = await pack.getEntry(entry._id);
-						itemdata.quantity = +item.quantity;
-						actor.items.push(new Item(itemdata));
-					}
+					let itemdata = (await pack.getDocument(entry._id)).data.toObject();
+					itemdata.data.quantity = +item.quantity;
+					actor.items.push(itemdata);
 				} else {
 					// Create our own placemarker item.
 					const itemdata = {
@@ -604,10 +570,7 @@ export class RWPF1Actor {
 							carried: true,
 						},
 					};
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
-					else
-						actor.items.push(new Item(itemdata));
+					actor.items.push(itemdata);
 				}
 			}
 		}
@@ -686,13 +649,7 @@ export class RWPF1Actor {
 				
 				const entry = feat_pack.index.find(e => e.name === featname);
 				if (entry) {
-					let itemdata;
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						//itemdata = (await feat_pack.getDocument(entry._id)).data.toObject();
-						itemdata = duplicate((await feat_pack.getDocument(entry._id)).data);
-					else
-						itemdata = duplicate(await feat_pack.getEntry(entry._id));
-
+					let itemdata = duplicate((await feat_pack.getDocument(entry._id)).data);
 					itemdata.name = realname;	// TODO: in case we removed parentheses
 
 					if (feat.useradded == 'no') {
@@ -776,10 +733,7 @@ export class RWPF1Actor {
 						//itemdata.data.tags = new Map();
 						//itemdata.data.tags.insert( cats );
 					}
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actor.items.push(itemdata);
-					else
-						actor.items.push(new Item(itemdata));
+					actor.items.push(itemdata);
 				}
 			}
 		}
@@ -800,10 +754,7 @@ export class RWPF1Actor {
 						}
 					}
 				};
-				if (isNewerVersion(game.data.version, "0.8.0"))
-					actor.items.push(itemdata);
-				else
-					actor.items.push(new Item(itemdata));
+				actor.items.push(itemdata);
 			}
 		}
 		// and otherspecials.special with sourcetext attribute set to one of the classes
@@ -863,87 +814,78 @@ export class RWPF1Actor {
 				const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
 					
 				const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
-				if (isNewerVersion(game.data.version, "0.8.0")) {
-					let itemdata;
-					if (entry)
-						itemdata = (await spell_pack.getDocument(entry._id)).data.toObject();
-					else {
-						// Manually create a spell item
-						try {
-							itemdata = {
-								name: spell.shortname ?? spell.name,
-								type: 'spell',
-								data: {
-									uses: {}
-								},
-							};
-							if (spell.type == 'Extraordinary Ability') {
-								itemdata.data.abilityType = 'ex';
-							}
-							itemdata.data.description = {
-								value: spell.description['#text']
-							};
-
-							// spell not special
-							if (spell.spellschool) {
-								// There might be more than one spellschool child.
-								let school = (spell.spellschool instanceof Array ? spell.spellschool[0] : spell.spellschool)['#text'];
-								itemdata.data.level = +spell.level;
-								itemdata.data.school = RWPF1Actor.spellschool_names[school.toLowerCase()] ?? school;
-								itemdata.data.subschool = spell.subschool;
-								if (spell.spelldescript) {
-									itemdata.data.types = toArray(spell.spelldescript).map(el => el['#text']).join(';');
-								}
-								let comps = toArray(spell.spellcomp).map(el => el['#text']);
-								let material = (spell.componenttext.indexOf('Material') >= 0);
-								let sfocus = (spell.componenttext.indexOf('Divine Focus') >= 0);
-								itemdata.data.components = {
-									//value: spell.componenttext,
-									verbal: comps.includes('Verbal'),
-									somatic: comps.includes('Somatic'),
-									material: comps.includes('Material'),
-									"focus": comps.includes('Focus'),
-									divineFocus: // 0=no, 1=DF, 2=M/DF, 3=F/DF
-										comps.includes('Focus or Divine Focus') ? 3 :
-										comps.includes('Material or Divine Focus') ? 2 :	
-										comps.includes('Divine Focus') ? 1 :
-										0,
-								};
-								itemdata.data.castTime = spell.casttime;
-								itemdata.data.sr = (spell.resisttext == 'Yes');
-								itemdata.data.spellDuration = spell.duration;
-								itemdata.data.spellEffect = spell.effect;
-								itemdata.data.spellArea = spell.area;
-								//itemdata.data.materials.value/focus/gpValue
-								// itemdata.data.preparation.preparedAmount/maxAmount/autoDeductCharges/spontaneousPrepared
-								if (spell.spontaneous == 'Yes')
-									itemdata.data.preparation = {
-										spontaneousPrepared: true
-									};
-							}
-						} catch (e) {
-							console.log(`Failed to create custom version of '${spell.name}' for '${actor.name}' due to ${e}`);
-							continue;
+				let itemdata;
+				if (entry)
+					itemdata = (await spell_pack.getDocument(entry._id)).data.toObject();
+				else {
+					// Manually create a spell item
+					try {
+						itemdata = {
+							name: spell.shortname ?? spell.name,
+							type: 'spell',
+							data: {
+								uses: {}
+							},
+						};
+						if (spell.type == 'Extraordinary Ability') {
+							itemdata.data.abilityType = 'ex';
 						}
+						itemdata.data.description = {
+							value: spell.description['#text']
+						};
+							// spell not special
+						if (spell.spellschool) {
+							// There might be more than one spellschool child.
+							let school = (spell.spellschool instanceof Array ? spell.spellschool[0] : spell.spellschool)['#text'];
+							itemdata.data.level = +spell.level;
+							itemdata.data.school = RWPF1Actor.spellschool_names[school.toLowerCase()] ?? school;
+							itemdata.data.subschool = spell.subschool;
+							if (spell.spelldescript) {
+								itemdata.data.types = toArray(spell.spelldescript).map(el => el['#text']).join(';');
+							}
+							let comps = toArray(spell.spellcomp).map(el => el['#text']);
+							let material = (spell.componenttext.indexOf('Material') >= 0);
+							let sfocus = (spell.componenttext.indexOf('Divine Focus') >= 0);
+							itemdata.data.components = {
+								//value: spell.componenttext,
+								verbal: comps.includes('Verbal'),
+								somatic: comps.includes('Somatic'),
+								material: comps.includes('Material'),
+								"focus": comps.includes('Focus'),
+								divineFocus: // 0=no, 1=DF, 2=M/DF, 3=F/DF
+									comps.includes('Focus or Divine Focus') ? 3 :
+									comps.includes('Material or Divine Focus') ? 2 :	
+									comps.includes('Divine Focus') ? 1 :
+									0,
+							};
+							itemdata.data.castTime = spell.casttime;
+							itemdata.data.sr = (spell.resisttext == 'Yes');
+							itemdata.data.spellDuration = spell.duration;
+							itemdata.data.spellEffect = spell.effect;
+							itemdata.data.spellArea = spell.area;
+							//itemdata.data.materials.value/focus/gpValue
+							// itemdata.data.preparation.preparedAmount/maxAmount/autoDeductCharges/spontaneousPrepared
+							if (spell.spontaneous == 'Yes')
+								itemdata.data.preparation = {
+									spontaneousPrepared: true
+								};
+						}
+					} catch (e) {
+						console.log(`Failed to create custom version of '${spell.name}' for '${actor.name}' due to ${e}`);
+						continue;
 					}
-					itemdata.data.spellbook = book;
-					if (memorized.includes(lowername)) itemdata.data.preparation = { preparedAmount : 1};
-					if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
-					if (lowername.indexOf('at will)') >= 0) itemdata.data.atWill = true;
-					if (lowername.endsWith('/day)')) {
-						itemdata.data.uses.max   = parseInt(lowername.slice(-6));	// assume one digit
-						itemdata.data.uses.value = itemdata.data.uses.max;
-						itemdata.data.uses.per   = 'day';
-					}
-					//itemdata.data.learnedAt = { 'class': [  };
-					actor.items.push(itemdata);
-				} else {
-					let itemdata = await spell_pack.getEntry(entry._id);
-					itemdata.data.spellbook = book;
-					if (memorized.includes(lowername)) itemdata.preparation = { preparedAmount : 1};
-					if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
-					actor.items.push(itemdata);
 				}
+				itemdata.data.spellbook = book;
+				if (memorized.includes(lowername)) itemdata.data.preparation = { preparedAmount : 1};
+				if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
+				if (lowername.indexOf('at will)') >= 0) itemdata.data.atWill = true;
+				if (lowername.endsWith('/day)')) {
+					itemdata.data.uses.max   = parseInt(lowername.slice(-6));	// assume one digit
+					itemdata.data.uses.value = itemdata.data.uses.max;
+					itemdata.data.uses.per   = 'day';
+				}
+				//itemdata.data.learnedAt = { 'class': [  };
+				actor.items.push(itemdata);
 			}
 			return true;
 		}

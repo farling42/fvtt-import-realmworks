@@ -43,6 +43,9 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.4.0 Add decoding of D&D 5E characters from HeroLab portfolio files.
+Remove support for 0.7.x versions of Foundry.
+
 0.3.22 Use DirectoryPicker from dnd-importer to allow asset files to be stored in S3 storage instead of only in the 'data' area.
 
 0.3.21 Provide a configuration setting to specify the maximum depth of content to display in the Governed Content section of journal entries.

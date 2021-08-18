@@ -20,6 +20,7 @@
 
 import "./UZIP.js";
 import { RWPF1Actor } from "./actor-pf1.js";
+import { RWDND5EActor } from "./actor-dnd5e.js";
 import "./jimp.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
 
@@ -201,11 +202,13 @@ class RealmWorksImporter extends Application
 			switch (game.system.id) {
 			case 'pf1':
 				this.actor_data_func = function(html) { return { details: { notes: { value: html }}} };
+				this.init_actors = RWPF1Actor.initModule;
 				this.create_actor_data = RWPF1Actor.createActorData;
 				break;
 
 			case 'dnd5e':
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
+				this.init_actors = RWDND5EActor.initModule;
 				this.create_actor_data = RWDND5EActor.createActorData;
 				break;
 				
@@ -1293,8 +1296,8 @@ class RealmWorksImporter extends Application
 		let data = await file.arrayBuffer();
 		if (!data) throw "Failed to read .por file";
 		
-		if (game.system.id === 'pf1') {
-			await RWPF1Actor.initModule();
+		if (this.init_actors) {
+			await this.init_actors();
 		}
 
 		// Maybe delete old items
@@ -1321,7 +1324,7 @@ class RealmWorksImporter extends Application
 		// Upload images (if any)
 		for (let [charname, character] of portfolio) {
 			// no XML means it is a MINION, and has been created from the XML of another character.
-			if (character.xml && game.system.id === 'pf1') {
+			if (this.create_actor_data) {
 				const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
 				const actorlist = this.create_actor_data ? await this.create_actor_data(json.document.public.character) : [];
 
@@ -1461,8 +1464,8 @@ class RealmWorksImporter extends Application
 		// HL PORTFOLIOS => ACTORS
 		//
 
-		if (game.system.id === 'pf1') {
-			await RWPF1Actor.initModule();
+		if (this.init_actors) {
+			await this.init_actors();
 		}
 
 		console.log('Finding Topics with Actors');

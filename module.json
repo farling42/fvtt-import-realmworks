@@ -4,7 +4,7 @@
 	"description": "Imports files from Realm Works® campaign management tool",
 	"author": "Farling",
 	"version": "0.4.0",
-	"minimumCoreVersion": "0.7.9",
+	"minimumCoreVersion": "0.8.6",
 	"compatibleCoreVersion": "0.8.9",
 
 	"esmodules": ["scripts/import-realmworks.js", "scripts/actor-pf1.js", "scripts/actor-dnd5e.js", "scripts/DirectoryPicker.js"],
