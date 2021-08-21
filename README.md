@@ -6,7 +6,7 @@ You can install the module by updating your module list with the following addit
 ## Instructions
 Simply add this module to your Foundry VTT and enable it within the game into which you want to import your RWoutput information.
 
-In the Compendium panel of the game you will find a new button at the bottom called "Realm Works Import".
+In the Compendium panel of the game you will find a new button near the top called "Realm Works Import".
 
 Press the button to open a simple dialogue window.
 
