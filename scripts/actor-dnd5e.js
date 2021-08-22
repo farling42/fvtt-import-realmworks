@@ -142,6 +142,7 @@ export default class RWDND5EActor {
 		let actor = {
 			name: character.name,
 			type: (character.role === 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
+			relationship : character.relationship,
 			data: {
 				// common template: abilities, attributes, details, traits, currency
 				abilities: {},

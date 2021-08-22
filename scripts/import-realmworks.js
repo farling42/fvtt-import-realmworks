@@ -1147,9 +1147,8 @@ class RealmWorksImporter extends Application
 		let result = [];
 		if (!this.parser) this.parser = new DOMParser();
 
-		if (this.create_actor_data) {
-			// Test, put all the information into data.details.notes.value
-			if (portfolio) {
+		if (portfolio) {
+			if (this.create_actor_data) {
 				for (let[charname, character]of portfolio) {
 					// The lack of XML will be because this is a MINION of another character.
 					if (character.xml) {
@@ -1159,7 +1158,8 @@ class RealmWorksImporter extends Application
 							for (let actor of actorlist) {
 								// Cater for MINIONS
 								let port = portfolio.get(actor.name);
-								actor.data.details.notes = { value: this.Utf8ArrayToStr(port.html) };
+								actordata.token = { disposition : actor.relationship === 'ally' ? 1 : actor.relationship === 'enemy' ? -1 : 0 };
+								actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
 								if (port?.imgfilename)
 									actor.img = this.imageFilename(port.imgfilename);
 								result.push(actor);
@@ -1169,16 +1169,7 @@ class RealmWorksImporter extends Application
 					}
 				}
 			} else {
-				let actor = {
-					name: topic.getAttribute('public_name'),
-					type: this.actor_type,
-					data: this.actor_data_func(statblock),
-				};
-				result.push(actor);
-			}
-		} else {
-			// All other game systems use this.actor_data_func to create the correct basic data block
-			if (portfolio) {
+				// All other game systems use this.actor_data_func to create the correct basic data block
 				for (let[charname, character]of portfolio) {
 					// TODO - XML conversion
 					let actor = {
@@ -1190,14 +1181,15 @@ class RealmWorksImporter extends Application
 						actor.img = this.imageFilename(character.imgfilename)
 					result.push(actor);
 				}
-			} else {
-				let actor = {
-					name: topic.getAttribute('public_name'),
-					type: this.actor_type,
-					data: this.actor_data_func(statblock),
-				};
-				result.push(actor);
 			}
+		} else {
+			// No portfolio file available for decoding, so simply store the STATBLOCK in the relevant location on the Actor
+			let actor = {
+				name: topic.getAttribute('public_name'),
+				type: this.actor_type,
+				data: this.actor_data_func(statblock),
+			};
+			result.push(actor);
 		}
 
 		// If there is only more than one actor in the topic,
@@ -1323,14 +1315,15 @@ class RealmWorksImporter extends Application
 			// no XML means it is a MINION, and has been created from the XML of another character.
 			if (this.create_actor_data) {
 				const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
-				const actorlist = this.create_actor_data ? await this.create_actor_data(json.document.public.character) : [];
+				const actorlist = await this.create_actor_data(json.document.public.character);
 
 				for (let actordata of actorlist) {
 					// Minion will have ITS data in a different place in the portfolio.
 					let port = portfolio.get(actordata.name);
 					
 					// Store the raw statblock (but don't overwrite the rest of data)
-					actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
+					actordata.data   = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
+					actordata.token  = { disposition : actordata.relationship === 'ally' ? 1 : actordata.relationship === 'enemy' ? -1 : 0 };
 					actordata.folder = actor_folder_id;
 					if (port.imgfilename) {
 						// If we don't "await", then Actor.create will fail since the image doesn't exist

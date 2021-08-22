@@ -135,6 +135,7 @@ export default class RWPF1Actor {
 		let actor = {
 			name: character.name,
 			type: (character.challengerating === undefined) ? 'character' : 'npc',		// 'npc' or 'character'
+			relationship : character.relationship,
 			data: {
 				abilities: {},
 				attributes: {},
