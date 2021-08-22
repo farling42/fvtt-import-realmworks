@@ -1,6 +1,6 @@
 import { DND5E } from "../../../systems/dnd5e/module/config.js";
 
-export class RWDND5EActor {
+export default class RWDND5EActor {
 
 	static ability_names = {
 		"strength" : "str",

@@ -19,8 +19,6 @@
 // Nested "section" elements increase the Hx number by one for the section heading.
 
 import "./UZIP.js";
-import { RWPF1Actor } from "./actor-pf1.js";
-import { RWDND5EActor } from "./actor-dnd5e.js";
 import "./jimp.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
 
@@ -46,7 +44,7 @@ Hooks.once('init', () => {
 		hint: "Folder within [User Data] area where assets (e.g. sounds, PDFs, videos) embedded in the RWoutput file will be placed.",
 		scope: "world",
 		type:  DirectoryPicker.Directory,
-		default: '[data] worlds/' + (isNewerVersion(game.data.version, "0.8.0") ? game.world.data.name : game.world.name) + '/realmworksimport',
+		default: `[data] worlds/${game.world.data.name}/realmworksimport`,
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
 		config: true,
 	});
@@ -202,14 +200,23 @@ class RealmWorksImporter extends Application
 			switch (game.system.id) {
 			case 'pf1':
 				this.actor_data_func = function(html) { return { details: { notes: { value: html }}} };
+				let {default:RWPF1Actor} = await import("./actor-pf1.js");
 				this.init_actors = RWPF1Actor.initModule;
 				this.create_actor_data = RWPF1Actor.createActorData;
 				break;
 
 			case 'dnd5e':
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
+				let {default:RWDND5EActor} = await import("./actor-dnd5e.js");
 				this.init_actors = RWDND5EActor.initModule;
 				this.create_actor_data = RWDND5EActor.createActorData;
+				break;
+				
+			case 'swade':
+				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
+				//let {default:RWSWADEActor} = await import("./actor-swade.js");
+				//this.init_actors = RWSWADEActor.initModule;
+				//this.create_actor_data = RWSWADEActor.createActorData;
 				break;
 				
 			case 'pf2e':
@@ -227,10 +234,6 @@ class RealmWorksImporter extends Application
 			case 'CoC7':
 				// CoC7 shows raw HTML code, not formatted
 				this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
-				break;
-				
-			case 'swade':
-				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
 				break;
 				
 			case 'pbta':
@@ -568,21 +571,15 @@ class RealmWorksImporter extends Application
 				fontSize: 24,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
-				scene: (isNewerVersion(game.data.version, "0.8.0") ? scene.id : scene._id)
+				scene: scene.id,
 			};
-			
-			if (isNewerVersion(game.data.version, "0.8.0")) {
-				await scene.createEmbeddedDocuments('Note', [notedata]);
-			} else {
-				let newnote = new Note(notedata, scene);
-				await scene.createEmbeddedEntity('Note', newnote.data);
-			}
+			await scene.createEmbeddedDocuments('Note', [notedata]);
 			
 			//if (note) console.log(`Created map pin ${notedata.name}`);
 		}
 		this.ui_message.val(`Created scene ${scenename}`);
 		//console.log(`Created scene ${scenename}`);
-		return isNewerVersion(game.data.version, "0.8.0") ? scene.id : scene._id;
+		return scene.id;
 	}
 		
 	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
@@ -1333,11 +1330,7 @@ class RealmWorksImporter extends Application
 					let port = portfolio.get(actordata.name);
 					
 					// Store the raw statblock (but don't overwrite the rest of data)
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
-					else
-						actordata.data = mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
-					
+					actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
 					actordata.folder = actor_folder_id;
 					if (port.imgfilename) {
 						// If we don't "await", then Actor.create will fail since the image doesn't exist
@@ -1394,9 +1387,7 @@ class RealmWorksImporter extends Application
 		console.log('Creating folders');
 		this.actor_folder    = await this.getFolder(this.folderName, 'Actor');
 		this.scene_folder    = await this.getFolder(this.folderName, 'Scene');
-		if (isNewerVersion(game.data.version, "0.8.0")) {
-			this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
-		}
+		this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
 		let journal_parent   = await this.getFolder(this.folderName, 'JournalEntry');
 		let journal_folders  = new Map();  // actual journal entries will be in a folder with the TOPIC category name
 		for (const category_name of category_names) {
@@ -1454,10 +1445,7 @@ class RealmWorksImporter extends Application
 		await Promise.allSettled(topics.map(async(topic_node) =>
 				await this.formatOneTopic(topic_node, child_map, parent_map.get(topic_node.getAttribute('topic_id')))
 				.then(async(topic) => {
-					if (isNewerVersion(game.data.version, "0.8.0"))
-						await JournalEntry.updateDocuments([topic]).catch(p => console.log(`Update JE failed for '${topic.name}':\n${p}`));
-					else
-						await JournalEntry.update(topic).catch(p => console.log(`Update JE failed for '${topic.name}':\n${p}`));
+					await JournalEntry.updateDocuments([topic]).catch(p => console.log(`Update JE failed for '${topic.name}':\n${p}`));
 				})
 				.catch(e => console.log(`formatOneTopic failed for ${topic_node.getAttribute("public_name")}:\n${e}`))));
 		//

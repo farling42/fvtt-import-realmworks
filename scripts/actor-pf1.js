@@ -1,6 +1,6 @@
 //import { PF1 } from "../../../systems/pf1/pf1.js";
 
-export class RWPF1Actor {
+export default class RWPF1Actor {
 
 	static ability_names = {
 		"strength" : "str",
