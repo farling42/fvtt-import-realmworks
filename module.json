@@ -7,7 +7,13 @@
 	"minimumCoreVersion": "0.8.6",
 	"compatibleCoreVersion": "0.8.9",
 
-	"esmodules": ["scripts/import-realmworks.js", "scripts/actor-pf1.js", "scripts/actor-dnd5e.js", "scripts/DirectoryPicker.js"],
+	"esmodules": [
+		"scripts/import-realmworks.js",
+		"scripts/actor-pf1.js",
+		"scripts/actor-dnd5e.js",
+		"scripts/actor-swade.js",
+		"scripts/DirectoryPicker.js"
+		],
 	"scripts": ["scripts/UZIP.js", "scripts/jimp.js"],
 	"styles": ["styles/style.css"],
     "socket": true,

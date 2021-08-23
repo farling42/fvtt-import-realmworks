@@ -43,6 +43,10 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.5.0 Add decoding of Savage Worlds (not Adventure Edition) from HL portfolio files for use in the SWADE game system.
+
+0.4.1 Fix a bug where it was required to have DND5E installed in order for the module to load for ANY game systems.
+
 0.4.0 Add decoding of D&D 5E characters from HeroLab portfolio files.
 Remove support for 0.7.x versions of Foundry.
 

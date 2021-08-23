@@ -214,9 +214,9 @@ class RealmWorksImporter extends Application
 				
 			case 'swade':
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
-				//let {default:RWSWADEActor} = await import("./actor-swade.js");
-				//this.init_actors = RWSWADEActor.initModule;
-				//this.create_actor_data = RWSWADEActor.createActorData;
+				let {default:RWSWADEActor} = await import("./actor-swade.js");
+				this.init_actors = RWSWADEActor.initModule;
+				this.create_actor_data = RWSWADEActor.createActorData;
 				break;
 				
 			case 'pf2e':
