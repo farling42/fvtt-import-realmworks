@@ -43,6 +43,8 @@ If you like what it does, then all contributions will be gratefully received at 
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
 
 ## Changelog
+0.5.1 Fix a bug where snippets in a topic section with sub-sections, the snippets would appear after the subsections, and look like they were part of the last subsection.
+
 0.5.0 Add decoding of Savage Worlds (not Adventure Edition) from HL portfolio files for use in the SWADE game system.
 
 0.4.1 Fix a bug where it was required to have DND5E installed in order for the module to load for ANY game systems.
