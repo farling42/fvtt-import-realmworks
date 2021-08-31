@@ -719,13 +719,15 @@ class RealmWorksImporter extends Application
 		
 		// Process all the snippets and sections in order
 		let result = header(level, section.getAttribute("name"));
+		let subsections = "";
 		
 		// Process all child (not descendent) nodes in this section
 		for (const child of section.children) {
 			switch (child.nodeName) {
 			case 'section':
-				// Subsections increase the HEADING number
-				result += await this.writeSection(this_topic_id, child, level+1, linkage_names);
+				// Subsections increase the HEADING number,
+				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
+				subsections += await this.writeSection(this_topic_id, child, level+1, linkage_names);
 				break;
 				
 			case 'snippet':
@@ -931,6 +933,9 @@ class RealmWorksImporter extends Application
 				}
 			}	// switch child.nodeName
 		} // for children
+		
+		// Now that we've handled all the others snippets, we can append any found subsections.
+		result += subsections;
 		
 		return result;
 	}
