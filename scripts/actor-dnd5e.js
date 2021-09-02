@@ -124,7 +124,7 @@ export default class RWDND5EActor {
 	
 	static async createOneActorData(character) {
 
-		console.log(`Parsing DND5E actor '${character.name}'`);
+		console.debug(`Parsing DND5E actor '${character.name}'`);
 		
 		function addParas(string) {
 			if (!string) return "";

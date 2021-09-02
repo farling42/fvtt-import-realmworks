@@ -36,7 +36,7 @@ export default class RWSWADEActor {
 
 	static async createOneActorData(character) {
 
-		//console.log(`Parsing ${character.name}`);
+		//console.debug(`Parsing ${character.name}`);
 		
 		function addParas(string) {
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;

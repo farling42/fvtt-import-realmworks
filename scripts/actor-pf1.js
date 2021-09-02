@@ -95,7 +95,7 @@ export default class RWPF1Actor {
 		// spells, feats, items, armors-and-shields, weapons-and-ammo, racialhd
 		// races, class-abilities, monster-templates, sample-macros, roll-tables
 		// ultimate-equipment, bestiary_1/2/3/4/5, conditions, skills
-		//game.packs.find(p => console.log(`PF1 pack = ${p.metadata.name}`));
+		//game.packs.find(p => console.debug(`PF1 pack = ${p.metadata.name}`));
 		// Very specific to PF1, generate the FEAT index only once (it avoids excessive re-writing of feats.db)
 		await game.packs.find(p => p.metadata.name === 'armors-and-shields')?.getIndex();
 		await game.packs.find(p => p.metadata.name === 'classes')?.getIndex();
@@ -122,7 +122,7 @@ export default class RWPF1Actor {
 		
 	static async createOneActorData(character) {
 
-		//console.log(`Parsing ${character.name}`);
+		//console.debug(`Parsing ${character.name}`);
 		
 		function addParas(string) {
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;
@@ -237,19 +237,19 @@ export default class RWPF1Actor {
 				if (this.wizard_subclasses.includes(name)) {
 					name = 'Wizard';
 				}
-				//console.log(`Looking for class called '${name}'`);
+				//console.debug(`Looking for class called '${name}'`);
 				// Strip trailing (...)  from class.name
 				const entry = class_pack.index.find(e => e.name === name);
 				if (entry) {
 					let classdata = (await class_pack.getDocument(entry._id)).data.toObject();
-					//console.log(`Class ${entry.name} at level ${cclass.levels}`);
+					//console.debug(`Class ${entry.name} at level ${cclass.levels}`);
 
 					// class.hp needs setting to the amount of HP gained from levelling in this class.
 					// class.fc needs setting for the favoured class with information as to how the point was spent.
 					// Do all NPCs really get the HP favoured class bonus on their stats?
 					if (favclasses.includes(cclass.name) || character.role === 'npc') {
 						// This is NOT a favoured class, so cancel any favoured class bonuses.
-						console.log(`Setting favoured class for ${cclass.name}`);
+						console.debug(`Setting favoured class for ${cclass.name}`);
 						classdata.data.fc.hp.value = levels;
 						classdata.data.fc.skill.value = 0;
 						classdata.data.fc.alt.value = 0;
@@ -302,7 +302,7 @@ export default class RWPF1Actor {
 		} else if (character.types.type?.name == 'Humanoid') {
 			// Only do manual entry for humanoids, since monstrous races
 			// have "classes" of the monster/animal levels
-			console.log(`Race '${character.race.name}' not in 'races' pack for ${character.name}`);
+			console.warn(`Race '${character.race.name}' not in 'races' pack for ${character.name}`);
 			const itemdata = {
 				name: character.race.name,
 				type: 'race',
@@ -329,7 +329,7 @@ export default class RWPF1Actor {
 				}					
 				actor.items.push(item);
 			} else {
-				//console.log(`racialhd '${character.racialhd.name.toLowerCase()}' not in 'racialhd' pack`);
+				console.warn(`racialhd '${character.racialhd.name.toLowerCase()}' not in 'racialhd' pack`);
 				const itemdata = {
 					name: character.types.type.name,
 					type: 'class',
@@ -594,7 +594,7 @@ export default class RWPF1Actor {
 				// rt, acp, background
 			}
 			if (!value.ability) {
-				console.log(`Failed to find an ability called '${skill.attrname}' for skill '${skill.name}' - SKIPPING`);
+				console.warn(`Failed to find an ability called '${skill.attrname}' for skill '${skill.name}' - SKIPPING`);
 				continue;
 			}
 			let baseskill = this.skill_mapping.get(skill.name);
@@ -609,7 +609,7 @@ export default class RWPF1Actor {
 					else if (!actor.data.skills[baseskill].subSkills) actor.data.skills[baseskill].subSkills = {};
 					actor.data.skills[baseskill].subSkills[`${baseskill}${++numsub[baseskill]}`] = value;
 				} else {
-					console.log(`PF1 custom skill ${skill.name}`);
+					console.debug(`PF1 custom skill ${skill.name}`);
 					value.name = skill.name;
 					actor.data.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
 				}
@@ -711,7 +711,7 @@ export default class RWPF1Actor {
 								priority:  0,
 								value:     bonus,
 							}];
-							//console.log(`Skill Focus: ${itemdata.data.changes[0].formula} to ${itemdata.data.changes[0].subTarget}`);
+							//console.debug(`Skill Focus: ${itemdata.data.changes[0].formula} to ${itemdata.data.changes[0].subTarget}`);
 						}
 					}
 					actor.items.push(itemdata);
@@ -800,7 +800,7 @@ export default class RWPF1Actor {
 		async function addSpells(nodes, book, memorized=[]) {
 			if (!nodes) return false;
 			
-			//console.log(`Creating spellbook ${book} for '${character.name}'`);
+			//console.debug(`Creating spellbook ${book} for '${character.name}'`);
 			if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
 			actor.data.attributes.spells.usedSpellbooks.push(book);
 				
@@ -872,7 +872,7 @@ export default class RWPF1Actor {
 								};
 						}
 					} catch (e) {
-						console.log(`Failed to create custom version of '${spell.name}' for '${actor.name}' due to ${e}`);
+						console.error(`Failed to create custom version of '${spell.name}' for '${actor.name}' due to ${e}`);
 						continue;
 					}
 				}
@@ -934,7 +934,7 @@ export default class RWPF1Actor {
 		case 'Gargantuan':	actor.data.traits.size = 'grg';		break;
 		case 'Colossal':	actor.data.traits.size = 'col';		break;
 		default:
-			console.log(`Unknown actor size ${character.size.name}`);
+			console.warn(`Unknown actor size ${character.size.name}`);
 		}
 		// data.traits.senses
 		let senses = [];
