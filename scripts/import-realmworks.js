@@ -347,7 +347,7 @@ class RealmWorksImporter extends Application
 								`<topicchild topic_id="${topicnode.getAttribute('topic_id')}" public_name="${topicnode.getAttribute('public_name').replace(/"/g,'%22')}" />` + 
 								buffer.slice(topic_end+8);
 						} else {
-							console.warn(`Failed to decode topic in ${block}`);
+							console.warn(`Failed to parse XML of topic in ${block}`);
 							// Remove offending topic without marker
 							buffer = buffer.slice(0,topic_start) + buffer.slice(topic_end+8);
 						}
@@ -561,6 +561,7 @@ class RealmWorksImporter extends Application
 		scene.createThumbnail().then(data => scene.update({thumb: data.thumb}));
 		
 		// Add some notes
+		let notes = [];
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
 			const pinname = pin.getAttribute('pin_name');
 			let desc = pin.getElementsByTagName('description')[0]?.textContent;
@@ -589,10 +590,11 @@ class RealmWorksImporter extends Application
 				//textColor: "#00FFFF",
 				scene: scene.id,
 			};
-			await scene.createEmbeddedDocuments('Note', [notedata]);
-			
+			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
 		}
+		if (notes.length > 0) await scene.createEmbeddedDocuments('Note', notes);
+		
 		this.ui_message.val(`Created scene '${scenename}'`);
 		console.debug(`Created scene '${scenename}'`);
 		return scene.id;
