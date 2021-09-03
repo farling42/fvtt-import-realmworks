@@ -522,7 +522,7 @@ class RealmWorksImporter extends Application
 		if (!filename) throw('<smart_image><asset> is missing filename attribute');
 		
 		// Name comes from topic name + facet_name
-		const scenename = this.topic_names.get(topic_id) + ':' + smart_image.getAttribute('name');
+		const scenename = this.topic_names.get(topic_id)[0] + ':' + smart_image.getAttribute('name');
 		//console.debug(`smart_image: scene name = ${scenename} from topic_id ${topic_id}`);
 	
 		// Firstly, put the file into the files area.
@@ -985,7 +985,7 @@ class RealmWorksImporter extends Application
 		// Start the HTML with a link to the parent (if known)
 		let html = "";
 		if (parent_id) {
-			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.topic_names.get(parent_id)) + '</p>';
+			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.topic_names.get(parent_id)[0]) + '</p>';
 		}
 		
 		let functhis = this;
@@ -993,7 +993,7 @@ class RealmWorksImporter extends Application
 			let result = "";
 			if (depth < 1 || !child_map.has(top_id)) return result;
 			for (const child_id of child_map.get(top_id)) {
-				result += '<li>' + functhis.formatLink(child_id, functhis.topic_names.get(child_id)) + addDescendents(depth-1, child_id) + '</li>';
+				result += '<li>' + functhis.formatLink(child_id, functhis.topic_names.get(child_id)[0]) + addDescendents(depth-1, child_id) + '</li>';
 			}
 			return `<ul>${result}</ul>`;
 		}

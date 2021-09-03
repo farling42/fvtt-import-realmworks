@@ -1,4 +1,6 @@
-0.5.3 Speed up scene generation by creating all Notes on the map in a single call to scene.createEmbeddedDocuments.
+0.5.5 Don't include aliases when creating link to Parent topic, governed content, or in the name of scenes.
+
+0.5.4 Speed up scene generation by creating all Notes on the map in a single call to scene.createEmbeddedDocuments.
 
 0.5.2 Ensure that ALL portfolios + statblocks in a topic are converted into Actors (instead of just the first one).
 Prevent error when filename is missing for a portfolio or statblock.
