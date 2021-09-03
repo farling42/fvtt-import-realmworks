@@ -400,7 +400,7 @@ class RealmWorksImporter extends Application
 		if (found?.length > 0)
 			return found[0];
 		else
-			return await Folder.create({name: folderName, type: type, parent: parentid});
+			return await Folder.create({name: folderName, type: type, parent: parentid, sorting: "m"});
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)

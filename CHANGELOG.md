@@ -1,4 +1,5 @@
 0.5.5 Don't include aliases when creating link to Parent topic, governed content, or in the name of scenes.
+When creating folders, set them to manual sorting by default (to keep the order from the realm)
 
 0.5.4 Speed up scene generation by creating all Notes on the map in a single call to scene.createEmbeddedDocuments.
 
