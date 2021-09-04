@@ -329,7 +329,7 @@ export default class RWPF1Actor {
 				}					
 				actor.items.push(item);
 			} else {
-				console.warn(`racialhd '${character.racialhd.name.toLowerCase()}' not in 'racialhd' pack`);
+				console.warn(`racialhd '${character.types.type.name}' not in 'racialhd' pack`);
 				const itemdata = {
 					name: character.types.type.name,
 					type: 'class',
@@ -523,6 +523,16 @@ export default class RWPF1Actor {
 				// Get all forms of item's name once, since we search each pack.
 				let lower = item.name.toLowerCase();
 				let singular, reversed, pack, entry, noparen;
+				// Firstly deal with masterwork and enhancement bonuses on weapons.
+				let masterwork, enh;
+				if (lower.startsWith("masterwork ")) {
+					masterwork = true;
+					lower = lower.slice(11);
+				}
+				if (lower.length > 3 && lower[0] === "+" && lower[2] === " ") {
+					enh = parseInt(lower[1]);
+					if (!isNaN(enh)) lower = lower.slice(3);
+				}
 				// Remove container "(x @ y lbs)"
 				if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)')))
 					lower = lower.slice(0,lower.lastIndexOf(' ('));
@@ -554,6 +564,17 @@ export default class RWPF1Actor {
 				if (entry) {
 					let itemdata = (await pack.getDocument(entry._id)).data.toObject();
 					itemdata.data.quantity = +item.quantity;
+					if (masterwork) itemdata.data.masterwork = true;
+					if (enh) {
+						if (itemdata.data.armor)
+							itemdata.data.armor.enh = enh;
+						else
+							itemdata.data.enh = enh;
+					}
+					if (masterwork || enh) {
+						itemdata.name = item.name;
+						itemdata.data.identifiedName = item.name;
+					}
 					actor.items.push(itemdata);
 				} else {
 					// Create our own placemarker item.
@@ -972,5 +993,21 @@ export default class RWPF1Actor {
 		// data.effects
 
 		return actor;
+	}
+	
+	//
+	// After all Actors have been created, we can add Attacks for each of the weapons on the Actor.
+	static async postCreateActors(actors) {
+		console.debug(`PF1.postCreateActors for ${actors.length} actors`);
+		for (let actor of actors) {
+			if (!actor) continue;
+			// For each weapon, create the relevant attacks
+			for (let item of actor.items) {
+				if (item.data.type === "weapon") {
+					console.debug(`'${actor.name}' creating attacks for '${item.name}'`);
+					await actor.createAttackFromWeapon(item);
+				}
+			}
+		}
 	}
 }

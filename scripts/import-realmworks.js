@@ -203,6 +203,7 @@ class RealmWorksImporter extends Application
 				let {default:RWPF1Actor} = await import("./actor-pf1.js");
 				this.init_actors = RWPF1Actor.initModule;
 				this.create_actor_data = RWPF1Actor.createActorData;
+				this.post_create_actors = RWPF1Actor.postCreateActors;
 				break;
 
 			case 'dnd5e':
@@ -523,7 +524,7 @@ class RealmWorksImporter extends Application
 		
 		// Name comes from topic name + facet_name
 		const scenename = this.topic_names.get(topic_id)[0] + ':' + smart_image.getAttribute('name');
-		//console.debug(`smart_image: scene name = ${scenename} from topic_id ${topic_id}`);
+		//console.debug(`createScene: scene name = '${scenename}' from topic_id ${topic_id}`);
 	
 		// Firstly, put the file into the files area.
 		//const imgname = await this.uploadFile(asset.getAttribute('filename'), contents.textContent);
@@ -962,6 +963,7 @@ class RealmWorksImporter extends Application
 	// Write one RW topic
 	//
 	async formatOneTopic(topic, child_map, parent_id) {
+		console.debug(`formatOneTopic('${topic.getAttribute("public_name")}')`);
 		//console.debug(`formatOneTopic('${topic.getAttribute("public_name")}', ${child_map}, ${parent_id}`);
 
 		// Extract only the links that we know are in this topic (if any).
@@ -1137,7 +1139,7 @@ class RealmWorksImporter extends Application
 	// @return an array containing 0 or more ActorData
 	//
 	async formatActors(topic) {
-		//console.debug(`Formatting actor for ${topic.getAttribute('public_name')}`);
+		console.debug(`Formatting actor for topic '${topic.getAttribute('public_name')}'`);
 		let result = [];
 		let topicname = topic.getAttribute('public_name');
 		for (const snippet of this.getActorSnippets(topic)) {
@@ -1404,6 +1406,7 @@ class RealmWorksImporter extends Application
 			}
 		}
 		if (actors.length > 0) await Actor.create(actors)
+			.then(async (new_actors) => { if (this.post_create_actors) await this.post_create_actors(new_actors) })
 			.catch(e => console.warn(`Failed to create Actors due to ${e}`));
 
 	}
@@ -1511,7 +1514,9 @@ class RealmWorksImporter extends Application
 		// TODO: if actors.length > 1 then put them inside a folder named after the topic.
 		await Promise.allSettled(actor_topics.map(async(topic_node) =>
 				await this.formatActors(topic_node)
-				.then(async(actors) => await Actor.create(actors))
+				.then(async(actors) => await Actor.create(actors)
+					.then( async(new_actors) => { if (this.post_create_actors) await this.post_create_actors(new_actors)})
+				)
 				.catch(error => console.warn(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))))
 
 		// AUDIO snippets => PLAYLISTS
