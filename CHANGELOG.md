@@ -1,3 +1,7 @@
+0.6.1 PF1 Actor decoding now adds special attacks and other non-weapon attacks to the Combat tab; and set Natural AC properly.
+
+0.6.0 PF1 Actor decoding now populates the Combat tab with entries for all weapons in your inventory; including masterwork + magical weapons with just an enhancement bonus.
+
 0.5.5 Don't include aliases when creating link to Parent topic, governed content, or in the name of scenes.
 When creating folders, set them to manual sorting by default (to keep the order from the realm)
 

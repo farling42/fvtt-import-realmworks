@@ -128,7 +128,7 @@ export default class RWPF1Actor {
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;
 		}
 		function toArray(thing) {
-			return (!thing || Array.isArray(thing)) ? thing : [thing];
+			return !thing ? [] : Array.isArray(thing) ? thing : [thing];
 		}
 		
 		// A HL file will have EITHER <xp> or <challengerating> & <xpaward>
@@ -470,6 +470,140 @@ export default class RWPF1Actor {
 		};
 */
 
+		//
+		// COMBAT tab
+		//
+		// (Items in the Inventory will be added later by postCreateActors)
+		//
+		
+		for (let armor of toArray(character.defenses.armor)) {
+			if (armor.natural && armor.useradded === "no" && armor.equipped && armor.natural === "yes") {
+				actor.data.attributes.naturalAC = +armor.ac;
+			}
+		}
+		for (let attack of toArray(character.melee.weapon).concat(toArray(character.ranged.weapon))) {
+			if (attack && attack.useradded === "no") {
+				// decode crit: either "x2" or "17-20/x2"
+				let x = attack.crit.indexOf("×");
+				let critrange = (x === 0) ? 20 : parseInt(attack.crit);
+				let critmult  = +attack.crit.slice(x+1);
+				let primaryAttack = (parseInt(attack.attack) >= (parseInt(attack.rangedattack) ? parseInt(character.attack.rangedattack) : parseInt(character.attack.meleeattack)));
+				
+				// templates: itemDescription
+				let atkdata = {
+					// item
+					name: attack.name,
+					type: "attack",
+					data: {
+						// TEMPLATE: itemDescription
+						description: { value: attack.description["#text"], chat: "", unidentified: "" },
+						//tags: [],
+						// TEMPLATE: activatedEffect
+						activation: { cost: 1, type: "attack" },
+						//unchainedAction: { activation: { cost: 1, type: "" },
+						duration: { value: null, units: "inst" },
+						//target: { value : "" },
+						//range: { value: null, units: "", maxIncrements: 1, minValue: null, minUnits: "" },
+						//uses: { value: 0, per: null, autoDetectCharges: true, autoDeductChargesCost: 1, maxFormula:  "" },
+						// TEMPLATE: action
+						//measureTemplate: { type: "", size: "", overrideColor: false, customColor: "", overrideTexture: false, customTexture: "" },
+						attackName: attack.name,
+						actionType: (attack.rangedattack ? "rwak" : "mwak"),		// eg "rwak" or "mwak"
+						attackBonus: (parseInt(attack.attack) - parseInt(character.attack.attackbonus) + (primaryAttack?0:5)).toString(),		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
+						//critConfirmBonus: "",
+						damage: { 
+							parts: [ [ attack.damage.split(' ')[0] , attack.typetext ] ],			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ],
+								// split to remove " nonlethal" (or " plus grab", etc.) from tail end of damage, if present
+							//critParts: [],		//	
+							//nonCritParts: []
+						},
+						//attackParts: [],
+						formulaicAttacks: {		// standard formula for all attacks
+							//count: { formula: "ceil(@attributes.bab.total / 5) - 1" },
+							//bonus: { formula: "@formulaicAttack * -5" },
+							label: null
+						},
+						//formula: "",
+						ability: {
+							// attackBonus and damage already include attackBonus/damage.parts above, so don't let FVTT-PF1 add it again
+							//attack: (attack.rangedattack ? "dex" : "str"),		// "str" or "dex"
+							//damage: (attack.rangedattack ? null  : "str"),		// "str" or "dex" or null (ranged weapons might always have null)
+							damageMult: 1,
+							critRange: critrange,
+							critMult:  critmult,
+						},
+						save: { dc: 0, type: "", description: "" },
+						//effectNotes: [],
+						attackNotes: (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [],
+						//soundEffect: "",
+						// TEMPLATE: links
+						//links: { children: {} },
+						// TEMPLATE: tagged
+						//tag: "",
+						//useCustomTag: false,
+						// TEMPLATE: flags
+						//flags: { boolean: [], dictionary: [] },
+						// TEMPLATE: scriptCalls
+						//scriptCalls: []
+						// ITEM: attack
+						attackType: "natural",		// or weapon?
+						//masterwork: false,
+						nonlethal: (attack.damage.indexOf("nonlethal") != -1),
+						//enh: null,
+						//proficient: true,
+						primaryAttack: primaryAttack,	// TODO : very coarse
+						//showInQuickbar: true,
+						//broken: false,
+						//held: "normal",
+						//conditionals: [],
+						//links: { charges: [], ammunition: [] },
+					}
+					// from HeroLab
+/*					cta: attack.category,	// "Melee Weapon, Unarmed Attack"
+					attack.weight,
+					attack.cost,
+					attack.description,
+					attack.wepcategory["#text"],  //maybe more than one
+					attack.wepcategory["#text"],
+					attack.wepcategory["#text"],
+					attack.weptype["#text"],		// Bludgeoning,Piercing
+					attack.situationalmodifiers.text;*/
+				}
+
+				if (attack.rangedattack) {
+					atkdata.data.range = { 
+						value: attack.rangedattack.rangeinctext,
+						units: "ft",
+						maxIncrements: 1,
+						//minValue: null,
+						//minUnits: "",
+					};
+				} else {
+					atkdata.data.range = { 
+						//value: null,
+						units: "melee",
+						//maxIncrements: 1,
+						//minValue: null,
+						//minUnits: "",
+					};
+				}
+				actor.items.push(atkdata);
+			}
+		}
+		// COMBAT - MISCELLANEOUS
+		for (let miscatk of toArray(character.attack.special)) {
+			let atkdata = {
+				name : "Special Attack: " + miscatk.shortname,
+				type : "attack",
+				img  : "systems/pf1/icons/skills/yellow_36.jpg",
+				data : {
+					description: { value: miscatk.description["#text"], chat: "", unidentified: "" },
+					attackType: "misc",
+				},
+			};
+			actor.items.push(atkdata);
+		}
+		
 		//
 		// INVENTORY tab
 		//

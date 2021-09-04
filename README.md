@@ -10,7 +10,7 @@ In the Compendium panel of the game you will find a new button near the top call
 
 Press the button to open a simple dialogue window.
 
-Select an .rwoutput file using the file selector.
+Select an .rwoutput file (or Hero Lab portfolio file) using the file selector.
 
 Enter the name of the folder into which all extracted entries will be placed.
 
@@ -24,13 +24,13 @@ Each *Smart_Image* is converted into a scene, with map pins and scene notes conn
 
 Each *Topic* will be converted into a separate Journal Entry, placed in a sub-folder based on the Category of the topic.
 
-Each *image or embedded file* will be extracted and located in the subdirectory \[data]world/<world-name/realmworksimport
+Each *image or embedded file* will be extracted and located in the subdirectory \[data]world/<world-name/realmworksimport  (this default location can be changed in the module settings).
 
 Each *Audio* snippet will be extracted and placed into a Playlist named after the topic.
 
-Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1 and D&D 5E game systems). All actors for a single topic are placed into a sub-folder named after the folder.
+Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1, D&D 5E and SWADE game systems). All actors for a single topic are placed into a sub-folder named after the folder.
 
-Any parent topic in the RWoutput file will have a list of children at the end of the page which contains links to the child topics.
+Any parent topic in the RWoutput file will have a list of descendents at the end of the page which contains links to the descendent topics (the maximum depth of the descendents can be configured in the module settings).
 
 ## Libraries
 This module uses the following libraries from other sources:
