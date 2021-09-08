@@ -224,19 +224,18 @@ class RealmWorksImporter extends Application
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
 				break;
 				
-			case 'grpga':
-				this.actor_data_func = function(html) { return { biography: html }};
-				break;
-				
 			case 'wfrp4e':
 				this.actor_data_func = function(html) { return { details: { biography: { value: html }}} };
 				break;
 				
-			case 'CoC7':
-				// CoC7 shows raw HTML code, not formatted
-				this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
+			case 'grpga':
+				this.actor_data_func = function(html) { return { biography: html }};
 				break;
 				
+			case 'worldbuilding':
+				this.actor_data_func = function(html) { return { biography: html } };
+				break;
+			
 			case 'pbta':
 				// Creates error "One of original or other are not Objects!"
 				this.actor_data_func = function(html) { return { details: { biography: html }} };
@@ -246,11 +245,17 @@ class RealmWorksImporter extends Application
 				// This system doesn't have a biography/notes section on the Actor sheet
 				this.actor_data_func = function(html) { return { notes: html } };
 				break;
-				
-			case 'worldbuilding':
-				this.actor_data_func = function(html) { return { biography: html } };
+
+			case 'CoC7':
+				// CoC7 for PC shows raw HTML code, not formatted.
+				// but for NPC the Notes section is formatted HTML.
+				// Other option is { biography: [{ title: "Statblock", value: html }]};
+				if (this.actor_type === 'character')
+					this.actor_data_func = function(html) { return { biography: [ { title: "Statblock", value: html } ]} };
+				else
+					this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
 				break;
-			
+
 			case 'cyphersystem':
 				if (this.actor_type === 'PC')
 					this.actor_data_func = function(html) { return { basic: { notes: html }} };
