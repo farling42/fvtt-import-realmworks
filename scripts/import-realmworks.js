@@ -249,10 +249,12 @@ class RealmWorksImporter extends Application
 			case 'CoC7':
 				// CoC7 for PC shows raw HTML code, not formatted.
 				// but for NPC the Notes section is formatted HTML.
-				// Other option is { biography: [{ title: "Statblock", value: html }]};
+				// HL por for CoC 6th & 7th editions contains only minimal information in XML, so no chance of decoding it!
 				if (this.actor_type === 'character')
+					// character only displays raw text/HTML
 					this.actor_data_func = function(html) { return { biography: [ { title: "Statblock", value: html } ]} };
 				else
+					// npc and creature display formatted HTML (go figure!)
 					this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
 				break;
 
