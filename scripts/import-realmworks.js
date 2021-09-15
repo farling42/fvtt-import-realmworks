@@ -49,7 +49,7 @@ Hooks.once('init', () => {
 		config: true,
 	});
 	let actors = {};
-	for (let label of game.system.entityTypes.Actor) {
+	for (const label of game.system.entityTypes.Actor) {
 		actors[label] = label
 	}
 	// Get the list of Actor choices Actor.types[] system/template.json
@@ -196,6 +196,7 @@ class RealmWorksImporter extends Application
 			this.actor_type = game.settings.get(GS_MODULE_NAME, GS_ACTOR_TYPE);
 			this.governing_content_label = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
 			this.governed_max_depth = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
+			this.por_html = "html";
 			
 			switch (game.system.id) {
 			case 'pf1':
@@ -250,12 +251,19 @@ class RealmWorksImporter extends Application
 				// CoC7 for PC shows raw HTML code, not formatted.
 				// but for NPC the Notes section is formatted HTML.
 				// HL por for CoC 6th & 7th editions contains only minimal information in XML, so no chance of decoding it!
-				if (this.actor_type === 'character')
+				if (this.actor_type === 'character') {
 					// character only displays raw text/HTML
-					this.actor_data_func = function(html) { return { biography: [ { title: "Statblock", value: html } ]} };
-				else
+					this.por_html = "text";
+					let {default:RWCoC7Actor} = await import("./actor-coc7.js");
+					this.init_actors     = RWCoC7Actor.initModule;
+					this.actor_data_func = RWCoC7Actor.parseStatblock;
+				} else {
 					// npc and creature display formatted HTML (go figure!)
-					this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
+					//this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
+					this.por_html = "text";
+					let {default:RWCoC7Actor} = await import("./actor-coc7.js");
+					this.actor_data_func = RWCoC7Actor.parseStatblock;
+				}
 				break;
 
 			case 'cyphersystem':
@@ -370,9 +378,9 @@ class RealmWorksImporter extends Application
 			// Collect parent information
 			let parent_map = new Map();
 			let child_map = new Map();
-			for (let topic of topic_nodes) {
+			for (const topic of topic_nodes) {
 				let parent_id = topic.getAttribute('topic_id');
-				for (let child of topic.getElementsByTagName('topicchild')) {
+				for (const child of topic.getElementsByTagName('topicchild')) {
 					const child_id = child.getAttribute('topic_id');
 					parent_map.set(child_id, parent_id);
 					if (!child_map.has(parent_id))
@@ -693,7 +701,7 @@ class RealmWorksImporter extends Application
 					result[xmlNode.nodeName] = jsonNode;
 			}
 			if (xmlNode.attributes) {
-				for (let attribute of xmlNode.attributes) {
+				for (const attribute of xmlNode.attributes) {
 					jsonNode[attribute.nodeName] = attribute.nodeValue;
 				}
 			}
@@ -702,7 +710,7 @@ class RealmWorksImporter extends Application
 			}
 		}
 		let result = {};
-		for (let node of xmlDoc.childNodes) {
+		for (const node of xmlDoc.childNodes) {
 			parseNode(node, result);
 		}
 		return result;
@@ -874,9 +882,15 @@ class RealmWorksImporter extends Application
 						// TODO: for test purposes, extract all .por files!
 						//await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
 						let first=true;
-						for (let [charname, character] of this.readPortfolio(portfolio.textContent)) {
+						for (const [charname, character] of this.readPortfolio(portfolio.textContent)) {
 							if (first) { result += '<hr>'; first=false }
-							result += header(level+1, character.name) + this.Utf8ArrayToStr(character.html);
+							result += header(level+1, character.name);
+							let str = this.Utf8ArrayToStr(character[this.por_html]);
+							if (this.por_html==="text")
+								// text needs to be put inside a pre-formatted block
+								result += "<pre>" + str + "</pre>";
+							else
+								result += str;
 						}
 					}
 					break;
@@ -1184,7 +1198,7 @@ class RealmWorksImporter extends Application
 				//portfolio = this.readPortfolio(contents.textContent);
 				// Upload images (if any)
 				portfolio = this.readPortfolio(contents.textContent);
-				for (let[charname, character]of portfolio) {
+				for (const [charname, character]of portfolio) {
 					if (character.imgfilename) {
 						await this.uploadBinaryFile(character.imgfilename, character.imgdata);
 					}
@@ -1205,12 +1219,12 @@ class RealmWorksImporter extends Application
 
 			if (portfolio) {
 				if (this.create_actor_data) {
-					for (let [charname, character] of portfolio) {
+					for (const [charname, character] of portfolio) {
 						// The lack of XML will be because this is a MINION of another character.
 						if (character.xml) {
 							const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
 							await this.create_actor_data(json.document.public.character)
-							.then(actorlist => {
+							.then(async (actorlist) => {
 								for (let actor of actorlist) {
 									// actor really is the full Actor, not just ActorData
 									// Cater for MINIONS
@@ -1218,7 +1232,7 @@ class RealmWorksImporter extends Application
 									actor.token = {
 										disposition: actor.relationship === 'ally' ? 1 : actor.relationship === 'enemy' ? -1 : 0
 									};
-									actor.data = foundry.utils.mergeObject(actor.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
+									actor.data = foundry.utils.mergeObject(actor.data, await this.actor_data_func(this.Utf8ArrayToStr(port[this.por_html])));
 									if (port?.imgfilename)
 										actor.img = this.imageFilename(port.imgfilename);
 									result.push(actor);
@@ -1229,16 +1243,15 @@ class RealmWorksImporter extends Application
 					}
 				} else {
 					// All other game systems use this.actor_data_func to create the correct basic data block
-					for (let [charname, character] of portfolio) {
-						// TODO - XML conversion
+					for (const [charname, character] of portfolio) {
 						let actor = {
 							name: character.name,
 							type: this.actor_type,
-							data: this.actor_data_func(this.Utf8ArrayToStr(character.html)),
+							data: await this.actor_data_func(this.Utf8ArrayToStr(character[this.por_html])),
 						};
 						if (character.imgfilename)
 							actor.img = this.imageFilename(character.imgfilename)
-								result.push(actor);
+						result.push(actor);
 					}
 				}
 			} else {
@@ -1249,7 +1262,7 @@ class RealmWorksImporter extends Application
 				let actor = {
 					name: name,
 					type: this.actor_type,
-					data: this.actor_data_func(statblock),
+					data: await this.actor_data_func(statblock),
 				};
 				result.push(actor);
 			}
@@ -1368,10 +1381,10 @@ class RealmWorksImporter extends Application
 		await DirectoryPicker.verifyPath(DirectoryPicker.parse(this.asset_directory));
 
 		if (!this.parser) this.parser = new DOMParser();
-		let portfolio = this.readPortfolio(new Uint8Array(data));
+		const portfolio = this.readPortfolio(new Uint8Array(data));
 		let actors = [];
 		// Upload images (if any)
-		for (let [charname, character] of portfolio) {
+		for (const [charname, character] of portfolio) {
 			if (this.create_actor_data) {
 				// no XML means it is a MINION, and has been created from the XML of another character.
 				if (character.xml) {
@@ -1383,7 +1396,7 @@ class RealmWorksImporter extends Application
 						let port = portfolio.get(actordata.name);
 
 						// Store the raw statblock (but don't overwrite the rest of data)
-						actordata.data = foundry.utils.mergeObject(actordata.data, this.actor_data_func(this.Utf8ArrayToStr(port.html)));
+						actordata.data = foundry.utils.mergeObject(actordata.data, await this.actor_data_func(this.Utf8ArrayToStr(port[this.por_html])));
 						actordata.token = {
 							disposition: actordata.relationship === 'ally' ? 1 : actordata.relationship === 'enemy' ? -1 : 0
 						};
@@ -1399,19 +1412,21 @@ class RealmWorksImporter extends Application
 						actors.push(actordata);
 					}
 				}
-			} else if (character.html) {
+			} else if (character[this.por_html]) {
 				// Not supported for system-specific actor creation, so just put in the HTML
 				let actordata = {
 					name: character.name,
 					type: this.actor_type,
-					data: this.actor_data_func(this.Utf8ArrayToStr(character.html)),
+					data: await this.actor_data_func(this.Utf8ArrayToStr(character[this.por_html])),
 					folder: actor_folder_id,
 				};
 				if (character.imgfilename)
 					actordata.img = this.imageFilename(character.imgfilename)
+				//console.dir(actordata);
 				actors.push(actordata);
 			}
 		}
+		console.log(`Found ${actors.length} actors`);
 		if (actors.length > 0) await Actor.create(actors)
 			.then(async (new_actors) => { if (this.post_create_actors) await this.post_create_actors(new_actors) })
 			.catch(e => console.warn(`Failed to create Actors due to ${e}`));

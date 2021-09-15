@@ -12,6 +12,7 @@
 		"scripts/actor-pf1.js",
 		"scripts/actor-dnd5e.js",
 		"scripts/actor-swade.js",
+		"scripts/actor-coc7.js",
 		"scripts/DirectoryPicker.js"
 		],
 	"scripts": ["scripts/UZIP.js", "scripts/jimp.js"],

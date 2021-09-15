@@ -267,7 +267,7 @@ export default class RWPF1Actor {
 						return o.level <= levels;
 					});
 
-					for (let co of classAssociations) {
+					for (const co of classAssociations) {
 						const collection = co.id.split(".").slice(0, 2).join(".");
 						const itemId = co.id.split(".")[2];
 						const pack = game.packs.get(collection);
@@ -476,12 +476,12 @@ export default class RWPF1Actor {
 		// (Items in the Inventory will be added later by postCreateActors)
 		//
 		
-		for (let armor of toArray(character.defenses.armor)) {
+		for (const armor of toArray(character.defenses.armor)) {
 			if (armor.natural && armor.useradded === "no" && armor.equipped && armor.natural === "yes") {
 				actor.data.attributes.naturalAC = +armor.ac;
 			}
 		}
-		for (let attack of toArray(character.melee.weapon).concat(toArray(character.ranged.weapon))) {
+		for (const attack of toArray(character.melee.weapon).concat(toArray(character.ranged.weapon))) {
 			if (attack && attack.useradded === "no") {
 				// decode crit: either "x2" or "17-20/x2"
 				let x = attack.crit.indexOf("×");
@@ -591,7 +591,7 @@ export default class RWPF1Actor {
 			}
 		}
 		// COMBAT - MISCELLANEOUS
-		for (let miscatk of toArray(character.attack.special)) {
+		for (const miscatk of toArray(character.attack.special)) {
 			let atkdata = {
 				name : "Special Attack: " + miscatk.shortname,
 				type : "attack",
@@ -831,7 +831,7 @@ export default class RWPF1Actor {
 							let paren = skillname.indexOf(' (');
 							skill = paren ? this.skill_mapping.get(skillname.slice(0,paren)) : undefined;
 							if (skill) {
-								for (let skl2 of Object.keys(actor.data.skills[skill].subSkills)) {
+								for (const skl2 of Object.keys(actor.data.skills[skill].subSkills)) {
 									if (actor.data.skills[skill].subSkills[skl2].name == skillname) {
 										ranks = actor.data.skills[skill].subSkills[skl2].rank;
 										skill = 'skill.' + skill + ".subSkills." + skl2;
@@ -1136,7 +1136,7 @@ export default class RWPF1Actor {
 		for (let actor of actors) {
 			if (!actor) continue;
 			// For each weapon, create the relevant attacks
-			for (let item of actor.items) {
+			for (const item of actor.items) {
 				if (item.data.type === "weapon") {
 					console.debug(`'${actor.name}' creating attacks for '${item.name}'`);
 					await actor.createAttackFromWeapon(item);
