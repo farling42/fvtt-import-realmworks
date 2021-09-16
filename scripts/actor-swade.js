@@ -64,12 +64,12 @@ export default class RWSWADEActor {
 		}
 		async function searchPack(pack,name) {
 			if (!pack) return undefined;
-			let lower = name.toLowerCase();
-			let pos = lower.indexOf(': ');
-			let prefix = (pos < 0) ? undefined : lower.slice(0,pos);
-			let bracket = lower.slice(0,pos) + ' (' + lower.slice(pos+2) + ')';
+			const lower = name.toLowerCase();
+			const pos = lower.indexOf(': ');
+			const prefix = (pos < 0) ? undefined : lower.slice(0,pos);
+			const bracket = lower.slice(0,pos) + ' (' + lower.slice(pos+2) + ')';
 			
-			let entry = pack.index.find(e => { 
+			const entry = pack.index.find(e => { 
 				let elc = e.name.toLowerCase();
 				return elc === lower || elc === prefix || elc == bracket
 			});
@@ -111,7 +111,7 @@ export default class RWSWADEActor {
 		
 		// attributes
 		// agility = { die: { sides: 4, modifier: 0 }, "wild-die" : { sides: 6 } }
-		for (let attr of character.attributes.attribute) {
+		for (const attr of character.attributes.attribute) {
 			let name = attr.name.toLowerCase();
 			actor.data.attributes[name] = { die : getDice(attr.value) };
 			
@@ -130,7 +130,7 @@ export default class RWSWADEActor {
 		
 		// These are probably not required, since Toughness and Parry are calculated automatically.
 		// HL traits = Pace, Parry, Toughness, Charisma, (optional: Running Die, Size)
-		for (let trait of toArray(character.traits.trait)) {
+		for (const trait of toArray(character.traits.trait)) {
 			switch (trait.name) {
 				case 'Running Die':
 					if (!actor.data.stats.speed) actor.data.stats.speed = {};
@@ -168,7 +168,7 @@ export default class RWSWADEActor {
 			details: "",
 		};
 		
-		for (let tracker of toArray(character.trackers.tracker)) {
+		for (const tracker of toArray(character.trackers.tracker)) {
 			if (tracker.name === 'Bennies') {
 				actor.data.bennies = { value: tracker.left, max: tracker.max };
 			}
@@ -192,9 +192,9 @@ export default class RWSWADEActor {
 		*/
 		
 		// Skills
-		let basic_skill_pack = await game.packs.find(p => p.metadata.name === 'skills');
-		let swade_skills_pack = await game.packs.find(p => p.metadata.name === 'swade-skills');
-		for (let skill of toArray(character.skills.skill)) {
+		const basic_skill_pack  = await game.packs.find(p => p.metadata.name === 'skills');
+		const swade_skills_pack = await game.packs.find(p => p.metadata.name === 'swade-skills');
+		for (const skill of toArray(character.skills.skill)) {
 			let itemdata;
 			if (swade_skills_pack) itemdata = await searchPack(swade_skills_pack, skill.name);
 			if (!itemdata) itemdata = await searchPack(basic_skill_pack, skill.name);
@@ -228,9 +228,9 @@ export default class RWSWADEActor {
 		}
 		// Resources - encumbrance, load limit
 		// edges
-		let basic_edges_pack = await game.packs.find(p => p.metadata.name === 'edges');
-		let swade_edges_pack = await game.packs.find(p => p.metadata.name === 'swade-edges');
-		for (let edge of toArray(character.edges.edge)) {
+		const basic_edges_pack = await game.packs.find(p => p.metadata.name === 'edges');
+		const swade_edges_pack = await game.packs.find(p => p.metadata.name === 'swade-edges');
+		for (const edge of toArray(character.edges.edge)) {
 			let itemdata;
 			if (swade_edges_pack) itemdata = await searchPack(swade_edges_pack, edge.name);
 			if (!itemdata) itemdata = await searchPack(basic_edges_pack, edge.name);
@@ -262,9 +262,9 @@ export default class RWSWADEActor {
 			}
 		}
 
-		let basic_hind_pack = await game.packs.find(p => p.metadata.name === 'hindrances');
-		let swade_hind_pack = await game.packs.find(p => p.metadata.name === 'swade-hindrances');
-		for (let hindrance of toArray(character.hindrances.hindrance)) {
+		const basic_hind_pack = await game.packs.find(p => p.metadata.name === 'hindrances');
+		const swade_hind_pack = await game.packs.find(p => p.metadata.name === 'swade-hindrances');
+		for (const hindrance of toArray(character.hindrances.hindrance)) {
 			let itemdata;
 			if (swade_hind_pack) itemdata = await searchPack(swade_hind_pack, hindrance.name);
 			if (!itemdata) itemdata = await searchPack(basic_hind_pack, hindrance.name);
@@ -288,7 +288,7 @@ export default class RWSWADEActor {
 			}
 			actor.items.push(itemdata);
 		}
-		for (let drawback of toArray(character.drawbacks.drawback)) {
+		for (const drawback of toArray(character.drawbacks.drawback)) {
 			let itemdata = {
 				name: drawback.name,
 				type: 'hindrance',
@@ -304,8 +304,8 @@ export default class RWSWADEActor {
 			actor.items.push(itemdata);
 		}
 		
-		let swade_powers_pack = await game.packs.find(p => p.metadata.name === 'swade-powers');
-		for (let item of toArray(character.arcanepowers.arcanepower)) {
+		const swade_powers_pack = await game.packs.find(p => p.metadata.name === 'swade-powers');
+		for (const item of toArray(character.arcanepowers.arcanepower)) {
 			let itemdata;
 			if (swade_powers_pack) itemdata = await searchPack(swade_powers_pack, item.name);
 			if (itemdata) {
@@ -343,7 +343,7 @@ export default class RWSWADEActor {
 			}
 			actor.items.push(itemdata);
 		}
-		for (let item of toArray(character.superpowers.superpower)) {
+		for (const item of toArray(character.superpowers.superpower)) {
 			let itemdata;
 			if (swade_powers_pack) itemdata = await searchPack(swade_powers_pack, item.name);
 			if (itemdata) {
@@ -382,8 +382,8 @@ export default class RWSWADEActor {
 		}
 
 		// Gear from several different places
-		let swade_equipment_pack = await game.packs.find(p => p.metadata.name === 'swade-equipment');
-		for (let gear of toArray(character.gear.item)) {
+		const swade_equipment_pack = await game.packs.find(p => p.metadata.name === 'swade-equipment');
+		for (const gear of toArray(character.gear.item)) {
 			// Transfer quantity to found items
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, gear.name);
@@ -413,7 +413,7 @@ export default class RWSWADEActor {
 			}
 			actor.items.push(itemdata);
 		}
-		for (let magicitem of toArray(character.magicitems.magicitem)) {
+		for (const magicitem of toArray(character.magicitems.magicitem)) {
 			// Transfer quantity to found items
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, magicitem.name);
@@ -443,8 +443,7 @@ export default class RWSWADEActor {
 			}
 			actor.items.push(itemdata);
 		}
-		for (let attack of toArray(character.attacks.attack)) {
-
+		for (const attack of toArray(character.attacks.attack)) {
 			// If attack.damage contains the name of an ability, then prefix ability name with "@" for lookup
 			let dmg = attack.damage.toLowerCase();
 			if (dmg[0] >= 'a' && dmg[0] <= 'z')
@@ -496,7 +495,7 @@ export default class RWSWADEActor {
 			}
 			actor.items.push(itemdata);
 		}
-		for (let defense of toArray(character.defenses.defense)) {
+		for (const defense of toArray(character.defenses.defense)) {
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, defense.name);
 			if (itemdata) {

@@ -167,7 +167,7 @@ export default class RWDND5EActor {
 		//
 		
 		// Abilities:   name : { value : number , proficient : 0|1 }
-		for (let stat of character.abilityscores.abilityscore) {
+		for (const stat of character.abilityscores.abilityscore) {
 			actor.data.abilities[RWDND5EActor.ability_names[stat.name.toLowerCase()]] = {
 				value      : +stat.abilvalue.base,
 				proficient : stat.savingthrow.isproficient === "no" ? 0 : 1,
@@ -179,7 +179,7 @@ export default class RWDND5EActor {
 		// init : ( value : 0, bonus: 0 }
 		// movement : { burrow : 0, climb: 0, fly: 0, swim: 0, walk: 30, units: "ft", hover: false }
 		let natural = 0;
-		for (let def of toArray(character.otherspecials.special)) {
+		for (const def of toArray(character.otherspecials.special)) {
 			if (def.name === 'Natural Armor') natural = +character.armorclass.fromnatural + 10;
 		}
 		actor.data.attributes.ac = {
@@ -199,7 +199,7 @@ export default class RWDND5EActor {
 		function resist(string, predefined) {
 			let values = [];
 			let custom = [];
-			for (let item of string.split(', ')) {
+			for (const item of string.split(', ')) {
 				let lower = item.toLowerCase();
 				if (lower in predefined)
 					values.push(lower);
@@ -222,7 +222,7 @@ export default class RWDND5EActor {
 			case 'Gargantuan': actor.data.traits.size = "grg";  break;
 		}
 		
-		for (let money of character.money.coins) {
+		for (const money of character.money.coins) {
 			actor.data.currency[money.abbreviation] = +money.count;
 		}
 		
@@ -238,7 +238,7 @@ export default class RWDND5EActor {
 			units   : "ft",
 			special : "",
 		}
-		for (let spec of toArray(character.otherspecials.special)) {
+		for (const spec of toArray(character.otherspecials.special)) {
 			let name = spec.name.toLowerCase();
 			if (name.startsWith("darkvision"))
 				actor.data.attributes.senses.darkvision = getNumber(name);
@@ -255,7 +255,7 @@ export default class RWDND5EActor {
 			alignment: character.alignment.name,
 			race     : character.race.displayname,
 		}
-		for (let skill of toArray(character.skills.skill)) {
+		for (const skill of toArray(character.skills.skill)) {
 			let name = skill.name;
 			// value : 0 (not proficient), 0.5 (half proficient), 1 (proficient), 2 (expertise)
 			actor.data.skills[RWDND5EActor.skill_names[name]] = {
@@ -266,7 +266,7 @@ export default class RWDND5EActor {
 		
 		actor.data.traits.languages = { value: [], custom: "" };
 		let lcust = [];
-		for (let lang of toArray(character.languages.language)) {
+		for (const lang of toArray(character.languages.language)) {
 			let name = lang.name.toLowerCase();
 			if (name === "deep speech")
 				actor.data.traits.languages.value.push("deep");
@@ -282,7 +282,7 @@ export default class RWDND5EActor {
 		// actor.data.spells[x] = { value: 0, override: null }
 		
 		let dc;
-		for (let clas of toArray(character.classes.class)) {
+		for (const clas of toArray(character.classes.class)) {
 			if (clas.spellsavedc) dc = clas.spellsavedc;
 		}
 		
@@ -301,7 +301,7 @@ export default class RWDND5EActor {
 		if (actor.type === 'character') {
 			//actor.data.attributes.death = { success: 0, failure: 0 }
 			let insp = 0;
-			for (let res of toArray(character.trackedresources.trackedresource)) {
+			for (const res of toArray(character.trackedresources.trackedresource)) {
 				if (res.name === 'Inspiration')
 					actor.data.attributes.inspiration = +res.left;
 			}
@@ -310,7 +310,7 @@ export default class RWDND5EActor {
 			actor.data.details.xp = { value: character.xp.total /*, min: 0, max: 300*/ }
 			//actor.data.details.appearance = "";
 			let traits = [];
-			for (let bg of toArray(character.background.backgroundtrait)) {
+			for (const bg of toArray(character.background.backgroundtrait)) {
 				let txt = bg["#text"];
 				switch (bg.type) {
 					case 'personalitytrait':
@@ -335,7 +335,7 @@ export default class RWDND5EActor {
 			}*/
 			actor.data.traits.weaponProf = { value: [], custom: "" };
 			let wcust = [];
-			for (let prof of character.weaponproficiencies.text.split('; ')) {
+			for (const prof of character.weaponproficiencies.text.split('; ')) {
 				if (prof === 'Martial weapons')
 					actor.data.traits.weaponProf.value.push('mar');
 				else if (prof === 'Simple weapons')
@@ -357,7 +357,7 @@ export default class RWDND5EActor {
 		
 			actor.data.traits.armorProf = { value: [], custom: "" };
 			let acust = [];
-			for (let prof of character.armorproficiencies.text.split('; ')) {
+			for (const prof of character.armorproficiencies.text.split('; ')) {
 				if (prof === 'Light armor')
 					actor.data.traits.armorProf.value.push('lgt');
 				else if (prof === 'Medium armor')
@@ -373,7 +373,7 @@ export default class RWDND5EActor {
 		
 			actor.data.traits.toolProf = { value: [], custom: "" };
 			let tcust = [];
-			for (let prof of character.toolproficiencies.text.split('; ')) {
+			for (const prof of character.toolproficiencies.text.split('; ')) {
 				let tool = RWDND5EActor.tool_proficiencies[prof.toLowerCase()]
 				if (tool)
 					actor.data.traits.toolProf.value.push(tool)
@@ -403,8 +403,8 @@ export default class RWDND5EActor {
 		//
 		
 		if (character.gear.item) {
-			let item_pack = await game.packs.find(p => p.metadata.name === 'items');
-			for (let item of toArray(character.gear.item)) {
+			const item_pack = await game.packs.find(p => p.metadata.name === 'items');
+			for (const item of toArray(character.gear.item)) {
 				// HL puts bonus into the name of the item, so remove it
 				let name = item.name.replace(/ \(+.*/,'');
 				if (name.endsWith('lbs)') || name.endsWith('empty)')) name = name.replace(/\(+.*/,'');
@@ -413,7 +413,7 @@ export default class RWDND5EActor {
 				const othername = RWDND5EActor.item_names[lower];
 				if (othername) lower = othername;
 			
-				let entry = item_pack.index.find(e => {	
+				const entry = item_pack.index.find(e => {	
 					const elc = e.name.toLowerCase().replace("’","'"); 
 					return elc === lower || elc === lower + ' armor';
 				});
@@ -424,19 +424,19 @@ export default class RWDND5EActor {
 					itemdata.data.quantity = +item.quantity;
 					// Equipped state of equipment is stored in the melee/ranged/defenses section
 					let equipped = false;
-					for (let armor of toArray(character.defenses.armor)) {
+					for (const armor of toArray(character.defenses.armor)) {
 						if (armor.name === item.name) {
 							if (armor.equipped) equipped = true;
 							break;
 						}
 					}
-					for (let wpn of toArray(character.melee.weapon)) {
+					for (const wpn of toArray(character.melee.weapon)) {
 						if (wpn.name === item.name) {
 							if (wpn.equipped) equipped = true;
 							break;
 						}
 					}
-					for (let wpn of toArray(character.ranged.weapon)) {
+					for (const wpn of toArray(character.ranged.weapon)) {
 						if (wpn.name === item.name) {
 							if (wpn.equipped) equipped = true;
 							break;
@@ -475,12 +475,12 @@ export default class RWDND5EActor {
 
 		// All known spells
 		
-		let spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
+		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
 		async function addSpells(spells) {
 			if (!spells) return;
-			for (let spell of toArray(spells)) {
-				let lower = spell.name.toLowerCase();
-				let entry = spell_pack.index.find(e => {	
+			for (const spell of toArray(spells)) {
+				const lower = spell.name.toLowerCase();
+				const entry = spell_pack.index.find(e => {	
 					const elc = e.name.toLowerCase(); 
 					return elc === lower;
 				});
@@ -559,7 +559,7 @@ export default class RWDND5EActor {
 							},
 						},
 					};
-					for (let comp of toArray(spell.spellcomp)) {
+					for (const comp of toArray(spell.spellcomp)) {
 						let label = comp["#text"];
 						if      (label === 'Verbal')   itemdata.data.components.vocal    = true;
 						else if (label === 'Somatic')  itemdata.data.components.somatic  = true;
@@ -576,14 +576,14 @@ export default class RWDND5EActor {
 		
 		// Special Abilities
 		
-		let classab_pack = await game.packs.find(p => p.metadata.name === 'classfeatures');
-		let races_pack   = await game.packs.find(p => p.metadata.name === 'races');
-		let packs = [ classab_pack, races_pack ];
+		const classab_pack = await game.packs.find(p => p.metadata.name === 'classfeatures');
+		const races_pack   = await game.packs.find(p => p.metadata.name === 'races');
+		const packs = [ classab_pack, races_pack ];
 		
-		for (let ability of toArray(character.otherspecials.special)) {
+		for (const ability of toArray(character.otherspecials.special)) {
 			let entry, pack;
-			for (let onepack of packs) {
-				let lower = ability.name.toLowerCase();
+			for (const onepack of packs) {
+				const lower = ability.name.toLowerCase();
 				entry = onepack.index.find(e => {	
 					const elc = e.name.toLowerCase(); 
 					return elc === lower;
@@ -652,10 +652,10 @@ export default class RWDND5EActor {
 		}
 		
 		// classes
-		let class_pack = await game.packs.find(p => p.metadata.name === 'classes');
-		for (let cls of toArray(character.classes.class)) {
-			let lower = cls.name.toLowerCase();
-			let entry = class_pack.index.find(e => {
+		const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
+		for (const cls of toArray(character.classes.class)) {
+			const lower = cls.name.toLowerCase();
+			const entry = class_pack.index.find(e => {
 				const elc = e.name.toLowerCase(); 
 				return elc === lower;
 			});
