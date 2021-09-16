@@ -21,31 +21,36 @@ export default class RWCoC7Actor {
 				if (pos>0) basename = basename.slice(0,pos);
 			}
 			
-			let exist = map.get(basename);
-			if (exist === undefined || pack.metadata.package !== "CoC7") {
+			let exist = map.has(basename);
+			if (!exist || !pack || pack.metadata.package !== "CoC7") {
 				// Assume non-system packs contain better information than those supplied in the system.
-				//console.log(`Adding '${entry.name}' to map`);
-				map.set(basename, await pack.getDocument(entry._id));
+				if (exist) map.delete(basename);	// We want to definitely REPLACE, not merge
+				map.set(basename, pack ? await pack.getDocument(entry._id) : entry);
+				//console.log(`Added '${basename}' to map as\n${JSON.stringify(map.get(basename),null,2)}`);
 			}
 		}
 		
-		await game.packs.forEach(async(pack) => {
-			//console.log(`pack = ${JSON.stringify(pack.metadata)}`);
+		// This little loop takes over 1.4 seconds to process all the packs
+		for (const pack of game.packs) {
 			if (pack.metadata.entity === "Item") {
-				await pack.index.forEach(async(entry) => { 
+				//console.log(`pack ${pack.name} contains ${JSON.stringify(pack.metadata,null,2)}`);
+				for (const entry of pack.index) {
 					if (entry.type === "weapon")
 						await checkset(pack, RWCoC7Actor.knownweapons, entry, /*strip*/true);
 					else if (entry.type === "skill")
 						await checkset(pack, RWCoC7Actor.knownskills, entry);
-				});
+				}
 			}
-		})
-		// Local world versions supercede compendium versions
-		await game.items.filter(e => e.type === "skill").forEach(e => RWCoC7Actor.knownskills.set(e.name, e));
-		await game.items.filter(e => e.type === "weapon").forEach(e => RWCoC7Actor.knownweapons.set(e.name, e));
+		}
 		
+		// Local world versions supercede compendium versions
+		game.items.forEach(async(item) => {
+			if (item.type === "skill")
+				await checkset(undefined, RWCoC7Actor.knownskills,  item);
+			else if (item.type === "weapon")
+				await checkset(undefined, RWCoC7Actor.knownweapons, item, true);
+		});
 		console.log(`RWCoC7Actor working with ${RWCoC7Actor.knownskills.size} skills and ${RWCoC7Actor.knownweapons.size} weapons`);
-		//console.log(`knownskills = ${JSON.stringify(RWCoC7Actor.knownskills)}`);
 	}
 	
 	//const GS_MODULE_NAME = "realm-works-import";
