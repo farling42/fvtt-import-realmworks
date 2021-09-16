@@ -2,8 +2,8 @@ export default class RWCoC7Actor {
 
 	static statnames = [ "str", "con", "siz", "dex", "app", "int", "pow", "edu" ];
 	
-	static knownskills = [];
-	static knownweapons = [];
+	static knownskills;
+	static knownweapons;
 	
 	static async initModule() {
 		console.debug('RWCoC7Actor.initModule invoked');
@@ -13,12 +13,19 @@ export default class RWCoC7Actor {
 		RWCoC7Actor.knownweapons = new Map();
 		// Search all the packs.
 		//for (let pack in game.packs) {
-		async function checkset(pack, map, entry) {
-			let exist = map.get(entry.name);
+		async function checkset(pack, map, entry, strip=false) {
+			let basename = entry.name;
+			// For weapons, strip off anything in parentheses
+			if (strip) {
+				let pos = basename.indexOf(" (");
+				if (pos>0) basename = basename.slice(0,pos);
+			}
+			
+			let exist = map.get(basename);
 			if (exist === undefined || pack.metadata.package !== "CoC7") {
 				// Assume non-system packs contain better information than those supplied in the system.
 				//console.log(`Adding '${entry.name}' to map`);
-				map.set(entry.name, await pack.getDocument(entry._id));
+				map.set(basename, await pack.getDocument(entry._id));
 			}
 		}
 		
@@ -27,7 +34,7 @@ export default class RWCoC7Actor {
 			if (pack.metadata.entity === "Item") {
 				await pack.index.forEach(async(entry) => { 
 					if (entry.type === "weapon")
-						await checkset(pack, RWCoC7Actor.knownweapons, entry);
+						await checkset(pack, RWCoC7Actor.knownweapons, entry, /*strip*/true);
 					else if (entry.type === "skill")
 						await checkset(pack, RWCoC7Actor.knownskills, entry);
 				});
@@ -44,8 +51,7 @@ export default class RWCoC7Actor {
 	//const GS_MODULE_NAME = "realm-works-import";
 
 	static async parseStatblock(statblock) {
-		console.trace();
-		console.log(`RWCoC7Actor.parseStatblock with:\n${statblock}`);
+		//console.log(`RWCoC7Actor.parseStatblock with:\n${statblock}`);
 
 /*
 		const GS_MODULE_NAME = "realm-works-import";
@@ -125,12 +131,27 @@ export default class RWCoC7Actor {
 			items: []
 		};
 
-		function addSkill(percentage, mainname, specname=null, push=true, fighting=undefined) {
-			let skill = RWCoC7Actor.knownskills.get(mainname);
+		function addSkill(percentage, skillname, push=true, fighting=undefined) {
+			// The compendium will use the FULL name of a skill with specialization,
+			// but the Actor will show the REDUCED name in the title of the skill.
+			let part = skillname.indexOf(" (");
+			let specname = (part > 0) ? skillname.slice(part+2,-1) : skillname;
+			let basename = (part > 0) ? skillname.slice(0,part): undefined;
+			
+			let skill = RWCoC7Actor.knownskills.get(skillname);
+			// Check for generic specialization
+			if (!skill && part>0) {			
+				skill = RWCoC7Actor.knownskills.get(skillname.replace(specname, "Any"));
+				if (!skill) {
+					skill = RWCoC7Actor.knownskills.get(skillname.replace(specname, "Specialization"));
+				}
+			}
+			
 			if (!skill) {
+				console.debug(`Creating custom skill '${skillname}'`);
 				skill = {
 					type: "skill",
-					name: mainname,
+					name: specname,
 					data: {
 						value: percentage,
 						properties: {
@@ -149,31 +170,45 @@ export default class RWCoC7Actor {
 					skill.data.properties.fighting = fighting;
 					skill.data.properties.firearm  = !fighting;
 				}
-				if (specname) {
-					skill.data.specialization = specname;
+				if (basename) {
+					skill.data.specialization = basename;
 					skill.data.properties.special = true;
 				}
-			} else {
-				//console.log(`Using existing skill: ${JSON.stringify(skill)}`);
+			} else {				
+				//console.log(`Using existing skill '${skill.name}' for '${skillname}'`);
 				skill = duplicate(skill);
+				// Reduce LONG name of specialization skills in compendium to short name expected in Actor
+				if (part>0) skill.name = specname;
 				skill.data.value = percentage;
 			}
-			actordata.items.push(skill);
+			//console.log(`ADDING ${JSON.stringify(skill,null,2)}`);
+			// We are NOT passing skill.id into this.
+			actordata.items.push({
+				type: "skill",
+				name: skill.name,
+				data: skill.data});
 		}
 		
-		function addWeapon(score, name, skillname, specname, damage) {
+		function addWeapon(score, skillname, damage) {
 			let fighting;
-			let weapon = RWCoC7Actor.knownweapons.get(name);
+			
+			// The weapon name is hidden inside the skill speciality
+			let part = skillname.indexOf(" (");
+			let weaponname = (part > 0) ? skillname.slice(part+2,-1) : skillname;
+			let weapon = RWCoC7Actor.knownweapons.get(weaponname);
+			
 			if (!weapon) {
+				console.debug(`Creating custom weapon '${weaponname}'`);
 				// GUESS: if damage ends with "+<DB>" then we'll assume melee
 				let dbstr = `+${actordata.attribs.db.value}`;
-				fighting = damage.endsWith(dbstr);
-				if (fighting) damage = damage.slice(0,-dbstr.length);  // strip "+DB" from damage.
+				//fighting = damage.endsWith(dbstr);
+				if (damage.endsWith(dbstr)) damage = damage.slice(0,-dbstr.length);  // strip "+DB" from damage.
+				fighting = skillname.startsWith("Fighting");
 
 				// Now set up the weapon.
 				weapon = {
 					type: "weapon",
-					name: skillname,
+					name: weaponname,
 					data: {
 						skill: {
 							main : { name : skillname },	// maybe need ID here too?
@@ -198,18 +233,22 @@ export default class RWCoC7Actor {
 					}
 				};
 			} else {
-				//console.log(`Using existing weapon: ${JSON.stringify(weapon)}`);
 				weapon = duplicate(weapon);
-				weapon.data.skill.main.name = skillname;
-				fighting = weapon.data.properties.melee;
+				fighting  = weapon.data.properties.melee;
+				skillname = weapon.data.skill.main.name;
+				//console.log(`Using existing weapon: '${weaponname}' that uses the skill '${skillname}'`);
 			}
-			actordata.items.push(weapon);
+			//console.log(`Adding weapon '${weaponname}' = ${JSON.stringify(weapon,null,2)}`);
+			// We are NOT passing weapon.id into this.
+			actordata.items.push({
+				type: "weapon",
+				name: weaponname,		// weapon.name might have some parenthetical extras in it.
+				data: weapon.data});
 			
 			// Now add the relevant weapon skill too.
-			addSkill(score, skillname, specname, /*push*/false, fighting);
+			addSkill(score, skillname, /*push*/false, fighting);
 		}
-		
-		
+
 		let lines = statblock.split('\n');
 		// first line has NAME, Age X, occupation
 		let line1 = lines[0];
@@ -258,29 +297,20 @@ export default class RWCoC7Actor {
 			else if (ll.startsWith("skills: ") || ll.startsWith("languages: ")) {
 				for (const skill of line.slice(8).split(", ")) {
 					let pos = skill.lastIndexOf(' ');
-					let skillname = skill.slice(0,pos);
-					let skillvalue = +skill.slice(pos+1,-1);
-					//console.debug(`add skill '${skillname}' = ${skillvalue} %`);
+					let skillname  = skill.slice(0,pos);
+					let percentage = +skill.slice(pos+1,-1);
+					//console.debug(`add skill '${skillname}' = ${percentage} %`);
 					
-					let specpos = skillname.indexOf("(");
+					let specpos = skillname.indexOf(":");
 					if (specpos > 0) {
-						// General (spec)   => name = spec;  specialization = General
-						let spec = skillname.slice(0,specpos);
-						let name = skillname.slice(specpos+1,-1);
-						addSkill(skillvalue, name, spec);
-						continue;
-					}
-					specpos = skillname.indexOf(":");
-					if (specpos > 0) {
-						// General: spec   => name = spec;  specialization = General
-						// (This handles languages)
+						// Change something like "Language: Arabic" to "Language (Arabic)"
 						let spec = skillname.slice(0,specpos);
 						let name = skillname.slice(specpos+1);
-						addSkill(skillvalue, name, spec);
+						addSkill(percentage, `${spec} (${name})`);
 						continue;
 					}
 					// No specialization
-					addSkill(skillvalue, skillname, undefined);
+					addSkill(percentage, skillname, undefined);
 				}
 			}
 			else if (ll.startsWith("spells: ")) {
@@ -338,17 +368,14 @@ export default class RWCoC7Actor {
 					console.info(`Not an attack: '${line}'`);
 					continue;
 				}
-				let name = line.slice(0,scorepos-1);
+				let skillname = line.slice(0,scorepos-1);
 				let score = parseInt(line.slice(scorepos));
 				let remain = (percentpos>0) ? line.slice(percentpos+2) : "";
 				let damage = (damagepos>0) ? line.slice(damagepos+9) : "";
-				console.log(`ATTACK: '${name}' = '${score}' = '${damage}'`);
+				//console.log(`ATTACK: '${skillname}' = '${score}' = '${damage}'`);
 				
-				let part = name.indexOf(" (");
-				let skillname = (part > 0) ? name.slice(part+2,-1) : name;
-				let specname  = (part > 0) ? name.slice(0,part): undefined;
 				// Add the weapon to the combat and skill sections
-				addWeapon(score, name, skillname, specname, damage);
+				addWeapon(score, skillname, damage);
 			}
 		}
 		
@@ -384,16 +411,36 @@ export default class RWCoC7Actor {
 	static async tidyupActors(actors) {
 		for (let actor of actors) {
 			if (!actor) continue;
+			
+			// Get all skill ids
+			const SKILL_SEP = ":";
+			let skills = new Map();
+			for (let item of actor.items) {
+				if (item.type === "skill") {
+					skills.set( item.name + SKILL_SEP + item.data.data.specialization, item.id);
+				}
+			}
 
 			for (let weapon of actor.items) {
 				if (weapon.type === "weapon") {
 					//console.debug(`tidyupActors: weapon = ${JSON.stringify(weapon, null, 4)}`);
 					// Patch link to skill to be used for this weapon.
-					for (const skill of actor.items) {
-						if (skill.type === "skill" && weapon.data.data.skill.main.name === skill.name) {
-							weapon.update({ data: { skill: { main: { id: skill.id }}}});
-							break;
-						}
+					let skillname = weapon.data.data.skill.main.name;
+					let pos = skillname.indexOf(" (");
+					let basename = (pos>0) ? skillname.slice(pos+2,-1) : skillname;
+					let specname = (pos>0) ? skillname.slice(0,pos) : "";
+					//console.log(`Weapon '${weapon.name}' = skill '${skillname}', = basename '${basename}', specname '${specname}'`);
+					
+					let id = skills.get( basename + SKILL_SEP + specname );
+					if (id) {			
+						//console.log(`Setting weapon '${weapon.name}' to use ${id}`);
+						await actor.updateEmbeddedDocuments("Item", [{
+							_id : weapon.id,
+							"data.skill.main.id" : id,
+						}]);
+					} else {
+						console.warn(`'${actor.name}': Failed to link weapon '${weapon.name}' to the skill '${weapon.data.data.skill.main.name}'`);
+						console.log(`basename '${basename}', specname '${specname}'`);
 					}
 				}
 			}
