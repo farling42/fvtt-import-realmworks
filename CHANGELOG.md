@@ -1,3 +1,5 @@
+0.7.0 Decode Actors for Call of Cthulhu (7th Edition) (foundry system "coc7")
+
 0.6.1 PF1 Actor decoding now adds special attacks and other non-weapon attacks to the Combat tab; and set Natural AC properly.
 
 0.6.0 PF1 Actor decoding now populates the Combat tab with entries for all weapons in your inventory; including masterwork + magical weapons with just an enhancement bonus.

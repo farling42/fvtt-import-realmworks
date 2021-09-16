@@ -248,21 +248,24 @@ class RealmWorksImporter extends Application
 				break;
 
 			case 'CoC7':
+				// HL por for CoC 6th & 7th editions contains only minimal information in XML, so no chance of decoding it!
 				// CoC7 for PC shows raw HTML code, not formatted.
 				// but for NPC the Notes section is formatted HTML.
-				// HL por for CoC 6th & 7th editions contains only minimal information in XML, so no chance of decoding it!
 				if (this.actor_type === 'character') {
 					// character only displays raw text/HTML
 					this.por_html = "text";
 					let {default:RWCoC7Actor} = await import("./actor-coc7.js");
 					this.init_actors     = RWCoC7Actor.initModule;
 					this.actor_data_func = RWCoC7Actor.parseStatblock;
+					this.post_create_actors = RWCoC7Actor.tidyupActors;
 				} else {
 					// npc and creature display formatted HTML (go figure!)
 					//this.actor_data_func = function(html) { return { biography: { personalDescription: { value: html }}} };
 					this.por_html = "text";
 					let {default:RWCoC7Actor} = await import("./actor-coc7.js");
+					this.init_actors     = RWCoC7Actor.initModule;
 					this.actor_data_func = RWCoC7Actor.parseStatblock;
+					this.post_create_actors = RWCoC7Actor.tidyupActors;
 				}
 				break;
 
@@ -1232,7 +1235,9 @@ class RealmWorksImporter extends Application
 									actor.token = {
 										disposition: actor.relationship === 'ally' ? 1 : actor.relationship === 'enemy' ? -1 : 0
 									};
-									actor.data = foundry.utils.mergeObject(actor.data, await this.actor_data_func(this.Utf8ArrayToStr(port[this.por_html])));
+									let extradata = await this.actor_data_func(this.Utf8ArrayToStr(port[this.por_html]));
+									actor.data = foundry.utils.mergeObject(actor.data, extradata);
+									if (extradata.items) actor.items = actor.items.concat(extradata.items);
 									if (port?.imgfilename)
 										actor.img = this.imageFilename(port.imgfilename);
 									result.push(actor);
@@ -1249,6 +1254,7 @@ class RealmWorksImporter extends Application
 							type: this.actor_type,
 							data: await this.actor_data_func(this.Utf8ArrayToStr(character[this.por_html])),
 						};
+						if (actor.data.items) actordata.items = actor.data.items;
 						if (character.imgfilename)
 							actor.img = this.imageFilename(character.imgfilename)
 						result.push(actor);
@@ -1264,6 +1270,7 @@ class RealmWorksImporter extends Application
 					type: this.actor_type,
 					data: await this.actor_data_func(statblock),
 				};
+				if (data.items) actor.items = data.items;
 				result.push(actor);
 			}
 		}
@@ -1420,6 +1427,7 @@ class RealmWorksImporter extends Application
 					data: await this.actor_data_func(this.Utf8ArrayToStr(character[this.por_html])),
 					folder: actor_folder_id,
 				};
+				if (actordata.data.items) actordata.items = actordata.data.items;
 				if (character.imgfilename)
 					actordata.img = this.imageFilename(character.imgfilename)
 				//console.dir(actordata);
