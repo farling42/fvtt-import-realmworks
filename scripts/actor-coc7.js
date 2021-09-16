@@ -16,17 +16,23 @@ export default class RWCoC7Actor {
 		async function checkset(pack, map, entry, strip=false) {
 			let basename = entry.name;
 			// For weapons, strip off anything in parentheses
+			let names = [];
 			if (strip) {
 				let pos = basename.indexOf(" (");
-				if (pos>0) basename = basename.slice(0,pos);
+				if (pos>0) {
+					names = basename.slice(pos+2,-1).split(", ");
+					basename = basename.slice(0,pos);
+				}
 			}
+			names.push(basename);
 			
 			let exist = map.has(basename);
 			if (!exist || !pack || pack.metadata.package !== "CoC7") {
 				// Assume non-system packs contain better information than those supplied in the system.
-				if (exist) map.delete(basename);	// We want to definitely REPLACE, not merge
-				map.set(basename, pack ? await pack.getDocument(entry._id) : entry);
-				//console.log(`Added '${basename}' to map as\n${JSON.stringify(map.get(basename),null,2)}`);
+				for (const name of names) {
+					map.set(name.toLowerCase(), pack ? await pack.getDocument(entry._id) : entry);
+					//console.log(`Added '${basename}' to map as\n${JSON.stringify(map.get(basename),null,2)}`);
+				}
 			}
 		}
 		
@@ -56,7 +62,7 @@ export default class RWCoC7Actor {
 	//const GS_MODULE_NAME = "realm-works-import";
 
 	static async parseStatblock(statblock) {
-		//console.log(`RWCoC7Actor.parseStatblock with:\n${statblock}`);
+		console.log(`RWCoC7Actor.parseStatblock with:\n${statblock}`);
 
 /*
 		const GS_MODULE_NAME = "realm-works-import";
@@ -143,12 +149,12 @@ export default class RWCoC7Actor {
 			let specname = (part > 0) ? skillname.slice(part+2,-1) : skillname;
 			let basename = (part > 0) ? skillname.slice(0,part): undefined;
 			
-			let skill = RWCoC7Actor.knownskills.get(skillname);
+			let skill = RWCoC7Actor.knownskills.get(skillname.toLowerCase());
 			// Check for generic specialization
 			if (!skill && part>0) {			
-				skill = RWCoC7Actor.knownskills.get(skillname.replace(specname, "Any"));
+				skill = RWCoC7Actor.knownskills.get(skillname.replace(specname, "Any").toLowerCase());
 				if (!skill) {
-					skill = RWCoC7Actor.knownskills.get(skillname.replace(specname, "Specialization"));
+					skill = RWCoC7Actor.knownskills.get(skillname.replace(specname, "Specialization").toLowerCase());
 				}
 			}
 			
@@ -185,6 +191,14 @@ export default class RWCoC7Actor {
 				// Reduce LONG name of specialization skills in compendium to short name expected in Actor
 				if (part>0) skill.name = specname;
 				skill.data.value = percentage;
+				// Maybe need to force it into being a combat skill
+				if (!skill.data.properties.combat && fighting !== undefined) {
+					// This is needed for things like Blasting Cap which use
+					// Electrical Repair or Artillery as COMBAT skills.
+					skill.data.properties.combat = true;
+					skill.data.properties.fighting = fighting;
+					skill.data.properties.firearm  = !fighting;
+				}
 			}
 			//console.log(`ADDING ${JSON.stringify(skill,null,2)}`);
 			// We are NOT passing skill.id into this.
@@ -200,7 +214,7 @@ export default class RWCoC7Actor {
 			// The weapon name is hidden inside the skill speciality
 			let part = skillname.indexOf(" (");
 			let weaponname = (part > 0) ? skillname.slice(part+2,-1) : skillname;
-			let weapon = RWCoC7Actor.knownweapons.get(weaponname);
+			let weapon = RWCoC7Actor.knownweapons.get(weaponname.toLowerCase());
 			
 			if (!weapon) {
 				console.debug(`Creating custom weapon '${weaponname}'`);
@@ -241,7 +255,7 @@ export default class RWCoC7Actor {
 				weapon = duplicate(weapon);
 				fighting  = weapon.data.properties.melee;
 				skillname = weapon.data.skill.main.name;
-				//console.log(`Using existing weapon: '${weaponname}' that uses the skill '${skillname}'`);
+				console.log(`Using existing weapon: '${weaponname}' that uses the skill '${skillname}'`);
 			}
 			//console.log(`Adding weapon '${weaponname}' = ${JSON.stringify(weapon,null,2)}`);
 			// We are NOT passing weapon.id into this.
@@ -271,6 +285,7 @@ export default class RWCoC7Actor {
 			}
 		}
 		// Now search the rest of the lines
+		let maybeweapon=true;
 		for (const line of lines) {
 			let ll = line.toLowerCase();
 			// Lines with stat blocks
@@ -296,10 +311,12 @@ export default class RWCoC7Actor {
 				actordata.special = { sanLoss : { checkPassed: words[0], checkFailled: words[1] }};
 			}
 			else if (ll.startsWith("armor: ")) {
+				maybeweapon = false;
 				let pos = ll.search(/\d/);
 				actordata.attribs.armor = { value : parseInt(ll.slice(pos)) };
 			}
 			else if (ll.startsWith("skills: ") || ll.startsWith("languages: ")) {
+				maybeweapon = false;
 				for (const skill of line.slice(8).split(", ")) {
 					let pos = skill.lastIndexOf(' ');
 					let skillname  = skill.slice(0,pos);
@@ -319,6 +336,7 @@ export default class RWCoC7Actor {
 				}
 			}
 			else if (ll.startsWith("spells: ")) {
+				maybeweapon = false;
 				for (const name of line.slice(8).split(", ")) {
 					//console.debug(`add spell '${name}'`);
 					actordata.items.push({
@@ -363,20 +381,25 @@ export default class RWCoC7Actor {
 			else if (line.startsWith("Dodge ")) {
 				addSkill(parseInt(line.slice(6)), "Dodge", undefined);
 			}
-			else if (line.length > 0) {
+			else if (maybeweapon && line.length > 0) {
+				let attack = line;
+				// Maybe 6th edition character
+				if (attack.startsWith("Weapons: ")) attack = attack.slice(9);
+				if (attack.indexOf("-none-") > 0) continue;
+				
 				// Assume it is a weapon
-				let scorepos = line.search(/\d+%/);
-				let percentpos = line.indexOf("%",scorepos);
-				let damagepos = line.indexOf(", damage ");
-				//console.log(`ATTACK: '${line}' has scorepos ${scorepos}`);
+				let scorepos = attack.search(/\d+%/);
+				let percentpos = attack.indexOf("%",scorepos);
+				let damagepos = attack.indexOf(", damage ");
+				//console.log(`ATTACK: '${attack}' has scorepos ${scorepos}`);
 				if (scorepos == -1) {
 					console.info(`Not an attack: '${line}'`);
 					continue;
 				}
-				let skillname = line.slice(0,scorepos-1);
-				let score = parseInt(line.slice(scorepos));
-				let remain = (percentpos>0) ? line.slice(percentpos+2) : "";
-				let damage = (damagepos>0) ? line.slice(damagepos+9) : "";
+				let skillname = attack.slice(0,scorepos-1);
+				let score = parseInt(attack.slice(scorepos));
+				let remain = (percentpos>0) ? attack.slice(percentpos+2) : "";
+				let damage = (damagepos>0) ? attack.slice(damagepos+9) : "";
 				//console.log(`ATTACK: '${skillname}' = '${score}' = '${damage}'`);
 				
 				// Add the weapon to the combat and skill sections
