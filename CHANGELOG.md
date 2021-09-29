@@ -1,4 +1,8 @@
-0.7.0 Decode Actors for Call of Cthulhu (7th Edition) (foundry system "coc7")
+0.8.0 Convert GIF images to PNG images, since GIF aren't supported for scene backgrounds.
+Governed Content and Governing Content will now use the FULL name of the topics (prefix + name + suffix).
+Create thumbnail for scene AFTER adding all the notes, so that the notes are correctly written to scenes.db.
+
+0.7.0 Decode Actors for Call of Cthulhu (7th Edition) (foundry system "CoC7")
 
 0.6.1 PF1 Actor decoding now adds special attacks and other non-weapon attacks to the Combat tab; and set Natural AC properly.
 

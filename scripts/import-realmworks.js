@@ -425,8 +425,9 @@ class RealmWorksImporter extends Application
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
 	formatLink(topic_id, link_name) {
 		const id = this.entity_for_topic[topic_id]?.data._id;
-		if (id)
+		if (id) {
 			return `@JournalEntry[${id}]{${link_name}}`;
+		}
 		else
 			return `@JournalEntry[${link_name}]`;
 	}
@@ -489,9 +490,9 @@ class RealmWorksImporter extends Application
 		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
 	}
 
-	// Some image files are changed to .png (from .bmp .tif .tiff)
+	// Some image files are changed to .png (from .bmp .gif .tif .tiff)
 	validfilename(filename) {
-		if (filename.endsWith('.bmp') || filename.endsWith('.tif'))
+		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.gif'))
 			return filename.slice(0,-4) + '.png';
 		else if (filename.endsWith('.tiff'))
 			return filename.slice(0,-5) + '.png';
@@ -506,7 +507,7 @@ class RealmWorksImporter extends Application
 	// Upload the specified binary data to a file in this.asset_directory
 	async uploadBinaryFile(filename, srcdata) {
 		let data = srcdata;
-		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.tiff'))
+		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.gif') || filename.endsWith('.tiff'))
 		{
 			data = await Jimp.read(Buffer.from(srcdata)).then(image => image.getBufferAsync('image/png'));
 		}
@@ -522,6 +523,16 @@ class RealmWorksImporter extends Application
 		await this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
+	// Create full journal entry name for a topic (including the prefix and/or suffix)
+	journaltitle(topic) {
+		let result = topic.getAttribute("public_name");
+		let prefix = topic.getAttribute('prefix');
+		let suffix = topic.getAttribute('suffix');
+		if (prefix) result = prefix + ' - ' + result;
+		if (suffix) result += ' (' + suffix + ')';
+		return result;
+	}
+	
 	// Convert a Smart_Image into a scene
 	async createScene(topic_id, smart_image) {
 		//<snippet facet_name="Map" type="Smart_Image" search_text="">
@@ -576,9 +587,6 @@ class RealmWorksImporter extends Application
 		//if (scene) console.debug(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
 		if (!scene) return;
 		
-		// Create thumbnail
-		scene.createThumbnail().then(data => scene.update({thumb: data.thumb}));
-		
 		// Add some notes
 		let notes = [];
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
@@ -614,8 +622,12 @@ class RealmWorksImporter extends Application
 		}
 		if (notes.length > 0) await scene.createEmbeddedDocuments('Note', notes);
 		
-		this.ui_message.val(`Created scene '${scenename}'`);
-		console.debug(`Created scene '${scenename}'`);
+		// Create thumbnail - do this AFTER creating notes so that we get a scene.update
+		// call to write all the notes to scenes.db
+		scene.createThumbnail().then(data => scene.update({thumb: data.thumb}));
+		
+		this.ui_message.val(`Created scene '${scenename}' with ${notes.length} notes`);
+		console.debug(`Created scene '${scenename}' with ${notes.length} notes`);
 		return scene.id;
 	}
 		
@@ -987,7 +999,7 @@ class RealmWorksImporter extends Application
 	// Write one RW topic
 	//
 	async formatOneTopic(topic, child_map, parent_id) {
-		console.debug(`formatOneTopic('${topic.getAttribute("public_name")}')`);
+		console.debug(`formatOneTopic('${this.journaltitle(topic)}')`);
 		//console.debug(`formatOneTopic('${topic.getAttribute("public_name")}', ${child_map}, ${parent_id}`);
 
 		// Extract only the links that we know are in this topic (if any).
@@ -1011,7 +1023,7 @@ class RealmWorksImporter extends Application
 		// Start the HTML with a link to the parent (if known)
 		let html = "";
 		if (parent_id) {
-			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.topic_names.get(parent_id)[0]) + '</p>';
+			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.entity_for_topic[parent_id].name) + '</p>';
 		}
 		
 		let functhis = this;
@@ -1019,7 +1031,7 @@ class RealmWorksImporter extends Application
 			let result = "";
 			if (depth < 1 || !child_map.has(top_id)) return result;
 			for (const child_id of child_map.get(top_id)) {
-				result += '<li>' + functhis.formatLink(child_id, functhis.topic_names.get(child_id)[0]) + addDescendents(depth-1, child_id) + '</li>';
+				result += '<li>' + functhis.formatLink(child_id, functhis.entity_for_topic[child_id].name) + addDescendents(depth-1, child_id) + '</li>';
 			}
 			return `<ul>${result}</ul>`;
 		}
@@ -1049,7 +1061,8 @@ class RealmWorksImporter extends Application
 						html += '<h1>Governed Content</h1><ul>';
 						has_child_topics = true;
 					}
-					html += `<li>${this.formatLink(node.getAttribute("topic_id"), node.getAttribute("public_name"))}${addDescendents(this.governed_max_depth-1, node.getAttribute("topic_id"))}</li>`;
+					let topic_id = node.getAttribute("topic_id");
+					html += `<li>${this.formatLink(topic_id, this.entity_for_topic[topic_id].name)}${addDescendents(this.governed_max_depth-1, topic_id)}</li>`;
 				}
 				break;
 			case 'linkage':
@@ -1106,17 +1119,10 @@ class RealmWorksImporter extends Application
 			html += '</p>';
 		}
 
-		// Full title might have prefix and suffix
-		let journaltitle = topic.getAttribute("public_name");
-		let prefix = topic.getAttribute('prefix');
-		let suffix = topic.getAttribute('suffix');
-		if (prefix) journaltitle = prefix + ' - ' + journaltitle;
-		if (suffix) journaltitle += ' (' + suffix + ')';
-		
 		// Format as a data block usable by JournalEntry.update
 		let result = {
 			_id:      this.entity_for_topic[this_topic_id].data._id,
-			name:     journaltitle,
+			//name:     this.journaltitle(topic),  -- already set correctly during initial creation
 			topic_id: this_topic_id,
 			content:  html,
 		};
@@ -1163,7 +1169,7 @@ class RealmWorksImporter extends Application
 	// @return an array containing 0 or more ActorData
 	//
 	async formatActors(topic) {
-		console.debug(`Formatting actor for topic '${topic.getAttribute('public_name')}'`);
+		console.debug(`Formatting actor for topic '${this.journaltitle(topic)}'`);
 		let result = [];
 		let topicname = topic.getAttribute('public_name');
 		for (const snippet of this.getActorSnippets(topic)) {
@@ -1507,7 +1513,7 @@ class RealmWorksImporter extends Application
 				return {
 					topic_id: topic.getAttribute("topic_id"),
 					topic: await JournalEntry.create({
-						name: topic.getAttribute('public_name'),
+						name: this.journaltitle(topic),
 						folder: journal_folders.get(topic.getAttribute('category_name')).id,
 					}),
 				}
