@@ -1,3 +1,6 @@
+0.8.1 Fix a problem with governing/governed content not including topic with & in their title.
+Internal fix to use get/set with entity_for_topic since it is a map.
+
 0.8.0 Convert GIF images to PNG images, since GIF aren't supported for scene backgrounds.
 Governed Content and Governing Content will now use the FULL name of the topics (prefix + name + suffix).
 Create thumbnail for scene AFTER adding all the notes, so that the notes are correctly written to scenes.db.
