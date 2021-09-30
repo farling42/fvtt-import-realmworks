@@ -781,7 +781,8 @@ class RealmWorksImporter extends Application
 		
 		async function addTable(section_name, string) {
 			let tstart = string.indexOf("<table");
-			if (tstart < 0) return;
+			if (tstart < 0) return "";
+			let result = "";
 			let nodes = functhis.parser.parseFromString(string, "text/html");
 			for (const tablenode of nodes.getElementsByTagName("table")) {		// ignore the concept of nested tables for the moment
 				// tablenode = HtmlTableElement
@@ -871,7 +872,7 @@ class RealmWorksImporter extends Application
 					name += tablenode.caption.captiontext;
 				else
 					name += section_name;  // the name of the section within the RW topic
-				await RollTable.create({
+				let table = await RollTable.create({
 					name:        name,
 					//img:         string,
 					description: "Imported from Realm Works",
@@ -884,8 +885,11 @@ class RealmWorksImporter extends Application
 					//permission: object,
 					//flags: object
 					});
-				
+				// Add the new table to the HTML to be returned
+				result += `<p>@RollTable[${table.id}]{${table.name}}`;
 			}
+			
+			return result;
 		}
 		
 		// Process all the snippets and sections in order
@@ -944,7 +948,8 @@ class RealmWorksImporter extends Application
 				case "Multi_Line":
 					if (contents) {
 						result += this.simplifyPara(replaceLinks(contents.textContent, linkage_names));
-						await addTable(section.getAttribute("name"), contents.textContent);
+						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output
+						result += await addTable(section.getAttribute("name"), contents.textContent);
 					}
 					break;
 				case "Labeled_Text":

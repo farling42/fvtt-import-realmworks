@@ -1,3 +1,10 @@
+0.9.0 Attempt to convert HTML tables into RollTables.
+The first row of the table is assumed to be titles, and will not be added to the RollTable.
+The first column of the table must contain the rolled number(s), either as a single number, two numbers separated by a dash, or two numbers separated by a comma.
+If the title of the first column is a valid dice roll syntax then it will be used as the formula for the table, otherwise the formula will be calculated by
+examining the lowest and highest numbers in the table and creating a single dice roll with a fixed addition.
+A link to the RollTable is added to the end of the converted section within the corresponding Journal Entry.
+
 0.8.1 Fix a problem with governing/governed content not including topic with & in their title.
 Internal fix to use get/set with entity_for_topic since it is a map.
 
