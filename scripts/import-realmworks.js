@@ -322,6 +322,17 @@ class RealmWorksImporter extends Application
 
 			if (!this.parser) this.parser = new DOMParser();
 			
+			function escapeHTML(s) {
+				let lookup = {
+					'&': "&amp;",
+					'"': "&quot;",
+					'\'': "&apos;",
+					'<': "&lt;",
+					'>': "&gt;"
+				};
+				return s.replace( /[&"'<>]/g, c => lookup[c] );
+			}
+			
 			// Javascript string has a maximum size of 512 MB, so can't pass the entire file to parseFromString,
 			// so read chunks of the file and look for topics within the chunks.
 			const chunkSize = 5000000;	// ~5 MB
@@ -353,7 +364,6 @@ class RealmWorksImporter extends Application
 					// Find the start-of-topic marker for that end-marker
 					const topic_start = buffer.lastIndexOf('<topic ', topic_end);
 					if (topic_start < 0) break;
-					//let docnode = this.parser.parseFromString('<?xml version="1.0" encoding="utf-8"?>' + buffer.slice(topic_start, topic_end+8), "text/xml");
 					const block = buffer.slice(topic_start, topic_end+8);
 					try {
 						// parseFromString returns a #Document node as the top node.
@@ -363,7 +373,11 @@ class RealmWorksImporter extends Application
 							// Replace extracted topic with a marker to correctly identify child topics.
 							// Ensure topics with " in the title don't cause problems
 							buffer = buffer.slice(0,topic_start) + 
-								`<topicchild topic_id="${topicnode.getAttribute('topic_id')}" public_name="${topicnode.getAttribute('public_name').replace(/"/g,'%22')}" />` + 
+								'<topicchild topic_id="' +
+								topicnode.getAttribute('topic_id') +
+								'" public_name="' +
+								escapeHTML(topicnode.getAttribute('public_name')) + 
+								'" />' + 
 								buffer.slice(topic_end+8);
 						} else {
 							console.warn(`Failed to parse XML of topic in ${block}`);
@@ -424,10 +438,9 @@ class RealmWorksImporter extends Application
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
 	formatLink(topic_id, link_name) {
-		const id = this.entity_for_topic[topic_id]?.data._id;
-		if (id) {
+		const id = this.entity_for_topic.get(topic_id)?.data._id;
+		if (id)
 			return `@JournalEntry[${id}]{${link_name}}`;
-		}
 		else
 			return `@JournalEntry[${link_name}]`;
 	}
@@ -571,7 +584,7 @@ class RealmWorksImporter extends Application
 			height : tex.baseTexture.height,
 			padding: 0,
 		};
-		if (topic_id) scenedata.journal = this.entity_for_topic[topic_id]?.data._id;
+		if (topic_id) scenedata.journal = this.entity_for_topic.get(topic_id)?.data._id;
 		
 		// Delete the old scene by the same name
 		let oldscene = game.scenes.find(p => p.name === scenename);
@@ -593,7 +606,7 @@ class RealmWorksImporter extends Application
 			const pinname = pin.getAttribute('pin_name');
 			let desc = pin.getElementsByTagName('description')[0]?.textContent;
 			let gmdir = pin.getElementsByTagName('gm_directions')?.[0]?.textContent;
-			let entryid = this.entity_for_topic[pin.getAttribute('topic_id')]?.data._id;
+			let entryid = this.entity_for_topic.get(pin.getAttribute('topic_id'))?.data._id;
 			let label = '';
 			if (desc.length > 0) label += '\n' + desc.replace('&#xd;\n','\n');
 			if (gmdir) label += '\nGMDIR: ' + gmdir.replace('&#xd;\n','\n');
@@ -1023,7 +1036,7 @@ class RealmWorksImporter extends Application
 		// Start the HTML with a link to the parent (if known)
 		let html = "";
 		if (parent_id) {
-			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.entity_for_topic[parent_id].name) + '</p>';
+			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, this.entity_for_topic.get(parent_id).name) + '</p>';
 		}
 		
 		let functhis = this;
@@ -1031,7 +1044,7 @@ class RealmWorksImporter extends Application
 			let result = "";
 			if (depth < 1 || !child_map.has(top_id)) return result;
 			for (const child_id of child_map.get(top_id)) {
-				result += '<li>' + functhis.formatLink(child_id, functhis.entity_for_topic[child_id].name) + addDescendents(depth-1, child_id) + '</li>';
+				result += '<li>' + functhis.formatLink(child_id, functhis.entity_for_topic.get(child_id).name) + addDescendents(depth-1, child_id) + '</li>';
 			}
 			return `<ul>${result}</ul>`;
 		}
@@ -1062,7 +1075,7 @@ class RealmWorksImporter extends Application
 						has_child_topics = true;
 					}
 					let topic_id = node.getAttribute("topic_id");
-					html += `<li>${this.formatLink(topic_id, this.entity_for_topic[topic_id].name)}${addDescendents(this.governed_max_depth-1, topic_id)}</li>`;
+					html += `<li>${this.formatLink(topic_id, this.entity_for_topic.get(topic_id).name)}${addDescendents(this.governed_max_depth-1, topic_id)}</li>`;
 				}
 				break;
 			case 'linkage':
@@ -1121,7 +1134,7 @@ class RealmWorksImporter extends Application
 
 		// Format as a data block usable by JournalEntry.update
 		let result = {
-			_id:      this.entity_for_topic[this_topic_id].data._id,
+			_id:      this.entity_for_topic.get(this_topic_id).data._id,
 			//name:     this.journaltitle(topic),  -- already set correctly during initial creation
 			topic_id: this_topic_id,
 			content:  html,
@@ -1521,7 +1534,7 @@ class RealmWorksImporter extends Application
 		// Now add all valid entries to entity_for_topic synchronously
 		.then(results => results.forEach(result => {
 				if (result.status === 'fulfilled')
-					this.entity_for_topic[result.value.topic_id] = result.value.topic;
+					this.entity_for_topic.set(result.value.topic_id, result.value.topic);
 			}));
 		// Asynchronously generate each of the Journal Entries
 		this.ui_message.val(`Generating ${topics.length} journal contents`);
