@@ -355,7 +355,7 @@ class RealmWorksImporter extends Application
 					first = false;
 				}
 
-				console.debug(`Read ${blob.size} bytes from file (buffer size now ${buffer.length}`);
+				console.debug(`Read ${blob.size} bytes from file (buffer size now ${buffer.length})`);
 				// Read all complete topics which are in the buffer
 				while (true) {
 					// Firstly, find first end-of-topic marker
@@ -497,12 +497,6 @@ class RealmWorksImporter extends Application
 		return original.replace(/<[^>]+>/g, '');
 	}
 	
-	// Remove the default class information from the RW formatting to reduce the size of the final HTML.
-	simplifyPara(original) {
-		// Too much effort to remove <span> and </span> tags, so just simplify.
-		return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
-	}
-
 	// Some image files are changed to .png (from .bmp .gif .tif .tiff)
 	validfilename(filename) {
 		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.gif'))
@@ -755,7 +749,7 @@ class RealmWorksImporter extends Application
 		
 		// Write a "contents" element:
 		// Only <contents> can contain <span> which identify links.
-		function replaceLinks(original, linkage_names) {
+		function replaceLinks(original) {
 			// Replace '<scan>something</scan>' with '@JournalEntry[<topic-for-something>]{something}'
 			// RW v267 might also use '<scan class="RWSnippet">something</scan>' for links, which is the same as for normal paragraphs!
 			// @JournalEntry is case sensitive when using names!
@@ -779,6 +773,12 @@ class RealmWorksImporter extends Application
 			return `<h${lvl}>${name}</h${lvl}>`;
 		}
 		
+		// Remove the default class information from the RW formatting to reduce the size of the final HTML.
+		function simplifyPara(original) {
+			// Too much effort to remove <span> and </span> tags, so just simplify.
+			return original.replace(/<p class="RWDefault">/g,'<p>').replace(/<span class="RWSnippet">/g,'<span>');
+		}
+		
 		async function addTable(section_name, string) {
 			let tstart = string.indexOf("<table");
 			if (tstart < 0) return "";
@@ -786,7 +786,8 @@ class RealmWorksImporter extends Application
 			let nodes = functhis.parser.parseFromString(string, "text/html");
 			for (const tablenode of nodes.getElementsByTagName("table")) {		// ignore the concept of nested tables for the moment
 				// tablenode = HtmlTableElement
-				if (!tablenode.rows || tablenode.rows.length < 2) {
+				// A table must have at least THREE rows to be meaningful (title + 2 data rows)
+				if (!tablenode.rows || tablenode.rows.length < 3) {
 					continue;
 				}
 				//console.debug(`table has ${tablenode.rows.length} rows`);
@@ -795,8 +796,28 @@ class RealmWorksImporter extends Application
 					if (!min || value<min) min = value;
 					if (!max || value>max) max = value;
 				}
+
+				// If the second column of the table is totally blank, use the third column if available
+				let datacolumn = 1;
+				if (tablenode.rows[1].cells.length > 2) {
+					// See if column 1 is blank.
+					let usethree = true;
+					for (const rownode of tablenode.rows) {
+						if (rownode.rowIndex > 0 &&
+							rownode.cells.length > 2 && 
+							rownode.cells[datacolumn].textContent.trim().length > 0) {
+							usethree = false;
+							break;
+						}
+					}
+					if (usethree) datacolumn = 2;
+					//console.log(`ROLL-TABLE: Using column ${datacolumn} for data`);
+				}
+				
 				let rolltable = [];
 				const formula_regexp = /^[d+\d ]+$/;  // 'd20' or '1d20' or 'd12 + d8' 
+				const details_regexp = new RegExp("^<p[^>]*><span[^>]*>([^<]*)</span></p>$");
+				const dice_regexp = /(\d+d\d+\+\d+|\d+d\d+)/;
 				let valid=true;
 				for (const rownode of tablenode.rows) {
 					// rownode = HTMLTableRowElement
@@ -810,30 +831,39 @@ class RealmWorksImporter extends Application
 					if (rownode.rowIndex == 0)
 					{
 						// check for dice information
-						console.debug(`Title of first column = '${cell1}'`);
+						//console.debug(`ROLL-TABLE: Title of first column = '${cell1}'`);
 						if (formula_regexp.test(cell1)) {
 							formula = cell1;
-							console.log(`TABLE USING FORMULA: ${formula}`);
+							console.debug(`ROLL-TABLE: USING FORMULA: ${formula}`);
 						}
 						// e.g. 1d20  or d12 + d8
 					} else {
-						let pos;
 						// check for a number, or a range of numbers
 						const numbers = cell1.match(/\d+/g);
 						if (!numbers || numbers.length == 0 || numbers.length > 2) {
 							valid = false;
 							break;
-						} else if (numbers.length == 1) {
+						}
+						let details = simplifyPara(replaceLinks(rownode.cells[datacolumn].innerHTML));
+						// It might just be <p ...attributes...><span...attributes...>text</span></p>, so remove surrounding flags
+						if (details_regexp.test(details)) {
+							details = details.replace(details_regexp,'$1');
+						}
+						// Replace extra die words with inline rolls (e.g. "1d20+x" => "[[1d20+x]]")
+						details = details.replace(dice_regexp,'[[$1]]');
+						
+						let pos;
+						if (numbers.length == 1) {
 							// single number
 							const num = +numbers[0];
 							setLimit(num);
-							rolltable.push({range: [num, num], text: rownode.cells[1].textContent});
+							rolltable.push({range: [num, num], text: details});
 						} else if ((pos = cell1.indexOf('-')) > 0) {
 							const low = parseInt(cell1.slice(0,pos));
 							const high= parseInt(cell1.slice(pos+1));
 							setLimit(low);
 							setLimit(high);
-							rolltable.push({range: [low, high], text: rownode.cells[1].textContent});
+							rolltable.push({range: [low, high], text: details});
 							// valid
 						} else if ((pos = cell1.indexOf(',')) > 0) {
 							const low = parseInt(cell1.slice(0,pos));
@@ -842,11 +872,11 @@ class RealmWorksImporter extends Application
 							setLimit(high);
 							if (low+1 == high)
 								// consecutive numbers, so one entry
-								rolltable.push({range: [low, high], text: rownode.cells[1].textContent});
+								rolltable.push({range: [low, high], text: details});
 							else {
 								// not consecutive numbers, so create two entries
-								rolltable.push({range: [low,  low],  text: rownode.cells[1].textContent});
-								rolltable.push({range: [high, high], text: rownode.cells[1].textContent});
+								rolltable.push({range: [low,  low],  text: details});
+								rolltable.push({range: [high, high], text: details});
 							}
 							// valid
 						} else {
@@ -875,7 +905,7 @@ class RealmWorksImporter extends Application
 				let table = await RollTable.create({
 					name:        name,
 					//img:         string,
-					description: "Imported from Realm Works",
+					//description: "Imported from Realm Works",  // This appears on every roll in the chat!
 					results:     rolltable,	// Collection.<BaseTableResult>
 					formula:     formula ? formula : (min == 1) ? `1d${max}` : `1d${max-min+1}+${min-1}`,
 					replacement: true,
@@ -941,13 +971,13 @@ class RealmWorksImporter extends Application
 					result += '<section style="' + margin + bgcol + '">';
 				}
 				if (gmdir) {
-					result += '<section class="secret">' + this.simplifyPara(replaceLinks(gmdir.textContent, linkage_names)) + '</section>';
+					result += '<section class="secret">' + simplifyPara(replaceLinks(gmdir.textContent)) + '</section>';
 				}
 				
 				switch (sntype) {
 				case "Multi_Line":
 					if (contents) {
-						result += this.simplifyPara(replaceLinks(contents.textContent, linkage_names));
+						result += simplifyPara(replaceLinks(contents.textContent));
 						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output
 						result += await addTable(section.getAttribute("name"), contents.textContent);
 					}
@@ -955,7 +985,7 @@ class RealmWorksImporter extends Application
 				case "Labeled_Text":
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += `<p><b>${label}:</b> ` + this.stripPara(replaceLinks(contents.textContent, linkage_names));
+						result += `<p><b>${label}:</b> ` + this.stripPara(replaceLinks(contents.textContent));
 						if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
@@ -963,7 +993,7 @@ class RealmWorksImporter extends Application
 				case "Numeric":
 					if (contents) {
 						// contents will hold just a number
-						result += `<p><b>${label}:</b> ` + replaceLinks(contents.textContent, linkage_names);
+						result += `<p><b>${label}:</b> ` + replaceLinks(contents.textContent);
 						if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
@@ -1403,7 +1433,7 @@ class RealmWorksImporter extends Application
 					type: this.actor_type,
 					data: await this.actor_data_func(statblock),
 				};
-				if (data.items) actor.items = data.items;
+				if (actor.data.items) actor.items = actor.data.items;
 				result.push(actor);
 			}
 		}
