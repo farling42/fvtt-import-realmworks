@@ -779,6 +779,115 @@ class RealmWorksImporter extends Application
 			return `<h${lvl}>${name}</h${lvl}>`;
 		}
 		
+		async function addTable(section_name, string) {
+			let tstart = string.indexOf("<table");
+			if (tstart < 0) return;
+			let nodes = functhis.parser.parseFromString(string, "text/html");
+			for (const tablenode of nodes.getElementsByTagName("table")) {		// ignore the concept of nested tables for the moment
+				// tablenode = HtmlTableElement
+				if (!tablenode.rows || tablenode.rows.length < 2) {
+					continue;
+				}
+				//console.debug(`table has ${tablenode.rows.length} rows`);
+				let min, max,formula;  // min,max numbers for dice results
+				function setLimit(value) {
+					if (!min || value<min) min = value;
+					if (!max || value>max) max = value;
+				}
+				let rolltable = [];
+				const formula_regexp = /^[d+\d ]+$/;  // 'd20' or '1d20' or 'd12 + d8' 
+				let valid=true;
+				for (const rownode of tablenode.rows) {
+					// rownode = HTMLTableRowElement
+					if (!rownode.cells || rownode.cells.length < 2) {
+						console.log('Row has no (or not enough) columns!');
+						valid = false;
+						break;
+					}
+					let cell1 = rownode.cells[0].textContent;
+					//console.log(`First column = ${cell1}`);
+					if (rownode.rowIndex == 0)
+					{
+						// check for dice information
+						console.debug(`Title of first column = '${cell1}'`);
+						if (formula_regexp.test(cell1)) {
+							formula = cell1;
+							console.log(`TABLE USING FORMULA: ${formula}`);
+						}
+						// e.g. 1d20  or d12 + d8
+					} else {
+						let pos;
+						// check for a number, or a range of numbers
+						const numbers = cell1.match(/\d+/g);
+						if (!numbers || numbers.length == 0 || numbers.length > 2) {
+							valid = false;
+							break;
+						} else if (numbers.length == 1) {
+							// single number
+							const num = +numbers[0];
+							setLimit(num);
+							rolltable.push({range: [num, num], text: rownode.cells[1].textContent});
+						} else if ((pos = cell1.indexOf('-')) > 0) {
+							const low = parseInt(cell1.slice(0,pos));
+							const high= parseInt(cell1.slice(pos+1));
+							setLimit(low);
+							setLimit(high);
+							rolltable.push({range: [low, high], text: rownode.cells[1].textContent});
+							// valid
+						} else if ((pos = cell1.indexOf(',')) > 0) {
+							const low = parseInt(cell1.slice(0,pos));
+							const high= parseInt(cell1.slice(pos+1));
+							setLimit(low);
+							setLimit(high);
+							if (low+1 == high)
+								// consecutive numbers, so one entry
+								rolltable.push({range: [low, high], text: rownode.cells[1].textContent});
+							else {
+								// not consecutive numbers, so create two entries
+								rolltable.push({range: [low,  low],  text: rownode.cells[1].textContent});
+								rolltable.push({range: [high, high], text: rownode.cells[1].textContent});
+							}
+							// valid
+						} else {
+							// not valid
+							valid = false;
+							break;
+						}
+					}
+				}
+				if (!valid) continue;
+				// create row table
+				
+				// BaseTableResult =
+				// type  : 0   (0 = text, 1=)
+				// text  : string
+				// img   : string
+				// weight: 1
+				// range : [ low, high ]
+				// drawn : boolean
+				console.log(`Creating a RollTable with ${rolltable.length} rows for '${functhis.topic_names.get(this_topic_id)}'`);
+				let name = functhis.topic_names.get(this_topic_id) + " : ";
+				if (tablenode.caption) 
+					name += tablenode.caption.captiontext;
+				else
+					name += section_name;  // the name of the section within the RW topic
+				await RollTable.create({
+					name:        name,
+					//img:         string,
+					description: "Imported from Realm Works",
+					results:     rolltable,	// Collection.<BaseTableResult>
+					formula:     formula ? formula : (min == 1) ? `1d${max}` : `1d${max-min+1}+${min-1}`,
+					replacement: true,
+					displayRoll: true,
+					folder: functhis.rolltable_folder?.id,
+					//sort: number,
+					//permission: object,
+					//flags: object
+					});
+				
+			}
+		}
+		
 		// Process all the snippets and sections in order
 		let result = header(level, section.getAttribute("name"));
 		let subsections = "";
@@ -826,7 +935,6 @@ class RealmWorksImporter extends Application
 				}
 				if (in_section) {
 					result += '<section style="' + margin + bgcol + '">';
-					in_section = true;
 				}
 				if (gmdir) {
 					result += '<section class="secret">' + this.simplifyPara(replaceLinks(gmdir.textContent, linkage_names)) + '</section>';
@@ -836,6 +944,7 @@ class RealmWorksImporter extends Application
 				case "Multi_Line":
 					if (contents) {
 						result += this.simplifyPara(replaceLinks(contents.textContent, linkage_names));
+						await addTable(section.getAttribute("name"), contents.textContent);
 					}
 					break;
 				case "Labeled_Text":
@@ -1487,6 +1596,7 @@ class RealmWorksImporter extends Application
 		this.actor_folder    = await this.getFolder(this.folderName, 'Actor');
 		this.scene_folder    = await this.getFolder(this.folderName, 'Scene');
 		this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
+		this.rolltable_folder = await this.getFolder(this.folderName, 'RollTable');
 		let journal_parent   = await this.getFolder(this.folderName, 'JournalEntry');
 		let journal_folders  = new Map();  // actual journal entries will be in a folder with the TOPIC category name
 		for (const category_name of category_names) {
@@ -1577,6 +1687,7 @@ class RealmWorksImporter extends Application
 		delete this.actor_folder;
 		delete this.scene_folder;
 		delete this.playlist_folder;
+		delete this.rolltable_folder;
 		delete this.topic_names;
 		delete this.entity_for_topic;
 	}
