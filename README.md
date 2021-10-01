@@ -30,7 +30,9 @@ Each *Audio* snippet will be extracted and placed into a Playlist named after th
 
 Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1, D&D 5E and SWADE game systems). All actors for a single topic are placed into a sub-folder named after the folder.
 
-Any parent topic in the RWoutput file will have a list of descendents at the end of the page which contains links to the descendent topics (the maximum depth of the descendents can be configured in the module settings).
+Each *Table* within RW topics will be examined to see if it can be used to create a Roll-Table within Foundry. The first row of the table is assumed to be the title (if the top-left cell of the table contains a dice formula, e.g. 1d20, then it will be used as the formula for the roll table.  The first column of the table is assumed to be the number or numbers to choose the results (either a single number, or two numbers separate by "-" for a range or "," for two discrete entries). The second column will be used as the results for the roll-table (or the third column if all entries in the second column are blank).
+
+Any parent topic in the RWoutput file will have a list of governed content at the end of the page which contains links to the descendent topics (the maximum depth of the descendents can be configured in the module settings); and child topics will have a "governing content" added at the top of the journal entry.
 
 ## Libraries
 This module uses the following libraries from other sources:
