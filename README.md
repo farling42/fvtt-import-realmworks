@@ -28,7 +28,7 @@ Each *image or embedded file* will be extracted and located in the subdirectory 
 
 Each *Audio* snippet will be extracted and placed into a Playlist named after the topic.
 
-Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1, D&D 5E and SWADE game systems). All actors for a single topic are placed into a sub-folder named after the folder.
+Each *HL portfolio* will be extracted and Actors created for each character in the portfolio (currently only for PF1, D&D 5E, SWADE, Call of Cthulhu game systems). All actors for a single topic are placed into a sub-folder named after the folder.
 
 Each *Table* within RW topics will be examined to see if it can be used to create a Roll-Table within Foundry. The first row of the table is assumed to be the title (if the top-left cell of the table contains a dice formula, e.g. 1d20, then it will be used as the formula for the roll table.  The first column of the table is assumed to be the number or numbers to choose the results (either a single number, or two numbers separate by "-" for a range or "," for two discrete entries). The second column will be used as the results for the roll-table (or the third column if all entries in the second column are blank).
 
