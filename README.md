@@ -18,7 +18,9 @@ Maybe modify which options you want to work with.
 
 Press the IMPORT button at the bottom of the window and wait for the contents to be imported.
 
-New folders will be created in the Scenes, Actors, Journal and Playlist sections containing the imported data.
+## Then This Will Happen
+
+New folders will be created in the Scenes, Actors, Journal, Roll Tables and Playlist sections containing the imported data.
 
 Each *Smart_Image* is converted into a scene, with map pins and scene notes connected to the relevant journal entries.
 
