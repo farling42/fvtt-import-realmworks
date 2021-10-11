@@ -754,7 +754,10 @@ class RealmWorksImporter extends Application
 			// RW v267 might also use '<scan class="RWSnippet">something</scan>' for links, which is the same as for normal paragraphs!
 			// @JournalEntry is case sensitive when using names!
 			return original.replace(/(<span[^>]*>)([^<]+)<\/span>/g,
-				function (match, p1, p2, offset, string) {
+				function (match, p1, p2from, offset, string) {
+				// Remove embedded HTML character entities (maybe only ampersand is encoded this way in RWoutput file)
+				//const p2 = (p2from.search(/\&[#a-z]+;/) == -1) ? p2from : functhis.parser.parseFromString(p2from, "text/html").documentElement.textContent;
+				const p2 = p2from.replaceAll('&amp;','&');
 				for (const [topic_id, labels] of linkage_names) {
 					// case insensitive search across all entries in the Array() stored in the map.
 					if (labels.some(item => (item.localeCompare(p2, undefined, { sensitivity: 'base' }) === 0))) {
@@ -1169,6 +1172,7 @@ class RealmWorksImporter extends Application
 				// In partial output, all linkages are reported even if the target topic is not present.
 				if (this.topic_names.has(target_id)) {
 					linkage_names.set(target_id, this.topic_names.get(target_id));
+					//linkage_names.set(target_id, [ node.getAttribute('target_name') ]);
 				}
 			}
 		}
