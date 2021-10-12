@@ -1,3 +1,5 @@
+0.9.1 Ensure that topic linking works to topics with an ampersand in the name.
+
 0.9.0 Attempt to convert HTML tables into RollTables.
 The first row of the table is assumed to be titles, and will not be added to the RollTable.
 The first column of the table must contain the rolled number(s), either as a single number, two numbers separated by a dash, or two numbers separated by a comma.
