@@ -512,6 +512,10 @@ class RealmWorksImporter extends Application
 		// TODO: Move any formatting in orig_link_name to OUTSIDE the JournalEntry directive
 		// (since {abc} won't be used as the link name if it contains HTML elements)
 		let link_name = orig_link_name ?? this.title_of_topic.get(topic_id);
+		if (!link_name) {
+			console.warn(`FORMATLINK: topic_id '${topic_id}' has unknown title`);
+			link_name = topic_id;
+		}
 		let prefix="",suffix="";
 		while (link_name.startsWith("<") && link_name.endsWith(">")) {
 			const pos1 = link_name.indexOf(">");
@@ -1425,22 +1429,38 @@ class RealmWorksImporter extends Application
 			if (this.addInboundLinks) {
 				const targets = this.links_in.get(this_topic_id);
 				if (targets) {
-					html += '<h1>Content Links: In</h1><p>';
+					let unique_ids = new Set();
 					for (const target_id of targets) {
-						html += this.formatLink(target_id, null);
+						if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
+						unique_ids.add(target_id);
 					}
-					html += '</p>';
+					if (unique_ids.size > 0) {
+						html += '<h1>Content Links: In</h1><p>';
+						for (const target_id of unique_ids) {
+							html += this.formatLink(target_id, null);
+						}
+						html += '</p>';
+					}
 				}
 			}
 			if (this.addOutboundLinks) {
 				const links = topic.getElementsByTagName('link');
 				if (links && links.length > 0)
 				{
-					html += '<h1>Content Links: Out</h1><p>';
+					let unique_ids = new Set();
+					
 					for (const link of links) {
-						html += this.formatLink(link.getAttribute("target_id"), null);
+						let target_id = link.getAttribute("target_id");
+						if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
+						unique_ids.add(target_id);
 					}
-					html += '</p>';
+					if (unique_ids.size > 0) {
+						html += '<h1>Content Links: Out</h1><p>';
+						for (const target_id of unique_ids) {
+							html += this.formatLink(target_id, null);
+						}
+						html += '</p>';
+					}
 				}
 			}
 		}
@@ -1833,9 +1853,6 @@ class RealmWorksImporter extends Application
 				const links = child.getElementsByTagName('link');
 				for (const link of links) {
 					const lid = link.getAttribute('target_id');
-					// TODO: support PLOTs
-					if (lid.startsWith('Plot_')) continue;
-					
 					if (this.links_in.has(lid))
 						this.links_in.get(lid).push(topic_id);
 					else
