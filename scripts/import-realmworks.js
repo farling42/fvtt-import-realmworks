@@ -857,16 +857,17 @@ class RealmWorksImporter extends Application
 							});
 						}
 					}
-				}
+				}				
 				// Get in reverse order
 				link_map.sort((p1,p2) => p2.start - p1.start);
-				let result = original;
+				let result = original.replaceAll("&#xd;","\n");		// to deal with extra characters in tables
 				for (const link of link_map) {
 					let linktext = result.slice(link.start, link.finish);
 					result = result.slice(0,link.start) + functhis.formatLink.call(functhis, link.target_id, linktext) + result.slice(link.finish);
 				}
 				return result;
 			} else {
+				console.warn("REPLACELINKS: using old method");
 				// RWoutput
 				return original.replace(/(<span[^>]*>)([^<]+)<\/span>/g,
 					function (match, p1, p2from, offset, string) {
@@ -914,10 +915,12 @@ class RealmWorksImporter extends Application
 		}
 		
 		async function addTable(section_name, string) {
-			let tstart = string.indexOf("<table");
-			if (tstart < 0) return "";
+			if (!string.includes("<table")) return "";
 			let result = "";
 			let nodes = functhis.parser.parseFromString(string, "text/html");
+			//if (string.includes("@JournalEntry")) {
+			//	console.log(`ADDTABLE:\n${string}`);
+			//}
 			for (const tablenode of nodes.getElementsByTagName("table")) {		// ignore the concept of nested tables for the moment
 				// tablenode = HtmlTableElement
 				// A table must have at least THREE rows to be meaningful (title + 2 data rows)
