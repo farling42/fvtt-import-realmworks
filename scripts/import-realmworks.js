@@ -511,9 +511,8 @@ class RealmWorksImporter extends Application
 	formatLink(topic_id, orig_link_name) {
 		// TODO: Move any formatting in orig_link_name to OUTSIDE the JournalEntry directive
 		// (since {abc} won't be used as the link name if it contains HTML elements)
-		let link_name = orig_link_name ?? this.title_of_topic.get(topic_id) ?? topic_id;
+		let link_name = orig_link_name ?? this.title_of_topic.get(topic_id);
 		let prefix="",suffix="";
-		// Zeitgeist file has no link_name for "Plot_6"  "Plot_8"  and "Plot_14"
 		while (link_name.startsWith("<") && link_name.endsWith(">")) {
 			const pos1 = link_name.indexOf(">");
 			const pos2 = link_name.lastIndexOf("<");
@@ -833,7 +832,7 @@ class RealmWorksImporter extends Application
 		// Write a "contents" element:
 		// Only <contents> can contain <span> which identify links.
 
-		function replaceLinks(original, links) {
+		function replaceLinks(original, links, direction="0") {
 			// Replace '<scan>something</scan>' with '@JournalEntry[<topic-for-something>]{something}'
 			// RW v267 might also use '<scan class="RWSnippet">something</scan>' for links, which is the same as for normal paragraphs!
 			// @JournalEntry is case sensitive when using names!
@@ -846,12 +845,13 @@ class RealmWorksImporter extends Application
 				for (const link of links) {
 					for (const span of link.getElementsByTagName('span')) {
 						const start = +span.getAttribute('start');
-						link_map.push({
-							target_id:  link.getAttribute('target_id'),
-							start:      start,
-							finish:     start + +span.getAttribute('length'),
-							directions: +span.getAttribute('directions')
-						});
+						if (span.getAttribute('directions') === direction) {		// 0 = contents, 1 = gm_directions
+							link_map.push({
+								target_id:  link.getAttribute('target_id'),
+								start:      start,
+								finish:     start + +span.getAttribute('length')
+							});
+						}
 					}
 				}
 				// Get in reverse order
@@ -1100,7 +1100,7 @@ class RealmWorksImporter extends Application
 					result += '<section style="' + margin + bgcol + '">';
 				}
 				if (gmdir) {
-					result += '<section class="secret">' + simplifyPara(replaceLinks(gmdir.textContent, gmdir.getElementsByTagName('link'))) + '</section>';
+					result += '<section class="secret">' + simplifyPara(replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), /*direction*/ "1")) + '</section>';
 				}
 				
 				switch (sntype) {
@@ -1833,6 +1833,9 @@ class RealmWorksImporter extends Application
 				const links = child.getElementsByTagName('link');
 				for (const link of links) {
 					const lid = link.getAttribute('target_id');
+					// TODO: support PLOTs
+					if (lid.startsWith('Plot_')) continue;
+					
 					if (this.links_in.has(lid))
 						this.links_in.get(lid).push(topic_id);
 					else
