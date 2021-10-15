@@ -1,3 +1,8 @@
+1.0.0 Read rwexport files instead of rwoutput files, to ensure that links are always created correctly.
+Display "Category: name" at the top of each journal entry.
+Date fields will look different due to the way that they are represented in rwexport files.
+In the list of aliases of a topic/Journal Entry, "True Name"'s will be identified.
+
 0.9.1 Ensure that topic linking works to topics with an ampersand in the name.
 
 0.9.0 Attempt to convert HTML tables into RollTables.
