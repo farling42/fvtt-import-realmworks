@@ -1,3 +1,5 @@
+1.0.1 Fix an issue where links were misaligned inside/after tables within a snippet.
+
 1.0.0 IMPORTANT: Change to read RWEXPORT files instead of rwoutput files.
 This will ensure that links are always created correctly.
 Display "Category: name" at the top of each journal entry.
