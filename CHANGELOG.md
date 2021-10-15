@@ -1,4 +1,5 @@
-1.0.0 Read rwexport files instead of rwoutput files, to ensure that links are always created correctly.
+1.0.0 IMPORTANT: Change to read RWEXPORT files instead of rwoutput files.
+This will ensure that links are always created correctly.
 Display "Category: name" at the top of each journal entry.
 Date fields will look different due to the way that they are represented in rwexport files.
 In the list of aliases of a topic/Journal Entry, "True Name"'s will be identified.

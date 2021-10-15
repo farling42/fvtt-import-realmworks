@@ -3,14 +3,16 @@ A module to import information from a user's RWoutput from the Realm Works® cam
 
 You can install the module by updating your module list with the following additional URL: https://github.com/farling42/fvtt-import-realmworks/releases/latest/download/module.json
 
+IMPORTANT : 1.0.0 changes to use RWEXPORT files instead of rwoutput files.
+
 ## Instructions
-Simply add this module to your Foundry VTT and enable it within the game into which you want to import your RWoutput information.
+Simply add this module to your Foundry VTT and enable it within the game into which you want to import your RWexport information.
 
 In the Compendium panel of the game you will find a new button near the top called "Realm Works Import".
 
 Press the button to open a simple dialogue window.
 
-Select an .rwoutput file (or Hero Lab portfolio file) using the file selector.
+Select an .rwexport file (or Hero Lab portfolio file) using the file selector.
 
 Enter the name of the folder into which all extracted entries will be placed.
 
