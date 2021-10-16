@@ -1,3 +1,5 @@
+1.0.2 Improve warning message when link is to a topic not found in the rwexport file.
+
 1.0.1 Fix an issue where links were misaligned inside/after tables within a snippet.
 
 1.0.0 IMPORTANT: Change to read RWEXPORT files instead of rwoutput files.

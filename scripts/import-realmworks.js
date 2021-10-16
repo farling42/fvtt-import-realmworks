@@ -508,28 +508,34 @@ class RealmWorksImporter extends Application
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
-	formatLink(topic_id, orig_link_name) {
-		// TODO: Move any formatting in orig_link_name to OUTSIDE the JournalEntry directive
-		// (since {abc} won't be used as the link name if it contains HTML elements)
-		let link_name = orig_link_name ?? this.title_of_topic.get(topic_id);
-		if (!link_name) {
-			console.warn(`FORMATLINK: topic_id '${topic_id}' has unknown title`);
-			link_name = topic_id;
+	formatLink(topic_id, orig_link_text) {
+		let link_text, prefix="",suffix="";
+		if (orig_link_text) {
+			// TODO: Move any formatting in orig_link_text to OUTSIDE the JournalEntry directive
+			// (since {abc} won't be used as the link name if it contains HTML elements)
+			link_text = orig_link_text;
+			while (link_text.startsWith("<") && link_text.endsWith(">")) {
+				const pos1 = link_text.indexOf(">");
+				const pos2 = link_text.lastIndexOf("<");
+				if (pos1 == -1 || pos2 == -1 || pos1 > pos2) break;
+				prefix += link_text.slice(0,pos1+1);
+				suffix = link_text.slice(pos2) + suffix;
+				link_text = link_text.slice(pos1+1,pos2);
+			}
+		} else {
+			// Default to using the title of the topic (if present in the file)
+			link_text = this.title_of_topic.get(topic_id)
+			if (!link_text) {
+				console.warn(`FORMATLINK: topic_id '${topic_id}' not found in file`);
+				link_text = topic_id;
+			}
 		}
-		let prefix="",suffix="";
-		while (link_name.startsWith("<") && link_name.endsWith(">")) {
-			const pos1 = link_name.indexOf(">");
-			const pos2 = link_name.lastIndexOf("<");
-			if (pos1 == -1 || pos2 == -1 || pos1 > pos2) break;
-			prefix += link_name.slice(0,pos1+1);
-			suffix = link_name.slice(pos2) + suffix;
-			link_name = link_name.slice(pos1+1,pos2);
-		}
+		
 		const id = this.entity_for_topic.get(topic_id)?.data._id;
 		if (id)
-			return `${prefix}@JournalEntry[${id}]{${link_name}}${suffix}`;
+			return `${prefix}@JournalEntry[${id}]{${link_text}}${suffix}`;
 		else
-			return `${prefix}@JournalEntry[${link_name}]${suffix}`;
+			return `${prefix}@JournalEntry[${link_text}]${suffix}`;
 	}
 	
 	//
