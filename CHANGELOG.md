@@ -1,4 +1,5 @@
-1.0.2 Improve warning message when link is to a topic not found in the rwexport file.
+1.1.0 Improve warning message when link is to a topic not found in the rwexport file.
+Governed Content and Content Links sections are sorted into correct alphabetical order (handling numbers correctly).
 
 1.0.1 Fix an issue where links were misaligned inside/after tables within a snippet.
 

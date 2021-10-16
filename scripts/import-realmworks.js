@@ -1431,6 +1431,21 @@ class RealmWorksImporter extends Application
 			html += '</p>';
 		}
 		if (this.structure) {
+			let functhis = this;
+			function contentlinks(dir, set) {
+				let ordered = [...set];
+				ordered.sort( (p1,p2) => {
+					let t1 = functhis.title_of_topic.get(p1);
+					let t2 = functhis.title_of_topic.get(p2);
+					return t1 ? (t2 ? t1.localeCompare(t2, undefined, {numeric: true}) : -1) : t2 ? 1 : 0;
+				});
+				let result = "";
+				for (const target_id of ordered) {
+					result += functhis.formatLink(target_id, null);
+				}
+				return `<h1>Content Links: ${dir}</h1><p>` + result + '</p>';
+			}
+			
 			if (this.addInboundLinks) {
 				const targets = this.links_in.get(this_topic_id);
 				if (targets) {
@@ -1440,11 +1455,7 @@ class RealmWorksImporter extends Application
 						unique_ids.add(target_id);
 					}
 					if (unique_ids.size > 0) {
-						html += '<h1>Content Links: In</h1><p>';
-						for (const target_id of unique_ids) {
-							html += this.formatLink(target_id, null);
-						}
-						html += '</p>';
+						html += contentlinks('In', unique_ids);
 					}
 				}
 			}
@@ -1460,11 +1471,7 @@ class RealmWorksImporter extends Application
 						unique_ids.add(target_id);
 					}
 					if (unique_ids.size > 0) {
-						html += '<h1>Content Links: Out</h1><p>';
-						for (const target_id of unique_ids) {
-							html += this.formatLink(target_id, null);
-						}
-						html += '</p>';
+						html += contentlinks('Out', unique_ids);
 					}
 				}
 			}
