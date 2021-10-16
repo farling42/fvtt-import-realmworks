@@ -461,21 +461,25 @@ class RealmWorksImporter extends Application
 					}
 				}
 			}
-			// Collect parent information
+			// Collect parent information:
 			let parent_map = new Map();
 			let child_map = new Map();
 			this.title_of_topic = new Map();
 			for (const topic of topic_nodes) {
 				let parent_id = topic.getAttribute('topic_id');
 				this.title_of_topic.set(parent_id, this.journaltitle(topic));
+				let found = [];
 				for (const child of topic.getElementsByTagName('topicchild')) {
 					const child_id = child.getAttribute('topic_id');
 					parent_map.set(child_id, parent_id);
-					if (!child_map.has(parent_id))
-						child_map.set(parent_id, [child_id]);
-					else
-						child_map.get(parent_id).push(child_id);	// append to end of array
+					found.push(child_id);
 				}
+				// Ensure entries inside child_map are in alphabetical order.
+				if (found.length > 0) {
+					found.sort( (p1,p2) => this.title_of_topic.get(p1).localeCompare(this.title_of_topic.get(p2), undefined, {numeric: true} ));
+					child_map.set(parent_id, found);
+				}
+				
 			}
 			
 			// Do the actual work!
@@ -1367,17 +1371,8 @@ class RealmWorksImporter extends Application
 				break;
 			case 'topicchild':
 			case 'topic':
-				// No need to handle nested topics, since we found all of them at the start.
-				// Put link to child topic in original topic
 				// N.B. topicchild elements are added when parsing a LARGE file
-				if (this.governed_max_depth > 0) {
-					if (!has_child_topics) {
-						html += '<h1>Governed Content</h1><ul>';
-						has_child_topics = true;
-					}
-					let topic_id = node.getAttribute("topic_id");
-					html += '<li>' + this.formatLink(topic_id, null) + this.addDescendents(child_map, this.governed_max_depth-1, topic_id) + '</li>';
-				}
+				// The Governed Content will be done after processing all the children
 				break;
 			case 'linkage':
 				switch (node.getAttribute('direction')) {
@@ -1410,8 +1405,9 @@ class RealmWorksImporter extends Application
 			}
 			// and ignore tag_assign at this point.
 		}
-		if (has_child_topics) {
-			html += '</ul>';
+		if (this.governed_max_depth > 0 && child_map.has(this_topic_id)) {
+			// These need to be in a sorted order
+			html += '<h1>Governed Content</h1>' + this.addDescendents(child_map, this.governed_max_depth, this_topic_id);
 		}
 		// Add inbound and/or outbound link information (if requested)
 		if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
