@@ -12,7 +12,7 @@
 //                 +-- contents (encoded HTML) [for type=="Multi_Line"]
 //                 +-- game_date (attrs: canonical, gregorian, display) [for type=="Date_Game"]
 //                 +-- date_range (attrs: canonical_start...) [for type=="Date_Range"]
-//                 +-- 
+//                 +-- link 
 //         +-- tag_assign(x) (attrs: tag_name, domain_name)
 //         +-- linkage(x) (attrs: target_id, target_name, direction[Inbound|Outbound|Both])
 
@@ -382,8 +382,8 @@ class RealmWorksImporter extends Application
 				};
 				return s.replace( /[&"'<>]/g, c => lookup[c] );
 			}
-			
-			let findStructure = file.name.endsWith('.rwexport');
+
+			// Indicate we have no structure yet
 			this.structure = undefined;
 			
 			// Javascript string has a maximum size of 512 MB, so can't pass the entire file to parseFromString,
@@ -401,7 +401,7 @@ class RealmWorksImporter extends Application
 				buffer += await blob.text();
 				
 				console.debug(`Read ${blob.size} bytes from file (buffer size now ${buffer.length})`);
-				if (findStructure) {
+				if (!this.structure) {
 					const struct_end = buffer.indexOf('</structure>');
 					if (struct_end < 0) continue;
 					// We have the complete structure, so collect all its data now
@@ -413,7 +413,6 @@ class RealmWorksImporter extends Application
 					this.structure = this.parseStructure(buffer.slice(struct_start, struct_end+12));
 					// Discard everything before the structure
 					buffer = buffer.slice(struct_end+12);
-					findStructure = false;
 					// Now continue onwards to see if we already have the first topic.
 				}
 				
@@ -494,6 +493,8 @@ class RealmWorksImporter extends Application
 			file = undefined;
 			buffer = undefined;
 			topic_nodes = undefined;
+			delete this.structure;
+			delete this.title_of_topic;
 			parent_map.clear();
 			child_map.clear();
 			
@@ -530,7 +531,8 @@ class RealmWorksImporter extends Application
 			// Default to using the title of the topic (if present in the file)
 			link_text = this.title_of_topic.get(topic_id)
 			if (!link_text) {
-				console.warn(`FORMATLINK: topic_id '${topic_id}' not found in file`);
+				console.warn(`FORMATLINK: topic_id '${topic_id}' not found in file (It is probably the Realm's HOME PAGE, or the file is a partial export)`);
+				// This is most likely because the link is to the REALM HOME PAGE which is NOT provided in the RWEXPORT file.
 				link_text = topic_id;
 			}
 		}
@@ -628,7 +630,7 @@ class RealmWorksImporter extends Application
 	}
 
 	// Convert a Smart_Image into a scene
-	async createScene(topic_id, smart_image) {
+	async createScene(scene_topic_id, smart_image) {
 		//<snippet facet_name="Map" type="Smart_Image" search_text="">
 		//  <smart_image name="Map">
 		//    <asset filename="n5uvmpam.eb4.png">
@@ -641,17 +643,14 @@ class RealmWorksImporter extends Application
 		const asset    = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 		const contents = this.getChild(asset, 'contents'); // <contents>
 		const filename = asset?.getAttribute('filename');
-		if (!asset)	throw('<smart_image> is missing <asset>');
+		if (!asset)    throw('<smart_image> is missing <asset>');
 		if (!contents) throw('<smart_image> is missing <contents>');
 		if (!filename) throw('<smart_image><asset> is missing filename attribute');
 		
 		// Name comes from topic name + facet_name
-		const scenename = this.topic_names.get(topic_id)[0] + ':' + smart_image.getAttribute('name');
-		//console.debug(`createScene: scene name = '${scenename}' from topic_id ${topic_id}`);
+		const scenename = this.title_of_topic.get(scene_topic_id) + ':' + smart_image.getAttribute('name');
+		//console.debug(`createScene: scene name = '${scenename}' from topic_id ${scene_topic_id}`);
 	
-		// Firstly, put the file into the files area.
-		//const imgname = await this.uploadFile(asset.getAttribute('filename'), contents.textContent);
-		
 		// The file was uploaded when the TOPIC was processed, so can simply read it here.
 		const imagename = this.imageFilename(filename);
 		const tex = await loadTexture(imagename);	// when previously uploaded, bmp/tif/tiff files were converted to png.
@@ -664,8 +663,8 @@ class RealmWorksImporter extends Application
 			width  : tex.baseTexture.width,
 			height : tex.baseTexture.height,
 			padding: 0,
+			journal: this.entity_for_topic.get(scene_topic_id)?.data._id,
 		};
-		if (topic_id) scenedata.journal = this.entity_for_topic.get(topic_id)?.data._id;
 		
 		// Delete the old scene by the same name
 		let oldscene = game.scenes.find(p => p.name === scenename);
@@ -683,21 +682,18 @@ class RealmWorksImporter extends Application
 		
 		// Add some notes
 		let notes = [];
+		let pinnum = 0;
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
-			const pinname = pin.getAttribute('pin_name');
-			let desc = pin.getElementsByTagName('description')[0]?.textContent;
-			let gmdir = pin.getElementsByTagName('gm_directions')?.[0]?.textContent;
-			let entryid = this.entity_for_topic.get(pin.getAttribute('topic_id'))?.data._id;
+			const pin_topic_id = pin.getAttribute('topic_id');
+			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
+			let entryid = this.entity_for_topic.get(pin_topic_id)?.data._id;
+			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent;
+			let gmdir   = pin.getElementsByTagName('gm_directions')?.[0]?.textContent;
 			let label = '';
-			if (desc.length > 0) label += '\n' + desc.replace('&#xd;\n','\n');
-			if (gmdir) label += '\nGMDIR: ' + gmdir.replace('&#xd;\n','\n');
-			// Embellish title if there is more to follow in the note
-			if (label.length === 0) 
-				label = pinname;
-			else
-				label = '**' + pinname + '**' + label;
+			if (desc  && desc.length  > 0) label += '\n' + desc.replace('&#xd;\n','\n');
+			if (gmdir && gmdir.length > 0) label += '\nGMDIR: ' + gmdir.replace('&#xd;\n','\n');
 			
-			let notedata = {
+			const notedata = {
 				name: pinname,
 				entryId: entryid,
 				x: pin.getAttribute('x'),
@@ -705,7 +701,8 @@ class RealmWorksImporter extends Application
 				icon: 'icons/svg/circle.svg',		// Where do we get a good icon?
 				iconSize: 32,		// minimum size 32
 				iconTint: entryid ? '#7CFC00' : '#c00000',
-				text: label,
+				// Embellish title if there is more to follow in the note
+				text: (label.length>0) ? `**${pinname}**${label}` : pinname,
 				fontSize: 24,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
@@ -825,20 +822,10 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	///
-	// RWexport uses id in the topic, which needs looking up in the structure to find the name.
-	itemName(node, simpleName, structureName, structureMap) {
-		if (structureMap) {
-			let id = node.getAttribute(structureName);
-			if (id) return structureMap.get(id);
-		}
-		return node.getAttribute(simpleName);
-	}
-
 	//
 	// Write one RW section
 	//
-	async writeSection(this_topic_id, section, level, linkage_names) {
+	async writeSection(this_topic_id, section, level) {
 
 		// We can't access "this" inside the replaceLinks function
 		let functhis = this;
@@ -847,57 +834,29 @@ class RealmWorksImporter extends Application
 		// Only <contents> can contain <span> which identify links.
 
 		function replaceLinks(original, links, direction="0") {
-			// Replace '<scan>something</scan>' with '@JournalEntry[<topic-for-something>]{something}'
-			// RW v267 might also use '<scan class="RWSnippet">something</scan>' for links, which is the same as for normal paragraphs!
-			// @JournalEntry is case sensitive when using names!
-			let link_map;
-			if (links) {
-				// RWexport:
-				// <link target_id="Topic_10" original_uuid="E76194B6-44F4-FC06-3418-68935B3A6BA9" signature="1028506">
-				// <span_info><span_list><span directions="0" start="3519" length="58"/>
-				link_map = [];
-				for (const link of links) {
-					for (const span of link.getElementsByTagName('span')) {
-						const start = +span.getAttribute('start');
-						if (span.getAttribute('directions') === direction) {		// 0 = contents, 1 = gm_directions
-							link_map.push({
-								target_id:  link.getAttribute('target_id'),
-								start:      start,
-								finish:     start + +span.getAttribute('length')
-							});
-						}
+			// <link target_id="Topic_10" original_uuid="E76194B6-44F4-FC06-3418-68935B3A6BA9" signature="1028506">
+			//     <span_info><span_list><span directions="0" start="3519" length="58"/>
+			let link_map = [];
+			for (const link of links) {
+				for (const span of link.getElementsByTagName('span')) {
+					const start = +span.getAttribute('start');
+					if (span.getAttribute('directions') === direction) {		// 0 = contents, 1 = gm_directions
+						link_map.push({
+							target_id:  link.getAttribute('target_id'),
+							start:      start,
+							finish:     start + +span.getAttribute('length')
+						});
 					}
-				}				
-				// Get in reverse order
-				link_map.sort((p1,p2) => p2.start - p1.start);
-				let result = original.replaceAll("&#xd;","\n");		// to deal with extra characters in tables
-				for (const link of link_map) {
-					let linktext = result.slice(link.start, link.finish);
-					result = result.slice(0,link.start) + functhis.formatLink.call(functhis, link.target_id, linktext) + result.slice(link.finish);
 				}
-				return result;
-			} else {
-				console.warn("REPLACELINKS: using old method");
-				// RWoutput
-				return original.replace(/(<span[^>]*>)([^<]+)<\/span>/g,
-					function (match, p1, p2from, offset, string) {
-					// Remove embedded HTML character entities (maybe only ampersand is encoded this way in RWexport file)
-					//const p2 = (p2from.search(/\&[#a-z]+;/) == -1) ? p2from : functhis.parser.parseFromString(p2from, "text/html").documentElement.textContent;
-					const p2 = p2from.replaceAll('&amp;', '&');
-					for (const[topic_id, labels]of linkage_names) {
-						// case insensitive search across all entries in the Array() stored in the map.
-						if (labels.some(item => (item.localeCompare(p2, undefined, {sensitivity: 'base'}) === 0))) {
-							return functhis.formatLink.call(functhis, topic_id, p2);
-						}
-					};
-					// Not found in map, so just create a broken link for <span>, since we're fairly sure that's what it is.
-					// Whereas <span class="RWSnippet"> is just regular text everywhere!
-					if (p1 === '<span>')
-						return functhis.formatLink.call(functhis, undefined, p2);
-					else
-						return p1 + p2 + '</span>';
-				});
+			}				
+			// Get in reverse order
+			link_map.sort((p1,p2) => p2.start - p1.start);
+			let result = original.replaceAll("&#xd;","\n");		// to deal with extra characters in tables
+			for (const link of link_map) {
+				let linktext = result.slice(link.start, link.finish);
+				result = result.slice(0,link.start) + functhis.formatLink.call(functhis, link.target_id, linktext) + result.slice(link.finish);
 			}
+			return result;
 		}
 		
 		function header(lvl, name) {
@@ -1041,12 +1000,9 @@ class RealmWorksImporter extends Application
 				// weight: 1
 				// range : [ low, high ]
 				// drawn : boolean
-				console.debug(`Creating a RollTable with ${rolltable.length} rows for '${functhis.topic_names.get(this_topic_id)}'`);
-				let name = functhis.topic_names.get(this_topic_id) + " : ";
-				if (tablenode.caption) 
-					name += tablenode.caption.captiontext;
-				else
-					name += section_name;  // the name of the section within the RW topic
+				console.debug(`Creating a RollTable with ${rolltable.length} rows for '${functhis.title_of_topic.get(this_topic_id)}'`);
+				let name = functhis.title_of_topic.get(this_topic_id) + " : ";
+				name += tablenode.caption ? tablenode.caption.captiontext : section_name;
 				let table = await RollTable.create({
 					name:        name,
 					//img:         string,
@@ -1068,7 +1024,7 @@ class RealmWorksImporter extends Application
 		}
 		
 		// Process all the snippets and sections in order
-		let section_name = this.itemName(section, 'name', 'partition_id', this.structure?.partitions);
+		let section_name = this.structure.partitions.get(section.getAttribute('partition_id'));
 		let result = header(level, section_name);
 		let subsections = "";
 		
@@ -1078,17 +1034,17 @@ class RealmWorksImporter extends Application
 			case 'section':
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
-				subsections += await this.writeSection(this_topic_id, child, level+1, linkage_names);
+				subsections += await this.writeSection(this_topic_id, child, level+1);
 				break;
 				
 			case 'snippet':
 				// Snippets contain the real information!
-				const sntype = child.getAttribute('type');
-				const style  = child.getAttribute('style');
+				const sntype     = child.getAttribute('type');
+				const style      = child.getAttribute('style');
 				const contents   = this.getChild(child, 'contents');
 				const gmdir      = this.getChild(child, 'gm_directions');
 				const annotation = this.getChild(child, 'annotation');
-				const label = this.itemName(child, 'facet_name', 'facet_id', this.structure?.facets) ?? child.getAttribute('label');
+				const label      = this.structure.facets.get(child.getAttribute('facet_id')) ?? child.getAttribute('label'); // TODO: should label be preferred?
 				
 				// If both gmdir and contents, then need an extra border
 				let in_section = false;
@@ -1150,7 +1106,7 @@ class RealmWorksImporter extends Application
 					let tags = [];
 					for (const snip of child.children) {
 						if (snip.nodeName === 'tag_assign') {
-							let tag = this.itemName(snip, 'tag_name', 'tag_id', this.structure?.tags);
+							let tag = this.structure.tags.get(snip.getAttribute('tag_id'));
 							if (tag) tags.push(tag);
 						}
 					}
@@ -1184,7 +1140,7 @@ class RealmWorksImporter extends Application
 				case "Date_Game":
 					let gamedate = this.getChild(child, 'game_date');
 					result += `<p><b>${label}:</b> `;
-					if (gamedate) result += gamedate.getAttribute(this.structure ? "gregorian" : "display");
+					if (gamedate) result += gamedate.getAttribute("gregorian");
 					if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`;
 					result += `</p>`;
 					// annotation
@@ -1192,7 +1148,7 @@ class RealmWorksImporter extends Application
 				case "Date_Range":
 					let daterange = this.getChild(child, 'date_range');
 					result += `<p><b>${label}:</b> `;
-					if (daterange) result += `${daterange.getAttribute(this.structure ? "gregorian_start" : "display_start")} to ${daterange.getAttribute(this.structure ? "gregorian_end" : "display_end")}`;
+					if (daterange) result += `${daterange.getAttribute("gregorian_start")} to ${daterange.getAttribute("gregorian_end")}`;
 					if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`;
 					result += `</p>`;
 					// annotation
@@ -1239,7 +1195,6 @@ class RealmWorksImporter extends Application
 						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf")
 							result += atob(bin_contents.textContent);
 						else if (sntype === "Picture") {
-							//result += `<p><img src="data:image/${fileext};base64,${bin_contents.textContent}"></img></p>`;
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += `<p><img src='${this.imageFilename(bin_filename)}'></img></p>`;
 						} else {
@@ -1247,7 +1202,6 @@ class RealmWorksImporter extends Application
 							if (fileext === 'pdf') {
 								format = 'application/pdf';
 							}
-							//result += `<p><a href="data:${format};base64,${bin_contents.textContent}"></a></p>`;
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += `<p><a href='${this.imageFilename(bin_filename)}'></a></p>`;
 						}
@@ -1269,12 +1223,11 @@ class RealmWorksImporter extends Application
 					const map_format   = map_filename?.split('.').pop();	// extra suffix from asset filename
 					if (map_format && map_contents) {
 						result += header(level+1, smart_image.getAttribute('name'));
-						//result += `<p><img src="data:image/${map_format};base64,${map_contents.textContent}"></img></p>`;
 						await this.uploadFile(map_filename, map_contents.textContent);
 						result += `<p><img src='${this.imageFilename(map_filename)}'></img></p>`;
 
 						// Create the scene now
-						const sceneid = await this.createScene(this_topic_id, smart_image).catch(e => console.warn(`Failed to create scene for ${topic.name} due to ${e}`));
+						const sceneid = await this.createScene(this_topic_id, smart_image).catch(e => console.warn(`Failed to create scene for ${this_topic_id} due to ${e}`));
 						result += `<p>@Scene[${sceneid}]{${smart_image.getAttribute('name')}}</p>`;
 					}
 					break;
@@ -1325,37 +1278,15 @@ class RealmWorksImporter extends Application
 		//   <linkage target_id="Topic_345" target_name="Air/Raft" direction="Outbound" />
 		const this_topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatOneTopic('${this.title_of_topic.get(this_topic_id)}')`);
-		let linkage_names;
-		if (!this.structure) {
-			linkage_names = new Map();
-			for (const node of topic.children) {
-				if (node.nodeName === "linkage" && node.getAttribute('direction') !== 'Inbound') {
-					const target_id = node.getAttribute('target_id');
-					// In partial output, all linkages are reported even if the target topic is not present.
-					if (this.topic_names.has(target_id)) {
-						linkage_names.set(target_id, this.topic_names.get(target_id));
-						//linkage_names.set(target_id, [ node.getAttribute('target_name') ]);
-					}
-				}
-			}
-			// Add self to the mapping (in case a topic links to itself, but differs only in case)
-			if (this.topic_names.has(this_topic_id)) {
-				linkage_names.set(this_topic_id, this.topic_names.get(this_topic_id));
-			}
-		}
 		// Start the HTML with a link to the parent (if known)
 		let html = "";
 		
-		html += '<p><b>Category:</b> ' + this.itemName(topic, 'category_name', 'category_id', this.structure?.categories) + '</p>';
+		html += '<p><b>Category:</b> ' + this.structure.categories.get(topic.getAttribute('category_id')) + '</p>';
 		if (parent_id) {
 			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, null) + '</p>';
 		}
 		
 		// Generate the HTML for the sections within the topic
-		let inbound = [];
-		let outbound = [];
-		let both = [];
-		let has_child_topics = false;
 		let has_connections = false;
 		for (const node of topic.children) {
 			switch (node.nodeName) {
@@ -1367,7 +1298,7 @@ class RealmWorksImporter extends Application
 					html += `<p><b>Alias: </b><i>${node.getAttribute('name')}</i></p>`;
 				break;
 			case 'section':
-				html += await this.writeSection(this_topic_id, node, 1, linkage_names); // Start with H1
+				html += await this.writeSection(this_topic_id, node, 1); // Start with H1
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1375,16 +1306,11 @@ class RealmWorksImporter extends Application
 				// The Governed Content will be done after processing all the children
 				break;
 			case 'linkage':
-				switch (node.getAttribute('direction')) {
-				case 'Outbound': outbound.push(node); break;
-				case 'Inbound' : inbound.push(node);  break;
-				case 'Both'    : both.push(node);     break;
-				}
+				// linkage is only in RWoutput
 				break;
 			case 'connection':
 				// RWoutput: <connection target_id="Topic_2" target_name="Child Feat 1" nature="Master_To_Minion" qualifier="Owner / Subsidiary"/>
 				// RWexport: <connection target_id="Topic_2" nature="Minion_To_Master" qualifier_tag_id="Tag_211" qualifier="Parent / Child" original_uuid="F2E39CB6-7490-553E-40F0-68935B3A6BA9" signature="517108"/>
-
 				if (!has_connections) {
 					has_connections = true;
 					html += '<h1>Relationships</h1>';
@@ -1409,71 +1335,40 @@ class RealmWorksImporter extends Application
 			// These need to be in a sorted order
 			html += '<h1>Governed Content</h1>' + this.addDescendents(child_map, this.governed_max_depth, this_topic_id);
 		}
-		// Add inbound and/or outbound link information (if requested)
-		if (this.addInboundLinks && (inbound.length > 0 || both.length > 0)) {
-			html += '<h1>Content Links: In</h1><p>';
-			for (const node of inbound) {
-				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-			}
-			for (const node of both) {
-				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-			}
-			html += '</p>';
+		
+		// Add the optional INBOUND and/or OUTBOUND links
+		let functhis = this;
+		function contentlinks(dir, set) {
+			let ordered = [...set].sort( (p1,p2) => {
+				let t1 = functhis.title_of_topic.get(p1);
+				let t2 = functhis.title_of_topic.get(p2);
+				return t1 ? (t2 ? t1.localeCompare(t2, undefined, {numeric: true}) : -1) : t2 ? 1 : 0;
+			});
+			return `<h1>Content Links: ${dir}</h1><p>` + ordered.map(id => functhis.formatLink(id, null)).join(' ') + '</p>';
 		}
-		if (this.addOutboundLinks && (outbound.length > 0 || both.length > 0)) {
-			html += '<h1>Content Links: Out</h1><p>';
-			for (const node of outbound) {
-				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-			}
-			for (const node of both) {
-				html += this.formatLink(node.getAttribute("target_id"), node.getAttribute("target_name"));
-			}
-			html += '</p>';
-		}
-		if (this.structure) {
-			let functhis = this;
-			function contentlinks(dir, set) {
-				let ordered = [...set];
-				ordered.sort( (p1,p2) => {
-					let t1 = functhis.title_of_topic.get(p1);
-					let t2 = functhis.title_of_topic.get(p2);
-					return t1 ? (t2 ? t1.localeCompare(t2, undefined, {numeric: true}) : -1) : t2 ? 1 : 0;
-				});
-				let result = "";
-				for (const target_id of ordered) {
-					result += functhis.formatLink(target_id, null);
-				}
-				return `<h1>Content Links: ${dir}</h1><p>` + result + '</p>';
-			}
 			
-			if (this.addInboundLinks) {
-				const targets = this.links_in.get(this_topic_id);
-				if (targets) {
-					let unique_ids = new Set();
-					for (const target_id of targets) {
-						if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
-						unique_ids.add(target_id);
-					}
-					if (unique_ids.size > 0) {
-						html += contentlinks('In', unique_ids);
-					}
+		if (this.addInboundLinks) {
+			const targets = this.links_in.get(this_topic_id);
+			if (targets) {
+				let unique_ids = new Set();
+				for (const target_id of targets) {
+					if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
+					unique_ids.add(target_id);
 				}
+				if (unique_ids.size > 0) html += contentlinks('In', unique_ids);
 			}
-			if (this.addOutboundLinks) {
-				const links = topic.getElementsByTagName('link');
-				if (links && links.length > 0)
-				{
-					let unique_ids = new Set();
-					
-					for (const link of links) {
-						let target_id = link.getAttribute("target_id");
-						if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
-						unique_ids.add(target_id);
-					}
-					if (unique_ids.size > 0) {
-						html += contentlinks('Out', unique_ids);
-					}
+		}
+		if (this.addOutboundLinks) {
+			const links = topic.getElementsByTagName('link');
+			if (links && links.length > 0)
+			{
+				let unique_ids = new Set();
+				for (const link of links) {
+					let target_id = link.getAttribute("target_id");
+					if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
+					unique_ids.add(target_id);
 				}
+				if (unique_ids.size > 0) html += contentlinks('Out', unique_ids);
 			}
 		}
 
@@ -1813,7 +1708,7 @@ class RealmWorksImporter extends Application
 	{
 		let category_names = new Set();
 		for (const topic of topics)  {
-			category_names.add(this.itemName(topic, 'category_name', 'category_id', this.structure?.categories));
+			category_names.add(this.structure.categories.get(topic.getAttribute('category_id')));
 		}
 
 		// Maybe delete the old folders before creating a new one?
@@ -1842,26 +1737,12 @@ class RealmWorksImporter extends Application
 		}
 		// Create the image folder if it doesn't already exist.
 		await DirectoryPicker.verifyPath(DirectoryPicker.parse(this.asset_directory));
-		// Create a mapping from topic_id to public_name for all topic elements, required for creating "@JournalEntry["mapping[linkage:target_id]"]{"linkage:target_name"}" entries.
-		// Also collect aliases for each topic:
-		// <alias alias_id="Alias_1" name="Barracks Emperors" />
-		this.topic_names = new Map();
-		if (this.structure) this.links_in = new Map();
-		for (const child of topics) {
-			const topic_name = child.getAttribute("public_name");
-			//console.debug(`Found topic '${child.getAttribute("topic_id")}' with name '${topic_name}'`);
-			let names = new Array();
-			names.push(topic_name);
-			
-			for (const subchild of child.children) {
-				if (subchild.nodeName === "alias") {
-					names.push(subchild.getAttribute('name'));
-				}
-			};
-			const topic_id = child.getAttribute("topic_id");
-			this.topic_names.set(topic_id, names);
-			if (this.structure) {
-				// Set up the IN links for each topic
+		
+		// Create a mapping to indicate which topics link INTO each topic
+		if (this.addInboundLinks) {
+			this.links_in = new Map();
+			for (const child of topics) {
+				const topic_id = child.getAttribute("topic_id");
 				const links = child.getElementsByTagName('link');
 				for (const link of links) {
 					const lid = link.getAttribute('target_id');
@@ -1871,7 +1752,7 @@ class RealmWorksImporter extends Application
 						this.links_in.set(lid, [topic_id]);
 				}
 			}
-		};
+		}
 
 		//
 		// TOPICS => JOURNAL ENTRIES
@@ -1887,7 +1768,7 @@ class RealmWorksImporter extends Application
 					topic_id: topic_id,
 					topic: await JournalEntry.create({
 						name: this.title_of_topic.get(topic_id),
-						folder: journal_folders.get(this.itemName(topic, 'category_name', 'category_id', this.structure?.categories)).id,
+						folder: journal_folders.get(this.structure.categories.get(topic.getAttribute('category_id'))).id,
 					}),
 				}
 			}))
@@ -1938,7 +1819,7 @@ class RealmWorksImporter extends Application
 		delete this.scene_folder;
 		delete this.playlist_folder;
 		delete this.rolltable_folder;
-		delete this.topic_names;
 		delete this.entity_for_topic;
+		if (this.addInboundLinks) delete this.links_in;
 	}
 } // class

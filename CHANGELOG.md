@@ -1,3 +1,7 @@
+1.1.1 RollTable names should be based on topic titles, not title+aliases
+Remove old code that supports RWoutput files.
+Fix naming of map pins (explicit name, other name of linked topic, otherwise 'Unnamed')
+
 1.1.0 Improve warning message when link is to a topic not found in the rwexport file.
 Governed Content and Content Links sections are sorted into correct alphabetical order (handling numbers correctly).
 
