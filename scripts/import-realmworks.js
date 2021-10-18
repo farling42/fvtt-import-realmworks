@@ -150,6 +150,15 @@ Hooks.on("renderSidebarTab", async (app, html) => {
 class RealmWorksImporter extends Application
 {
 	// entity_for_topic is a map: key = topic_id, value = JournalEntry
+	static ConnectionName = {
+		Master_To_Minion: "Comprises or Encompasses",
+		Minion_To_Master: "Belongs To or Within",
+		Arbitrary: "Arbitrary connection to",
+		Generic: "Simple connection to",
+		Public_Attitude_Towards: "Public Attitude Towards",
+		Private_Attitude_Towards: "Private Attitude Towards",
+		Family_Relationship_To: "Family Relationship To",
+	}
 	
 	// Foundry VTT default options for the dialogue window,
 	// note that we supply the HTML file that will show the window.
@@ -1287,7 +1296,7 @@ class RealmWorksImporter extends Application
 		}
 		
 		// Generate the HTML for the sections within the topic
-		let has_connections = false;
+		let connections = [];
 		for (const node of topic.children) {
 			switch (node.nodeName) {
 			case 'alias':
@@ -1311,25 +1320,48 @@ class RealmWorksImporter extends Application
 			case 'connection':
 				// RWoutput: <connection target_id="Topic_2" target_name="Child Feat 1" nature="Master_To_Minion" qualifier="Owner / Subsidiary"/>
 				// RWexport: <connection target_id="Topic_2" nature="Minion_To_Master" qualifier_tag_id="Tag_211" qualifier="Parent / Child" original_uuid="F2E39CB6-7490-553E-40F0-68935B3A6BA9" signature="517108"/>
-				if (!has_connections) {
-					has_connections = true;
-					html += '<h1>Relationships</h1>';
+				let target_id = node.getAttribute('target_id');
+				let cname = this.title_of_topic.get(target_id);
+				if (cname) {
+					let nature    = node.getAttribute('nature');
+					let qualifier = node.getAttribute('qualifier');
+					let attitude  = node.getAttribute('attitude')
+					let rating    = node.getAttribute('rating');
+					let annot     = node.getElementsByTagName('annotation');
+
+					let text = '<b>' + RealmWorksImporter.ConnectionName[nature] + '</b>';
+					
+					// Either a qualifier or an attitude or a rating will be displayed
+					if (qualifier) {
+						// Reduce master/minion qualifier to the relevant half of the qualifier.
+						if (nature == "Master_To_Minion") {
+							let quals = qualifier.split(' / ');
+							if (quals.length > 1) qualifier = quals[0];
+						} else if (nature == "Minion_To_Master") {
+							let quals = qualifier.split(' / ');
+							if (quals.length > 1) qualifier = quals[1];
+						}
+						text += ' (' + qualifier + ')';
+					} else if (attitude)
+						text += ' (' + attitude + ')';
+					else if (rating)  // rating is a number, attitude is the string for the rating
+						text += ' (' + rating + ')';
+					if (annot.length > 0)
+						text += '; <i>(' + annot[0].textContent + ')</i>';
+					
+					text += ': ' + this.formatLink(target_id, null);
+					connections.push({cname, text});
 				}
-				html += '<p>';
-				if (node.hasAttribute('qualifier'))
-					html += node.getAttribute('qualifier') + ' ';
-				// target_name does not exist in RWexport file, so undefined will be passed to formatLink
-				html += '<i>(' + node.getAttribute('nature').replace(/_/g,'-') + ')</i> ' + this.formatLink(node.getAttribute('target_id'), node.getAttribute('target_name'));
-				if (node.hasAttribute('rating'))
-					html += ', rating ' + node.getAttribute('rating');
-				if (node.hasAttribute('attitude'))
-					html += ', attitude ' + node.getAttribute('attitude');
-				let note = node.getElementsByTagName('annotation');
-				if (note.length > 0)
-					html += ' (' + note[0].textContent + ')';
 				break;
 			}
 			// and ignore tag_assign at this point.
+		}
+		if (connections.length > 0) {
+			html += '<h1>Relationships</h1><ul>';
+			for (const connection of connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
+				html += '<li>' + connection.text + '</li>';
+			}
+			html += '</ul>';
 		}
 		if (this.governed_max_depth > 0 && child_map.has(this_topic_id)) {
 			// These need to be in a sorted order
