@@ -1,3 +1,14 @@
+1.2 Two new processing options:
+- "Only import NEW topics" - any already-imported topics will remain untouched.
+
+- "Overwrite previously imported things" - replace the contents of Journal Entries, Scenes,
+Playlists and Rolltables with the new information, but keeping the same IDs (so all manual links within Foundry will remain valid).
+Unfortunately, Actors will be recreated by deleting the old Actor and creating a new one (since there's no simple way to do a full actor edit).
+Any changes made locally within Foundry VTT will be lost.
+Note that this option will NOT delete anything that was previously created but no longer exists in the import file. (maybe a future evolution).
+
+d% should be recognised as a valid dice formula when creating RollTables (it will be replaced with d100).
+
 1.1.1 RollTable names should be based on topic titles, not title+aliases
 Remove old code that supports RWoutput files.
 Fix naming of map pins (explicit name, other name of linked topic, otherwise 'Unnamed')

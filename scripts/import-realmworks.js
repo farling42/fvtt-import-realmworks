@@ -23,15 +23,19 @@ import "./jimp.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
 
 const GS_MODULE_NAME = "realm-works-import";
+
 const GS_CREATE_INBOUND_LINKS = "createInboundLinks";
 const GS_CREATE_OUTBOUND_LINKS = "createOutboundLinks";
 const GS_FOLDER_NAME = "folderName";
 const GS_DELETE_OLD_FOLDERS = "deleteOldFolders";
-const GS_UPDATE_EXISTING = "updateExisting";
+const GS_OVERWRITE_EXISTING = "overwriteExisting";
+const GS_IMPORT_ONLY_NEW = "importOnlyNew";
 const GS_ASSETS_LOCATION = "assetsLocation";
 const GS_ACTOR_TYPE = "actorType";
 const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
 const GS_GOVERNED_MAX_DEPTH = "governingMaxDepth";
+
+const GS_FLAGS_UUID = "uuid";
 
 //
 // Register game settings
@@ -121,9 +125,17 @@ Hooks.once('init', () => {
 		default: true,
 		config: false,
 	});
-    game.settings.register(GS_MODULE_NAME, GS_UPDATE_EXISTING, {
-		name: "Updating Existing Entries",
-		hint: "When not deleting old folders, update any entries found with the same name rather than creating new entries",
+    game.settings.register(GS_MODULE_NAME, GS_OVERWRITE_EXISTING, {
+		name: "Overwrite existing entries",
+		hint: "When not deleting old folders, overwrite previously imported topics/articles with the latest version",
+		scope: "world",
+		type:  Boolean,
+		default: false,
+		config: false,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW, {
+		name: "Import only NEW entries",
+		hint: "When not deleting old folders, only import topics/articles not already in the world",
 		scope: "world",
 		type:  Boolean,
 		default: false,
@@ -235,7 +247,8 @@ class RealmWorksImporter extends Application
 		html.find('[name=inboundLinks]')?.prop('checked',     game.settings.get(GS_MODULE_NAME, GS_CREATE_INBOUND_LINKS));
 		html.find('[name=outboundLinks]')?.prop('checked',    game.settings.get(GS_MODULE_NAME, GS_CREATE_OUTBOUND_LINKS));
 		html.find('[name=deleteOldFolders]')?.prop('checked', game.settings.get(GS_MODULE_NAME, GS_DELETE_OLD_FOLDERS));
-		html.find('[name=updateExisting]')?.prop('checked',   game.settings.get(GS_MODULE_NAME, GS_UPDATE_EXISTING));
+		html.find('[name=overwriteExisting]')?.prop('checked', game.settings.get(GS_MODULE_NAME, GS_OVERWRITE_EXISTING));
+		html.find('[name=importOnlyNew]')?.prop('checked',     game.settings.get(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW));
 		//html.find('[name=folder-name]')?.val(game.settings.get(GS_MODULE_NAME, 
 		
 		html.find(".import-file").click(async ev => {
@@ -244,6 +257,8 @@ class RealmWorksImporter extends Application
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
 			this.addOutboundLinks = html.find('[name=outboundLinks]').is(':checked');
 			this.deleteOldFolders = html.find('[name=deleteOldFolders]').is(':checked');
+			this.overwriteExisting = html.find('[name=overwriteExisting]').is(':checked');
+			this.importOnlyNew = html.find('[name=importOnlyNew]').is(':checked');
 
 			// Ensure folder name is present.
 			if (this.folderName.length === 0) {
@@ -345,7 +360,8 @@ class RealmWorksImporter extends Application
 			game.settings.set(GS_MODULE_NAME, GS_CREATE_OUTBOUND_LINKS, this.addOutboundLinks);
 			game.settings.set(GS_MODULE_NAME, GS_FOLDER_NAME,           this.folderName);
 			game.settings.set(GS_MODULE_NAME, GS_DELETE_OLD_FOLDERS,    this.deleteOldFolders);
-			//game.settings.set(GS_MODULE_NAME, GS_UPDATE_EXISTING, ); // not implemented yet
+			game.settings.set(GS_MODULE_NAME, GS_OVERWRITE_EXISTING,    this.overwriteExisting);
+			game.settings.set(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW,       this.importOnlyNew);
 			
 			// Where image files should be stored...
 			this.asset_directory = game.settings.get(GS_MODULE_NAME, GS_ASSETS_LOCATION);		// no trailing "/"
@@ -513,12 +529,9 @@ class RealmWorksImporter extends Application
 	}
 
 	async getFolder(folderName, type, parentid=null) {
-		// Need to check PARENT as well!
-		const found = game.folders.filter(e => e.type === type && e.name === folderName && e.parent === parentid);
-		if (found?.length > 0)
-			return found[0];
-		else
-			return await Folder.create({name: folderName, type: type, parent: parentid, sorting: "m"});
+		const found = game.folders.find(e => e.data.type === type && e.data.name === folderName && e.data.parent === parentid);
+		if (found) return found;
+		return await Folder.create({name: folderName, type: type, parent: parentid, sorting: "m"});
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
@@ -639,7 +652,7 @@ class RealmWorksImporter extends Application
 	}
 
 	// Convert a Smart_Image into a scene
-	async createScene(scene_topic_id, smart_image) {
+	async createScene(topic, smart_image) {
 		//<snippet facet_name="Map" type="Smart_Image" search_text="">
 		//  <smart_image name="Map">
 		//    <asset filename="n5uvmpam.eb4.png">
@@ -649,6 +662,7 @@ class RealmWorksImporter extends Application
 
 		// These need to be created as Scenes (and linked from the original topic?)
 		//const scenename = smart_image.parentElement?.getAttribute('facet_name');
+		const scene_topic_id = topic.getAttribute("topic_id");
 		const asset    = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 		const contents = this.getChild(asset, 'contents'); // <contents>
 		const filename = asset?.getAttribute('filename');
@@ -675,17 +689,24 @@ class RealmWorksImporter extends Application
 			journal: this.entity_for_topic.get(scene_topic_id)?.data._id,
 		};
 		
-		// Delete the old scene by the same name
-		let oldscene = game.scenes.find(p => p.name === scenename);
-		if (oldscene) {
-			this.ui_message.val(`Deleting old scene ${scenename}`);
-			console.debug(`Deleting old scene ${scenename}`);
-			await oldscene.delete();
+		// Maybe we should UPDATE rather than CREATE?
+		let scene;
+		let delete_old_notes = false;
+		let uuid = topic.getAttribute("original_uuid");
+		if (this.overwriteExisting) {
+			let existing = game.scenes.find(s => s.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid && s.data.name === scenedata.name);
+			if (existing) {
+				await existing.update(scenedata)
+					.then(s => { scene = existing; console.debug(`Updated existing scene '${existing.name}'`) })
+					.catch(e => console.warn(`Failed to update existing scene ${scenename} due to ${e}`));
+				delete_old_notes = true;
+			}
 		}
-
-		//console.debug(`Creating scene in folder ${scenedata.folder}`);
-		let scene = await Scene.create(scenedata)
-			.catch(e => console.warn(`Failed to created scene for '${scenename}' with image '${scenedata.img}' due to ${e}`));
+		if (!scene) {
+			//console.debug(`Creating scene in folder ${scenedata.folder}`);
+			scene = await Scene.create(scenedata).catch(e => console.warn(`Failed to create new scene ${scenename} due to ${e}`));
+			if (scene) await scene.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, uuid);
+		}
 		//if (scene) console.debug(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
 		if (!scene) return;
 		
@@ -720,7 +741,16 @@ class RealmWorksImporter extends Application
 			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
 		}
-		if (notes.length > 0) await scene.createEmbeddedDocuments('Note', notes);
+		// If updating, then delete any previous notes
+		if (delete_old_notes) {
+			console.debug(`Deleting old notes from '${scenename}'`);
+			let oldnotes = scene.getEmbeddedCollection('Note').map(n => n.id);
+			if (oldnotes.length > 0)
+				await scene.deleteEmbeddedDocuments('Note', oldnotes).catch(e => console.warn(`Failed to delete old notes from '${scenename}' due to ${e}`));
+		}
+		if (notes.length > 0) {
+			await scene.createEmbeddedDocuments('Note', notes).catch(e => console.warn(`Failed to create notes on scene '${scenename}' due to ${e}`));
+		}
 		
 		// Create thumbnail - do this AFTER creating notes so that we get a scene.update
 		// call to write all the notes to scenes.db
@@ -831,210 +861,221 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	//
-	// Write one RW section
-	//
-	async writeSection(this_topic_id, section, level) {
-
-		// We can't access "this" inside the replaceLinks function
-		let functhis = this;
-
-		// Write a "contents" element:
-		// Only <contents> can contain <span> which identify links.
-
-		function replaceLinks(original, links, direction="0") {
-			// <link target_id="Topic_10" original_uuid="E76194B6-44F4-FC06-3418-68935B3A6BA9" signature="1028506">
-			//     <span_info><span_list><span directions="0" start="3519" length="58"/>
-			let link_map = [];
-			for (const link of links) {
-				for (const span of link.getElementsByTagName('span')) {
-					const start = +span.getAttribute('start');
-					if (span.getAttribute('directions') === direction) {		// 0 = contents, 1 = gm_directions
-						link_map.push({
-							target_id:  link.getAttribute('target_id'),
-							start:      start,
-							finish:     start + +span.getAttribute('length')
-						});
-					}
+	replaceLinks(original, links, direction="0") {
+		// <link target_id="Topic_10" original_uuid="E76194B6-44F4-FC06-3418-68935B3A6BA9" signature="1028506">
+		//     <span_info><span_list><span directions="0" start="3519" length="58"/>
+		let link_map = [];
+		for (const link of links) {
+			for (const span of link.getElementsByTagName('span')) {
+				const start = +span.getAttribute('start');
+				if (span.getAttribute('directions') === direction) {		// 0 = contents, 1 = gm_directions
+					link_map.push({
+						target_id:  link.getAttribute('target_id'),
+						start:      start,
+						finish:     start + +span.getAttribute('length')
+					});
 				}
-			}				
-			// Get in reverse order
-			link_map.sort((p1,p2) => p2.start - p1.start);
-			let result = original.replaceAll("&#xd;","\n");		// to deal with extra characters in tables
-			for (const link of link_map) {
-				let linktext = result.slice(link.start, link.finish);
-				result = result.slice(0,link.start) + functhis.formatLink.call(functhis, link.target_id, linktext) + result.slice(link.finish);
 			}
-			return result;
+		}				
+		// Get in reverse order
+		link_map.sort((p1,p2) => p2.start - p1.start);
+		let result = original.replaceAll("&#xd;","\n");		// to deal with extra characters in tables
+		for (const link of link_map) {
+			let linktext = result.slice(link.start, link.finish);
+			result = result.slice(0,link.start) + this.formatLink(link.target_id, linktext) + result.slice(link.finish);
 		}
+		return result;
+	}
 		
-		function header(lvl, name) {
-			return `<h${lvl}>${name}</h${lvl}>`;
-		}
+	header(lvl, name) {
+		return `<h${lvl}>${name}</h${lvl}>`;
+	}
 		
-		// Remove the default class information from the RW formatting to reduce the size of the final HTML.
-		function simplifyPara(original) {
-			// Too much effort to remove <span> and </span> tags, so just simplify.
-			// Replace <span class="RWSnippet">...</span> with just the ...
-			// Replace <span>...</span> with just the ...
-			//let result = original.
-			return original.
-				replaceAll(/<span class="RWSnippet">/g,'<span>').
-				replaceAll(/<span>([^<]*)<\/span>/g,'$1').
-				replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
-				replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<b>$1</b>').
-				replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<i>$1</i>').
-				replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
-				replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
-				replaceAll(/<p class="RWDefault">/g,'<p>');
-			//console.debug(`simplifyPara: original = '${original}'`);
-			//console.debug(`simplifyPara: result   = '${result}'`);
-			//return result;
-		}
+	// Remove the default class information from the RW formatting to reduce the size of the final HTML.
+	simplifyPara(original) {
+		// Too much effort to remove <span> and </span> tags, so just simplify.
+		// Replace <span class="RWSnippet">...</span> with just the ...
+		// Replace <span>...</span> with just the ...
+		return original.
+			replaceAll(/<span class="RWSnippet">/g,'<span>').
+			replaceAll(/<span>([^<]*)<\/span>/g,'$1').
+			replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
+			replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<b>$1</b>').
+			replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<i>$1</i>').
+			replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
+			replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
+			replaceAll(/<p class="RWDefault">/g,'<p>');
+	}
 		
-		async function addTable(section_name, string) {
-			if (!string.includes("<table")) return "";
-			let result = "";
-			let nodes = functhis.parser.parseFromString(string, "text/html");
-			//if (string.includes("@JournalEntry")) {
-			//	console.log(`ADDTABLE:\n${string}`);
-			//}
-			for (const tablenode of nodes.getElementsByTagName("table")) {		// ignore the concept of nested tables for the moment
-				// tablenode = HtmlTableElement
-				// A table must have at least THREE rows to be meaningful (title + 2 data rows)
-				if (!tablenode.rows || tablenode.rows.length < 3) {
-					continue;
-				}
-				//console.debug(`table has ${tablenode.rows.length} rows`);
-				let min, max,formula;  // min,max numbers for dice results
-				function setLimit(value) {
-					if (!min || value<min) min = value;
-					if (!max || value>max) max = value;
-				}
+	async addTable(topic, section_name, string) {
+		if (!string.includes("<table")) return "";
+		let result = "";
+		let nodes = this.parser.parseFromString(string, "text/html");
+		//if (string.includes("@JournalEntry")) {
+		//	console.log(`ADDTABLE:\n${string}`);
+		//}
+		// See if we should delete any existing entry
+		let uuid = topic.getAttribute("original_uuid");
+			
+		for (const tablenode of nodes.getElementsByTagName("table")) {		// ignore the concept of nested tables for the moment
+			// tablenode = HtmlTableElement
+			// A table must have at least THREE rows to be meaningful (title + 2 data rows)
+			if (!tablenode.rows || tablenode.rows.length < 3) {
+				continue;
+			}
+			//console.debug(`table has ${tablenode.rows.length} rows`);
+			let min, max,formula;  // min,max numbers for dice results
+			function setLimit(value) {
+				if (!min || value<min) min = value;
+				if (!max || value>max) max = value;
+			}
 
-				// If the second column of the table is totally blank, use the third column if available
-				let datacolumn = 1;
-				if (tablenode.rows[1].cells.length > 2) {
-					// See if column 1 is blank.
-					let usethree = true;
-					for (const rownode of tablenode.rows) {
-						if (rownode.rowIndex > 0 &&
-							rownode.cells.length > 2 && 
-							rownode.cells[datacolumn].textContent.trim().length > 0) {
-							usethree = false;
-							break;
-						}
-					}
-					if (usethree) datacolumn = 2;
-					//console.log(`ROLL-TABLE: Using column ${datacolumn} for data`);
-				}
-				
-				let rolltable = [];
-				const formula_regexp = /^[d+\d ]+$/;  // 'd20' or '1d20' or 'd12 + d8' 
-				const details1_regexp = new RegExp("^<p[^>]*><span[^>]*>([^<]*)</span></p>$");
-				const details2_regexp = new RegExp("^<p[^>]*>([^<]*)</p>$");
-				const dice_regexp = /(\d+d\d+\+\d+|\d+d\d+)/;
-				let valid=true;
+			// If the second column of the table is totally blank, use the third column if available
+			let datacolumn = 1;
+			if (tablenode.rows[1].cells.length > 2) {
+				// See if column 1 is blank.
+				let usethree = true;
 				for (const rownode of tablenode.rows) {
-					// rownode = HTMLTableRowElement
-					if (!rownode.cells || rownode.cells.length < 2) {
-						console.log('Row has no (or not enough) columns!');
+					if (rownode.rowIndex > 0 &&
+						rownode.cells.length > 2 && 
+						rownode.cells[datacolumn].textContent.trim().length > 0) {
+						usethree = false;
+						break;
+					}
+				}
+				if (usethree) datacolumn = 2;
+				//console.log(`ROLL-TABLE: Using column ${datacolumn} for data`);
+			}
+				
+			let rolltable = [];
+			const formula_regexp = /^[d+%\d ]+$/i;  // 'd20' or '1d20' or 'd12 + d8' or 'd%'
+			const details1_regexp = new RegExp("^<p[^>]*><span[^>]*>([^<]*)</span></p>$");
+			const details2_regexp = new RegExp("^<p[^>]*>([^<]*)</p>$");
+			const dice_regexp = /(\d+d\d+\+\d+|\d+d\d+|\d+d%\+\d+|\d+d%)/;
+			let valid=true;
+			for (const rownode of tablenode.rows) {
+				// rownode = HTMLTableRowElement
+				if (!rownode.cells || rownode.cells.length < 2) {
+					console.log('Row has no (or not enough) columns!');
+					valid = false;
+					break;
+				}
+				let cell1 = rownode.cells[0].textContent;
+				//console.log(`First column = ${cell1}`);
+				if (rownode.rowIndex == 0)
+				{
+					// check for dice information
+					//console.debug(`ROLL-TABLE: Title of first column = '${cell1}'`);
+					if (formula_regexp.test(cell1)) {
+						formula = cell1.replaceAll("d%","d100");
+						console.debug(`ROLL-TABLE: USING FORMULA: ${formula}`);
+					}
+					// e.g. 1d20  or d12 + d8
+				} else {
+					// check for a number, or a range of numbers
+					const numbers = cell1.match(/\d+/g);
+					if (!numbers || numbers.length == 0 || numbers.length > 2) {
 						valid = false;
 						break;
 					}
-					let cell1 = rownode.cells[0].textContent;
-					//console.log(`First column = ${cell1}`);
-					if (rownode.rowIndex == 0)
-					{
-						// check for dice information
-						//console.debug(`ROLL-TABLE: Title of first column = '${cell1}'`);
-						if (formula_regexp.test(cell1)) {
-							formula = cell1;
-							console.debug(`ROLL-TABLE: USING FORMULA: ${formula}`);
+					let details = this.simplifyPara(rownode.cells[datacolumn].innerHTML); // TODO - textContent ?
+					// It might just be <p ...attributes...><span...attributes...>text</span></p>, so remove surrounding flags
+					// Replace extra die words with inline rolls (e.g. "1d20+x" => "[[1d20+x]]")
+					details = details.replace(details1_regexp,'$1').replace(details2_regexp,'$1').replace(dice_regexp,'[[$1]]');
+					
+					let pos;
+					if (numbers.length == 1) {
+						// single number
+						const num = +numbers[0];
+						setLimit(num);
+						rolltable.push({range: [num, num], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details});
+					} else if ((pos = cell1.indexOf('-')) > 0) {
+						const low = parseInt(cell1.slice(0,pos));
+						const high= parseInt(cell1.slice(pos+1));
+						setLimit(low);
+						setLimit(high);
+						rolltable.push({range: [low, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details});
+						// valid
+					} else if ((pos = cell1.indexOf(',')) > 0) {
+						const low = parseInt(cell1.slice(0,pos));
+						const high= parseInt(cell1.slice(pos+1));
+						setLimit(low);
+						setLimit(high);
+						if (low+1 == high)
+							// consecutive numbers, so one entry
+							rolltable.push({range: [low, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details});
+						else {
+							// not consecutive numbers, so create two entries
+							rolltable.push({range: [low,  low],  type: CONST.TABLE_RESULT_TYPES.TEXT, text: details});
+							rolltable.push({range: [high, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details});
 						}
-						// e.g. 1d20  or d12 + d8
+						// valid
 					} else {
-						// check for a number, or a range of numbers
-						const numbers = cell1.match(/\d+/g);
-						if (!numbers || numbers.length == 0 || numbers.length > 2) {
-							valid = false;
-							break;
-						}
-						let details = simplifyPara(rownode.cells[datacolumn].innerHTML); // TODO - textContent ?
-						// It might just be <p ...attributes...><span...attributes...>text</span></p>, so remove surrounding flags
-						// Replace extra die words with inline rolls (e.g. "1d20+x" => "[[1d20+x]]")
-						details = details.replace(details1_regexp,'$1').replace(details2_regexp,'$1').replace(dice_regexp,'[[$1]]');
-						
-						let pos;
-						if (numbers.length == 1) {
-							// single number
-							const num = +numbers[0];
-							setLimit(num);
-							rolltable.push({range: [num, num], text: details});
-						} else if ((pos = cell1.indexOf('-')) > 0) {
-							const low = parseInt(cell1.slice(0,pos));
-							const high= parseInt(cell1.slice(pos+1));
-							setLimit(low);
-							setLimit(high);
-							rolltable.push({range: [low, high], text: details});
-							// valid
-						} else if ((pos = cell1.indexOf(',')) > 0) {
-							const low = parseInt(cell1.slice(0,pos));
-							const high= parseInt(cell1.slice(pos+1));
-							setLimit(low);
-							setLimit(high);
-							if (low+1 == high)
-								// consecutive numbers, so one entry
-								rolltable.push({range: [low, high], text: details});
-							else {
-								// not consecutive numbers, so create two entries
-								rolltable.push({range: [low,  low],  text: details});
-								rolltable.push({range: [high, high], text: details});
-							}
-							// valid
-						} else {
-							// not valid
-							valid = false;
-							break;
-						}
+						// not valid
+						valid = false;
+						break;
 					}
 				}
-				if (!valid) continue;
-				// create row table
-				
-				// BaseTableResult =
-				// type  : 0   (0 = text, 1=)
-				// text  : string
-				// img   : string
-				// weight: 1
-				// range : [ low, high ]
-				// drawn : boolean
-				console.debug(`Creating a RollTable with ${rolltable.length} rows for '${functhis.title_of_topic.get(this_topic_id)}'`);
-				let name = functhis.title_of_topic.get(this_topic_id) + " : ";
-				name += tablenode.caption ? tablenode.caption.captiontext : section_name;
-				let table = await RollTable.create({
-					name:        name,
-					//img:         string,
-					//description: "Imported from Realm Works",  // This appears on every roll in the chat!
-					results:     rolltable,	// Collection.<BaseTableResult>
-					formula:     formula ? formula : (min == 1) ? `1d${max}` : `1d${max-min+1}+${min-1}`,
-					replacement: true,
-					displayRoll: true,
-					folder:      functhis.rolltable_folder?.id,
-					//sort: number,
-					//permission: object,
-					//flags: object
-					});
-				// Add the new table to the HTML to be returned
-				result += `<p>@RollTable[${table.id}]{${table.name}}`;
 			}
-			
-			return result;
+			if (!valid) continue;
+			// create row table
+				
+			// BaseTableResult =
+			// type  : 0   (0 = text, 1=)
+			// text  : string
+			// img   : string
+			// weight: 1
+			// range : [ low, high ]
+			// drawn : boolean
+			let name = this.title_of_topic.get(topic.getAttribute("topic_id"));
+			console.debug(`Creating a RollTable with ${rolltable.length} rows for '${name}'`);
+			name += " : " + (tablenode.caption ? tablenode.caption.captiontext : section_name);
+			let tabledata = {
+				name:        name,
+				//img:         string,
+				//description: "Imported from Realm Works",  // This appears on every roll in the chat!
+				results:     rolltable,	// Collection.<BaseTableResult>
+				formula:     formula ? formula : (min == 1) ? `1d${max}` : `1d${max-min+1}+${min-1}`,
+				replacement: true,
+				displayRoll: true,
+				folder:      this.rolltable_folder?.id,
+				//sort: number,
+				//permission: object,
+				//flags: object
+			};
+				
+			let table;
+			if (this.overwriteExisting) {
+				let existing = game.tables.find(t => t.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid && t.data.name === tabledata.name);
+				if (existing) {
+					// Delete all the old results (even using await e.delete() doesn't get them removed immediately)
+					for (let e of existing.results) await e.delete();
+					table = await existing.update(tabledata)
+						.catch(e => console.warn(`Failed to update roll table '${existing.data.name}' due to ${e}`));
+				}
+			}
+			if (!table) {
+				table = await RollTable.create(tabledata).catch(e => console.warn(`Failed to create roll table '${tabledata.name}' due to ${e}`));
+				if (table) await table.setFlag(GS_MODULE_NAME,GS_FLAGS_UUID, uuid);
+			}
+			// Add the new table to the HTML to be returned
+			result += `<p>@RollTable[${table.id}]{${table.name}}`;
 		}
+		
+		return result;
+	}
+
+	//
+	// Write one RW section
+	//
+	async writeSection(topic, section, level) {
+
+		// Write a "contents" element:
+		// Only <contents> can contain <span> which identify links.
 		
 		// Process all the snippets and sections in order
 		let section_name = this.structure.partitions.get(section.getAttribute('partition_id'));
-		let result = header(level, section_name);
+		let result = this.header(level, section_name);
 		let subsections = "";
 		
 		// Process all child (not descendent) nodes in this section
@@ -1043,7 +1084,7 @@ class RealmWorksImporter extends Application
 			case 'section':
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
-				subsections += await this.writeSection(this_topic_id, child, level+1);
+				subsections += await this.writeSection(topic, child, level+1);
 				break;
 				
 			case 'snippet':
@@ -1082,22 +1123,22 @@ class RealmWorksImporter extends Application
 					result += '<section style="' + margin + bgcol + '">';
 				}
 				if (gmdir) {
-					result += '<section class="secret">' + simplifyPara(replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), /*direction*/ "1")) + '</section>';
+					result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), /*direction*/ "1")) + '</section>';
 				}
 				
 				switch (sntype) {
 				case "Multi_Line":
 					if (contents) {
-						let text = simplifyPara(replaceLinks(contents.textContent, child.getElementsByTagName('link')));
+						let text = this.simplifyPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link')));
 						result += text;
 						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output
-						result += await addTable(section_name, text);
+						result += await this.addTable(topic, section_name, text);
 					}
 					break;
 				case "Labeled_Text":
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += `<p><b>${label}:</b> ` + this.stripPara(replaceLinks(contents.textContent, child.getElementsByTagName('link')));
+						result += `<p><b>${label}:</b> ` + this.stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link')));
 						if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
@@ -1105,7 +1146,7 @@ class RealmWorksImporter extends Application
 				case "Numeric":
 					if (contents) {
 						// contents will hold just a number
-						result += `<p><b>${label}:</b> ` + replaceLinks(contents.textContent, child.getElementsByTagName('link'));
+						result += `<p><b>${label}:</b> ` + this.replaceLinks(contents.textContent, child.getElementsByTagName('link'));
 						if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`
 						result += `</p>`;
 					}
@@ -1174,7 +1215,7 @@ class RealmWorksImporter extends Application
 						let first=true;
 						for (const [charname, character] of this.readPortfolio(portfolio.textContent)) {
 							if (first) { result += '<hr>'; first=false }
-							result += header(level+1, character.name);
+							result += this.header(level+1, character.name);
 							let str = this.Utf8ArrayToStr(character[this.por_html]);
 							if (this.por_html==="text")
 								// text needs to be put inside a pre-formatted block
@@ -1198,7 +1239,7 @@ class RealmWorksImporter extends Application
 					const bin_asset      = this.getChild(bin_ext_object, 'asset');       
 					const bin_contents   = this.getChild(bin_asset,      'contents');    
 					if (bin_contents) {
-						result += header(level+1, bin_ext_object.getAttribute('name'));
+						result += this.header(level+1, bin_ext_object.getAttribute('name'));
 						const bin_filename = bin_asset.getAttribute('filename');
 						const fileext = bin_filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf")
@@ -1227,17 +1268,18 @@ class RealmWorksImporter extends Application
 					// These need to be created as Scenes (and linked from the original topic?)
 					const smart_image  = this.getChild(child,       'smart_image');
 					const map_asset    = this.getChild(smart_image, 'asset'); 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const map_contents = this.getChild(map_asset,       'contents');  	// <contents>
+					const map_contents = this.getChild(map_asset,   'contents');  	// <contents>
 					const map_filename = map_asset?.getAttribute('filename');
 					const map_format   = map_filename?.split('.').pop();	// extra suffix from asset filename
 					if (map_format && map_contents) {
-						result += header(level+1, smart_image.getAttribute('name'));
+						result += this.header(level+1, smart_image.getAttribute('name'));
 						await this.uploadFile(map_filename, map_contents.textContent);
 						result += `<p><img src='${this.imageFilename(map_filename)}'></img></p>`;
 
 						// Create the scene now
-						const sceneid = await this.createScene(this_topic_id, smart_image).catch(e => console.warn(`Failed to create scene for ${this_topic_id} due to ${e}`));
-						result += `<p>@Scene[${sceneid}]{${smart_image.getAttribute('name')}}</p>`;
+						await this.createScene(topic, smart_image)
+							.then(sceneid => result += `<p>@Scene[${sceneid}]{${smart_image.getAttribute('name')}}</p>`)
+							.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
 					}
 					break;
 				case "tag_assign":
@@ -1307,7 +1349,7 @@ class RealmWorksImporter extends Application
 					html += `<p><b>Alias: </b><i>${node.getAttribute('name')}</i></p>`;
 				break;
 			case 'section':
-				html += await this.writeSection(this_topic_id, node, 1); // Start with H1
+				html += await this.writeSection(topic, node, 1); // Start with H1
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1409,6 +1451,7 @@ class RealmWorksImporter extends Application
 			_id:      this.entity_for_topic.get(this_topic_id).data._id,
 			//name:     this.title_of_topic.get(this_topic_id),  -- already set correctly during initial creation
 			topic_id: this_topic_id,
+			uuid:     topic.getAttribute("original_uuid"),
 			content:  html,
 		};
 		//console.debug(`Finished topic '${topic.getAttribute("public_name")}' in folder ${result.folder}`);
@@ -1457,6 +1500,16 @@ class RealmWorksImporter extends Application
 		console.debug(`Formatting actor for topic '${this.title_of_topic.get(topic.getAttribute("topic_id"))}'`);
 		let result = [];
 		let topicname = topic.getAttribute('public_name');
+		let uuid = topic.getAttribute("original_uuid");
+		
+		// Since we can't "update" actors in a safe way, always delete if required.
+		if (this.overwriteExisting) {
+			for (let actor of game.actors.filter(a => a.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid))
+			{
+				await actor.delete();
+			}
+		}
+		
 		for (const snippet of this.getActorSnippets(topic)) {
 			if (!snippet) {
 				console.warn(`formatActors for '${topicname}':\n <snippet type=Portfolio|Statblock> is missing - Skipping`);
@@ -1560,6 +1613,11 @@ class RealmWorksImporter extends Application
 					name: name,
 					type: this.actor_type,
 					data: await this.actor_data_func(statblock),
+					flags: {
+						GS_MODULE_NAME: {
+							GS_FLAGS_UUID : uuid
+						}
+					}
 				};
 				if (actor.data.items) actor.items = actor.data.items;
 				result.push(actor);
@@ -1586,22 +1644,25 @@ class RealmWorksImporter extends Application
 	
 	async createPlaylists(topics) {
 		// Find all Audio snippets
-		let snippets;
 		function getSoundSnippets(node) {
+			let snippets = [];
 			for (const child of node.children) {
 				if (child.nodeName === 'snippet' && child.getAttribute('type') === 'Audio') {
 					snippets.push(child);
 				} else if (child.nodeName !== 'topic' && child.nodeName !== 'topicchild' && child.children.length > 0) {
 					// Don't check nested topics
-					getSoundSnippets(child);
+					snippets = snippets.concat(getSoundSnippets(child));
 				}
 			}
+			return snippets;
 		}
 
 		// Write out sounds that we find, as a playlist named after the topic.
 		for (const topic of topics) {
-			snippets = [];
-			getSoundSnippets(topic);
+			// If only creating from NEW topics, the ignore existing topics
+			if (this.importOnlyNew && this.existing_topics.has(topic.getAttribute("original_uuid"))) continue;
+
+			const snippets = getSoundSnippets(topic);
 			if (snippets.length === 0) continue;
 
 			let playlist = {
@@ -1646,7 +1707,19 @@ class RealmWorksImporter extends Application
 				
 				playlist.sounds.push(sound);
 			}
-			await Playlist.create(playlist);
+			let uuid = topic.getAttribute("original_uuid");
+			if (this.overwriteExisting) {
+				let existing = game.playlists.find(p => p.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid);
+				if (existing) {
+					await existing.update(playlist)
+						.then(p => console.debug(`Updated existing Playlist ${p.id}`))
+						.catch(e => console.warn(`Failed to update playlist '${name}' due to ${e}`));
+					continue;
+				}
+			}
+			await Playlist.create(playlist)
+				.then(async(p) => await p.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, uuid))
+				.catch(e => console.warn(`Failed to create playlist '${name}' due to ${e}`));
 		}
 	}
 	
@@ -1756,18 +1829,10 @@ class RealmWorksImporter extends Application
 
 		// Create the folders now
 		console.info('Creating folders');
-		this.actor_folder    = await this.getFolder(this.folderName, 'Actor');
+		this.actor_folder = await this.getFolder(this.folderName, 'Actor');
 		this.scene_folder    = await this.getFolder(this.folderName, 'Scene');
 		this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
 		this.rolltable_folder = await this.getFolder(this.folderName, 'RollTable');
-		let journal_parent   = await this.getFolder(this.folderName, 'JournalEntry');
-		let journal_folders  = new Map();  // actual journal entries will be in a folder with the TOPIC category name
-		for (const category_name of category_names) {
-			await this.getFolder(category_name, 'JournalEntry', journal_parent.id)
-				.then(folder => journal_folders.set(category_name, folder))
-				.catch(err => console.warn(`Failed to create Journal folder for ${category_name} due to ${err}`));
-		}
-		// Create the image folder if it doesn't already exist.
 		await DirectoryPicker.verifyPath(DirectoryPicker.parse(this.asset_directory));
 		
 		// Create a mapping to indicate which topics link INTO each topic
@@ -1785,6 +1850,39 @@ class RealmWorksImporter extends Application
 				}
 			}
 		}
+		if (this.importOnlyNew) {
+			this.existing_topics = new Map();
+			for (const je of game.journal) {
+				let uuid = je.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
+				if (uuid) this.existing_topics.set(uuid, je);
+			}
+			console.debug(`Found '${GS_FLAGS_UUID}' flag on ${this.existing_topics.size} journal entries`);
+		} else if (this.overwriteExisting) {
+			this.existing_topics = new Map();
+			for (const je of game.journal) {   // .find(j => j.name)
+				let uuid = je.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
+				if (uuid) this.existing_topics.set(uuid, je);
+			}
+			console.debug(`Found '${GS_FLAGS_UUID}' flag on ${this.existing_topics.size} journal entries`);
+		}
+
+		// See which journal folders need creating
+		// Journal folders + journal top parent will be created as/when necessary
+		let journal_parent;
+		let journal_folders = new Map();
+		for (const topic of topics) {
+			// If the topic exists, then we don't need to worry about which folder it is in.
+			if (this.overwriteExisting || this.importOnlyNew) {
+				if (this.existing_topics.has(topic.getAttribute("original_uuid"))) continue;
+			}
+			// The topic doesn't already exist, so we need to ensure that the parent folder exists
+			let category_id = topic.getAttribute('category_id');
+			if (!journal_folders.has(category_id)) {
+				if (!journal_parent) journal_parent = (await this.getFolder(this.folderName, 'JournalEntry')).id;
+				await this.getFolder(this.structure.categories.get(category_id), 'JournalEntry', journal_parent)
+				.then(f => journal_folders.set(category_id, f.id));
+			}
+		}
 
 		//
 		// TOPICS => JOURNAL ENTRIES
@@ -1796,28 +1894,44 @@ class RealmWorksImporter extends Application
 		this.entity_for_topic = new Map();
 		await Promise.allSettled(topics.map(async(topic) => {
 			let topic_id = topic.getAttribute("topic_id");
-				return {
-					topic_id: topic_id,
-					topic: await JournalEntry.create({
-						name: this.title_of_topic.get(topic_id),
-						folder: journal_folders.get(this.structure.categories.get(topic.getAttribute('category_id'))).id,
-					}),
+			if (this.overwriteExisting || this.importOnlyNew) {
+				let uuid = topic.getAttribute("original_uuid");
+				if (this.existing_topics.has(uuid)) {
+					// Return the existing topic
+					return {
+						topic_id: topic_id,
+						topic: this.existing_topics.get(uuid),
+					}
 				}
-			}))
+			}
+			let newtopic = await JournalEntry.create({
+				name:   this.title_of_topic.get(topic_id),
+				folder: journal_folders.get(topic.getAttribute('category_id'))
+			});
+			await newtopic.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, topic.getAttribute("original_uuid"));
+			return { topic_id : topic_id, topic : newtopic };
+		}))
 		// Now add all valid entries to entity_for_topic synchronously
 		.then(results => results.forEach(result => {
 				if (result.status === 'fulfilled')
 					this.entity_for_topic.set(result.value.topic_id, result.value.topic);
+				else
+					console.warn(`JE creation failed due to ${result.reason}`);
 			}));
 		// Asynchronously generate each of the Journal Entries
 		this.ui_message.val(`Generating ${topics.length} journal contents`);
 		console.info(`Generating ${topics.length} journal contents`);
-		await Promise.allSettled(topics.map(async(topic_node) =>
-				await this.formatOneTopic(topic_node, child_map, parent_map.get(topic_node.getAttribute('topic_id')))
-				.then(async(topic) => {
-					await JournalEntry.updateDocuments([topic]).catch(p => console.warn(`Update JE failed for '${topic.name}':\n${p}`));
+		await Promise.allSettled(topics.map(async(topic_node) => {
+			if (!(this.importOnlyNew && this.existing_topics.has(topic_node.getAttribute("original_uuid")))) {
+				let topic_id = topic_node.getAttribute('topic_id');
+				await this.formatOneTopic(topic_node, child_map, parent_map.get(topic_id))
+				.then(async(topicdata) => {
+					await this.entity_for_topic.get(topic_id).update(topicdata)
+						.catch(e => console.warn(`JournalEntry.update() failed for '${topic_node.getAttribute("public_name")}':\n${e}`));
 				})
-				.catch(e => console.warn(`formatOneTopic failed for ${topic_node.getAttribute("public_name")}:\n${e}`))));
+				.catch(e => console.warn(`formatOneTopic failed for ${topic_node.getAttribute("public_name")}:\n${e}`))
+			}
+		}));
 		//
 		// HL PORTFOLIOS => ACTORS
 		//
@@ -1834,12 +1948,21 @@ class RealmWorksImporter extends Application
 		// Asynchronously get the data for all the actors,
 		// don't CREATE the Actors until we've had a chance to remove duplicates
 		// TODO: if actors.length > 1 then put them inside a folder named after the topic.
-		await Promise.allSettled(actor_topics.map(async(topic_node) =>
+		// TODO: if this.overwriteExisting, then how will post_create_actors work when the actor might already have lots of things added to it?
+		await Promise.allSettled(actor_topics.map(async(topic_node) => {
+			if (!(this.importOnlyNew && this.existing_topics.has(topic_node.getAttribute("original_uuid"))))
 				await this.formatActors(topic_node)
-				.then(async(actors) => await Actor.create(actors)
-					.then( async(new_actors) => { if (this.post_create_actors) await this.post_create_actors(new_actors)})
+				.then(async(actors) =>
+					await Actor.create(actors)
+					.then( async(new_actors) => { 
+						for (let actor of new_actors)
+							await actor.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, topic_node.getAttribute("original_uuid"));
+						if (this.post_create_actors)
+							await this.post_create_actors(new_actors)
+					})
 				)
-				.catch(error => console.warn(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))))
+				.catch(error => console.warn(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))
+		}))
 
 		// AUDIO snippets => PLAYLISTS
 		this.ui_message.val(`Generating playlists`);
