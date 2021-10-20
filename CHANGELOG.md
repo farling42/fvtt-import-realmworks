@@ -1,4 +1,4 @@
-1.2 Two new processing options:
+1.3 Two new processing options:
 - "Only import NEW topics" - any already-imported topics will remain untouched.
 
 - "Overwrite previously imported things" - replace the contents of Journal Entries, Scenes,
@@ -8,6 +8,10 @@ Any changes made locally within Foundry VTT will be lost.
 Note that this option will NOT delete anything that was previously created but no longer exists in the import file. (maybe a future evolution).
 
 d% should be recognised as a valid dice formula when creating RollTables (it will be replaced with d100).
+
+1.2 Improve the Connections section of created journal entries:
+- a better format for the text
+- entries are sorted alphabetically based on the expanded title of the link.
 
 1.1.1 RollTable names should be based on topic titles, not title+aliases
 Remove old code that supports RWoutput files.
