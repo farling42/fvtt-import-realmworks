@@ -35,6 +35,7 @@ const GS_ACTOR_TYPE = "actorType";
 const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
 const GS_GOVERNED_MAX_DEPTH = "governingMaxDepth";
 const GS_SECTION_NUMBERING = "sectionNumbering";
+const GS_REVEAL_TOPICS = "revealTopics";
 
 const GS_FLAGS_UUID = "uuid";
 
@@ -86,6 +87,14 @@ Hooks.once('init', () => {
     game.settings.register(GS_MODULE_NAME, GS_SECTION_NUMBERING, {
 		name: "Number each section within Topics",
 		hint: "Select this option if you want sections within imported journal entries to be numbered just like in Realm Works; if not selected then no number prefix will be added to section names",
+		scope: "world",
+		type:  Boolean,
+		default: true,
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_REVEAL_TOPICS, {
+		name: "Set permission of revealed things to OBSERVER",
+		hint: "Each topic/actor/table revealed in Realm Works will be configured with a default permission of OBSERVER. For topics, that all players can read the entirety of the topic (all snippets revealed!, but GM-directions remain hidden)",
 		scope: "world",
 		type:  Boolean,
 		default: true,
@@ -284,6 +293,7 @@ class RealmWorksImporter extends Application
 			this.governing_content_label = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
 			this.governed_max_depth = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
 			this.section_numbering = game.settings.get(GS_MODULE_NAME, GS_SECTION_NUMBERING);
+			this.reveal_topics = game.settings.get(GS_MODULE_NAME, GS_REVEAL_TOPICS);
 			this.por_html = "html";
 			
 			switch (game.system.id) {
@@ -921,13 +931,10 @@ class RealmWorksImporter extends Application
 			replaceAll(/<p class="RWDefault">/g,'<p>');
 	}
 		
-	async addTable(topic, section_name, string) {
+	async addTable(topic, section_name, string, is_revealed) {
 		if (!string.includes("<table")) return "";
 		let result = "";
 		let nodes = this.parser.parseFromString(string, "text/html");
-		//if (string.includes("@JournalEntry")) {
-		//	console.log(`ADDTABLE:\n${string}`);
-		//}
 		// See if we should delete any existing entry
 		let uuid = topic.getAttribute("original_uuid");
 			
@@ -1057,6 +1064,7 @@ class RealmWorksImporter extends Application
 				//permission: object,
 				//flags: object
 			};
+			if (is_revealed) tabledata.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
 				
 			let table;
 			if (this.overwriteExisting) {
@@ -1147,7 +1155,8 @@ class RealmWorksImporter extends Application
 						let text = this.simplifyPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link')));
 						result += text;
 						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output
-						result += await this.addTable(topic, section_name, text);
+						let is_revealed = (this.reveal_topics && topic.getAttribute('is_revealed')==='true' && child.getAttribute('is_revealed')==='true');
+						result += await this.addTable(topic, section_name, text, is_revealed);
 					}
 					break;
 				case "Labeled_Text":
@@ -1472,6 +1481,10 @@ class RealmWorksImporter extends Application
 		};
 		//console.debug(`Finished topic '${topic.getAttribute("public_name")}' in folder ${result.folder}`);
 		
+		if (this.reveal_topics && topic.getAttribute('is_revealed')==='true') {
+			result.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
+		}
+		
 		return result;
 	}
 
@@ -1580,6 +1593,9 @@ class RealmWorksImporter extends Application
 			if (!this.parser)
 				this.parser = new DOMParser();
 
+			// Both the topic and the individual actor's snippet need to be revealed!
+			let is_revealed = (this.reveal_topics && topic.getAttribute('is_revealed')==='true' && snippet.getAttribute('is_revealed')==='true')
+
 			if (portfolio) {
 				if (this.create_actor_data) {
 					for (const [charname, character] of portfolio) {
@@ -1600,6 +1616,8 @@ class RealmWorksImporter extends Application
 									if (extradata.items) actor.items = actor.items.concat(extradata.items);
 									if (port?.imgfilename)
 										actor.img = this.imageFilename(port.imgfilename);
+									if (is_revealed) actor.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
+									actor.flags = { GS_MODULE_NAME: { GS_FLAGS_UUID : uuid } }
 									result.push(actor);
 								}
 							})
@@ -1613,10 +1631,12 @@ class RealmWorksImporter extends Application
 							name: character.name,
 							type: this.actor_type,
 							data: await this.actor_data_func(this.Utf8ArrayToStr(character[this.por_html])),
+							flags: { GS_MODULE_NAME: { GS_FLAGS_UUID : uuid } }
 						};
 						if (actor.data.items) actordata.items = actor.data.items;
 						if (character.imgfilename)
 							actor.img = this.imageFilename(character.imgfilename)
+						if (is_revealed) actor.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
 						result.push(actor);
 					}
 				}
@@ -1629,13 +1649,10 @@ class RealmWorksImporter extends Application
 					name: name,
 					type: this.actor_type,
 					data: await this.actor_data_func(statblock),
-					flags: {
-						GS_MODULE_NAME: {
-							GS_FLAGS_UUID : uuid
-						}
-					}
+					flags: { GS_MODULE_NAME: { GS_FLAGS_UUID : uuid } }
 				};
 				if (actor.data.items) actor.items = actor.data.items;
+				if (is_revealed) actor.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
 				result.push(actor);
 			}
 		}
