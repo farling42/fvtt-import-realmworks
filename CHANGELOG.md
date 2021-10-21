@@ -1,7 +1,9 @@
-1.3.2
+1.4
 FIX: Custom section names should now be decoded properly.
-FIX: bold and italic text now encoded as strong and em text (to match how Foundry VTT does it).
+IMPROVEMENT: bold and italic text now encoded as strong and em text (to match how Foundry VTT does it).
 FEATURE: Add option to include numbering on section headers, emulating the numbering in Realm Works.
+FEATURE: Add option for revealed topics, actors and tables to set their default permission to OBSERVER. (All snippets, except gm-directions, will be visible in revealed topics.)
+CHANGE: Connections and Content Links now use same topic name format as in Realm Works "topicname ( suffix - prefix )", rather than the format used in topic titles and governed content "prefix - topicname (suffix)".
 
 1.3.1
 FIX: some relationships were not being decoded properly.

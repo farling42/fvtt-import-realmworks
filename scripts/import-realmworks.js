@@ -252,11 +252,27 @@ class RealmWorksImporter extends Application
 	
 	// Create full journal entry name for a topic (including the prefix and/or suffix)
 	journaltitle(topic) {
+		// {prefix} - {public_name} ({suffix})
 		let result = topic.getAttribute("public_name");
 		let prefix = topic.getAttribute('prefix');
 		let suffix = topic.getAttribute('suffix');
 		if (prefix) result = prefix + ' - ' + result;
 		if (suffix) result += ' (' + suffix + ')';
+		return result;
+	}
+	
+	journallinktitle(topic) {
+		// {public_name} ({suffix} - {prefix})
+		let result = topic.getAttribute("public_name");
+		let prefix = topic.getAttribute('prefix');
+		let suffix = topic.getAttribute('suffix');
+		if (prefix || suffix) {
+			result += '(';
+			if (suffix) result += suffix;
+			if (suffix && prefix) result += ' - ';
+			if (prefix) result += prefix;
+			result += ')';
+		}
 		return result;
 	}
 	
@@ -513,9 +529,11 @@ class RealmWorksImporter extends Application
 			let parent_map = new Map();
 			let child_map = new Map();
 			this.title_of_topic = new Map();
+			this.connectionname_of_topic = new Map();
 			for (const topic of topic_nodes) {
 				let parent_id = topic.getAttribute('topic_id');
 				this.title_of_topic.set(parent_id, this.journaltitle(topic));
+				this.connectionname_of_topic.set(parent_id, this.journallinktitle(topic));
 				let found = [];
 				for (const child of topic.getElementsByTagName('topicchild')) {
 					const child_id = child.getAttribute('topic_id');
@@ -544,6 +562,7 @@ class RealmWorksImporter extends Application
 			topic_nodes = undefined;
 			delete this.structure;
 			delete this.title_of_topic;
+			delete this.connectionname_of_topic;
 			parent_map.clear();
 			child_map.clear();
 			
@@ -1388,7 +1407,7 @@ class RealmWorksImporter extends Application
 				// RWoutput: <connection target_id="Topic_2" target_name="Child Feat 1" nature="Master_To_Minion" qualifier="Owner / Subsidiary"/>
 				// RWexport: <connection target_id="Topic_2" nature="Minion_To_Master" qualifier_tag_id="Tag_211" qualifier="Parent / Child" original_uuid="F2E39CB6-7490-553E-40F0-68935B3A6BA9" signature="517108"/>
 				let target_id = node.getAttribute('target_id');
-				let cname = this.title_of_topic.get(target_id);
+				let cname = this.connectionname_of_topic.get(target_id);
 				if (cname) {
 					let nature    = node.getAttribute('nature');
 					let qualifier = node.getAttribute('qualifier');
@@ -1416,13 +1435,15 @@ class RealmWorksImporter extends Application
 					if (annot.length > 0)
 						text += '; <em>(' + annot[0].textContent + ')</em>';
 					
-					text += ': ' + this.formatLink(target_id, null);
+					text += ': ' + this.formatLink(target_id, cname);
 					connections.push({cname, text});
 				}
 				break;
 			}
 			// and ignore tag_assign at this point.
 		}
+		
+		// Add the CONNECTIONS (prefix/suffix are APPENDED)
 		if (connections.length > 0) {
 			html += '<h1>Relationships</h1><ul>';
 			for (const connection of connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
@@ -1430,20 +1451,17 @@ class RealmWorksImporter extends Application
 			}
 			html += '</ul>';
 		}
-		if (this.governed_max_depth > 0 && child_map.has(this_topic_id)) {
-			// These need to be in a sorted order
-			html += '<h1>Governed Content</h1>' + this.addDescendents(child_map, this.governed_max_depth, this_topic_id);
-		}
 		
+		// New we do the CONTENT LINKS (prefix/suffix are APPENDED)
 		// Add the optional INBOUND and/or OUTBOUND links
 		let functhis = this;
 		function contentlinks(dir, set) {
 			let ordered = [...set].sort( (p1,p2) => {
-				let t1 = functhis.title_of_topic.get(p1);
-				let t2 = functhis.title_of_topic.get(p2);
+				let t1 = functhis.connectionname_of_topic.get(p1);
+				let t2 = functhis.connectionname_of_topic.get(p2);
 				return t1 ? (t2 ? t1.localeCompare(t2, undefined, {numeric: true}) : -1) : t2 ? 1 : 0;
 			});
-			return `<h1>Content Links: ${dir}</h1><p>` + ordered.map(id => functhis.formatLink(id, null)).join(' ') + '</p>';
+			return `<h1>Content Links: ${dir}</h1><p>` + ordered.map(id => functhis.formatLink(id, functhis.connectionname_of_topic.get(id))).join(' ') + '</p>';
 		}
 			
 		if (this.addInboundLinks) {
@@ -1471,6 +1489,13 @@ class RealmWorksImporter extends Application
 			}
 		}
 
+		// Now we do the GOVERNED CONTENT,
+		// but we are formatting the topics as per the RW navigation pane, NOT the "Governed Content" summary panel
+		if (this.governed_max_depth > 0 && child_map.has(this_topic_id)) {
+			// These need to be in a sorted order
+			html += '<h1>Governed Content</h1>' + this.addDescendents(child_map, this.governed_max_depth, this_topic_id);
+		}
+		
 		// Format as a data block usable by JournalEntry.update
 		let result = {
 			_id:      this.entity_for_topic.get(this_topic_id).data._id,
