@@ -163,15 +163,19 @@ class RealmWorksImporter extends Application
 {
 	// entity_for_topic is a map: key = topic_id, value = JournalEntry
 	static ConnectionName = {
-		Master_To_Minion: "Comprises or Encompasses",
-		Minion_To_Master: "Belongs To or Within",
-		Arbitrary: "Arbitrary connection to",
-		Generic: "Simple connection to",
-		Public_Attitude_Towards: "Public Attitude Towards",
-		Private_Attitude_Towards: "Private Attitude Towards",
-		Family_Relationship_To: "Family Relationship To",
+		Arbitrary: "<b>Arbitrary connection to</b>",
+		Generic: "<b>Simple connection to</b>",
+		Union: "<b>Family Relationship to</b> (Union with)",
+		Parent_To_Offspring: "<b>Family Relationship to</b> (Immediate Ancestor of)",
+		Offspring_To_Parent: "<b>Family Relationship to</b> (Offspring of)",
+		Master_To_Minion: "<b>Comprises or Encompasses</b>",
+		Minion_To_Master: "<b>Belongs To or Within</b>",
+		Public_Attitude_Towards: "<b>Public Attitude Towards</b>",
+		Private_Attitude_Towards: "<b>Private Attitude Towards</b>",
 	}
-	
+
+
+
 	// Foundry VTT default options for the dialogue window,
 	// note that we supply the HTML file that will show the window.
 	static get defaultOptions()
@@ -1371,7 +1375,7 @@ class RealmWorksImporter extends Application
 					let rating    = node.getAttribute('rating');
 					let annot     = node.getElementsByTagName('annotation');
 
-					let text = '<b>' + RealmWorksImporter.ConnectionName[nature] + '</b>';
+					let text = RealmWorksImporter.ConnectionName[nature];
 					
 					// Either a qualifier or an attitude or a rating will be displayed
 					if (qualifier) {
