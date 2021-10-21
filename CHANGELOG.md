@@ -1,3 +1,9 @@
+1.3.2
+FIX: Custom section names should now be decoded properly.
+
+1.3.1
+FIX: some relationships were not being decoded properly.
+
 1.3 Two new processing options:
 - "Only import NEW topics" - any already-imported topics will remain untouched.
 

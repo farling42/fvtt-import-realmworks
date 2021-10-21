@@ -1078,10 +1078,10 @@ class RealmWorksImporter extends Application
 		// Only <contents> can contain <span> which identify links.
 		
 		// Process all the snippets and sections in order
-		let section_name = this.structure.partitions.get(section.getAttribute('partition_id'));
+		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
 		let result = this.header(level, section_name);
 		let subsections = "";
-		
+
 		// Process all child (not descendent) nodes in this section
 		for (const child of section.children) {
 			switch (child.nodeName) {
@@ -1098,7 +1098,7 @@ class RealmWorksImporter extends Application
 				const contents   = this.getChild(child, 'contents');
 				const gmdir      = this.getChild(child, 'gm_directions');
 				const annotation = this.getChild(child, 'annotation');
-				const label      = this.structure.facets.get(child.getAttribute('facet_id')) ?? child.getAttribute('label'); // TODO: should label be preferred?
+				const label      = child.getAttribute('label') ?? this.structure.facets.get(child.getAttribute('facet_id'));
 				
 				// If both gmdir and contents, then need an extra border
 				let in_section = false;
