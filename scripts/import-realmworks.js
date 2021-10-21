@@ -34,6 +34,7 @@ const GS_ASSETS_LOCATION = "assetsLocation";
 const GS_ACTOR_TYPE = "actorType";
 const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
 const GS_GOVERNED_MAX_DEPTH = "governingMaxDepth";
+const GS_SECTION_NUMBERING = "sectionNumbering";
 
 const GS_FLAGS_UUID = "uuid";
 
@@ -80,6 +81,14 @@ Hooks.once('init', () => {
 		scope: "world",
 		type:  Number,
 		default: 99,
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_SECTION_NUMBERING, {
+		name: "Number each section within Topics",
+		hint: "Select this option if you want sections within imported journal entries to be numbered just like in Realm Works; if not selected then no number prefix will be added to section names",
+		scope: "world",
+		type:  Boolean,
+		default: true,
 		config: true,
 	});
 /*	
@@ -274,6 +283,7 @@ class RealmWorksImporter extends Application
 			this.actor_type = game.settings.get(GS_MODULE_NAME, GS_ACTOR_TYPE);
 			this.governing_content_label = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
 			this.governed_max_depth = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
+			this.section_numbering = game.settings.get(GS_MODULE_NAME, GS_SECTION_NUMBERING);
 			this.por_html = "html";
 			
 			switch (game.system.id) {
@@ -1072,23 +1082,24 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW section
 	//
-	async writeSection(topic, section, level) {
+	async writeSection(topic, section, numbering) {
 
 		// Write a "contents" element:
 		// Only <contents> can contain <span> which identify links.
 		
 		// Process all the snippets and sections in order
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
-		let result = this.header(level, section_name);
+		let result = this.header(numbering.length, (this.section_numbering ? numbering.join('.') + '. ' : '') + section_name);
 		let subsections = "";
 
 		// Process all child (not descendent) nodes in this section
+		let subsection = 0;
 		for (const child of section.children) {
 			switch (child.nodeName) {
 			case 'section':
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
-				subsections += await this.writeSection(topic, child, level+1);
+				subsections += await this.writeSection(topic, child, numbering.concat(++subsection));
 				break;
 				
 			case 'snippet':
@@ -1219,7 +1230,7 @@ class RealmWorksImporter extends Application
 						let first=true;
 						for (const [charname, character] of this.readPortfolio(portfolio.textContent)) {
 							if (first) { result += '<hr>'; first=false }
-							result += this.header(level+1, character.name);
+							result += this.header(numbering.length+1, character.name);
 							let str = this.Utf8ArrayToStr(character[this.por_html]);
 							if (this.por_html==="text")
 								// text needs to be put inside a pre-formatted block
@@ -1243,7 +1254,7 @@ class RealmWorksImporter extends Application
 					const bin_asset      = this.getChild(bin_ext_object, 'asset');       
 					const bin_contents   = this.getChild(bin_asset,      'contents');    
 					if (bin_contents) {
-						result += this.header(level+1, bin_ext_object.getAttribute('name'));
+						result += this.header(numbering.length+1, bin_ext_object.getAttribute('name'));
 						const bin_filename = bin_asset.getAttribute('filename');
 						const fileext = bin_filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf")
@@ -1276,7 +1287,7 @@ class RealmWorksImporter extends Application
 					const map_filename = map_asset?.getAttribute('filename');
 					const map_format   = map_filename?.split('.').pop();	// extra suffix from asset filename
 					if (map_format && map_contents) {
-						result += this.header(level+1, smart_image.getAttribute('name'));
+						result += this.header(numbering.length+1, smart_image.getAttribute('name'));
 						await this.uploadFile(map_filename, map_contents.textContent);
 						result += `<p><img src='${this.imageFilename(map_filename)}'></img></p>`;
 
@@ -1343,6 +1354,7 @@ class RealmWorksImporter extends Application
 		
 		// Generate the HTML for the sections within the topic
 		let connections = [];
+		let sectionnum = 0;
 		for (const node of topic.children) {
 			switch (node.nodeName) {
 			case 'alias':
@@ -1353,7 +1365,7 @@ class RealmWorksImporter extends Application
 					html += `<p><strong>Alias: </strong><em>${node.getAttribute('name')}</em></p>`;
 				break;
 			case 'section':
-				html += await this.writeSection(topic, node, 1); // Start with H1
+				html += await this.writeSection(topic, node, [++sectionnum]); // Start with H1
 				break;
 			case 'topicchild':
 			case 'topic':

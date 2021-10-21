@@ -1,5 +1,7 @@
 1.3.2
 FIX: Custom section names should now be decoded properly.
+FIX: bold and italic text now encoded as strong and em text (to match how Foundry VTT does it).
+FEATURE: Add option to include numbering on section headers, emulating the numbering in Realm Works.
 
 1.3.1
 FIX: some relationships were not being decoded properly.
