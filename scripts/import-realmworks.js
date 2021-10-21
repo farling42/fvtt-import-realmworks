@@ -163,15 +163,15 @@ class RealmWorksImporter extends Application
 {
 	// entity_for_topic is a map: key = topic_id, value = JournalEntry
 	static ConnectionName = {
-		Arbitrary: "<b>Arbitrary connection to</b>",
-		Generic: "<b>Simple connection to</b>",
-		Union: "<b>Family Relationship to</b> (Union with)",
-		Parent_To_Offspring: "<b>Family Relationship to</b> (Immediate Ancestor of)",
-		Offspring_To_Parent: "<b>Family Relationship to</b> (Offspring of)",
-		Master_To_Minion: "<b>Comprises or Encompasses</b>",
-		Minion_To_Master: "<b>Belongs To or Within</b>",
-		Public_Attitude_Towards: "<b>Public Attitude Towards</b>",
-		Private_Attitude_Towards: "<b>Private Attitude Towards</b>",
+		Arbitrary: "<strong>Arbitrary connection to</strong>",
+		Generic: "<strong>Simple connection to</strong>",
+		Union: "<strong>Family Relationship to</strong> (Union with)",
+		Parent_To_Offspring: "<strong>Family Relationship to</strong> (Immediate Ancestor of)",
+		Offspring_To_Parent: "<strong>Family Relationship to</strong> (Offspring of)",
+		Master_To_Minion: "<strong>Comprises or Encompasses</strong>",
+		Minion_To_Master: "<strong>Belongs To or Within</strong>",
+		Public_Attitude_Towards: "<strong>Public Attitude Towards</strong>",
+		Private_Attitude_Towards: "<strong>Private Attitude Towards</strong>",
 	}
 
 
@@ -904,8 +904,8 @@ class RealmWorksImporter extends Application
 			replaceAll(/<span class="RWSnippet">/g,'<span>').
 			replaceAll(/<span>([^<]*)<\/span>/g,'$1').
 			replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
-			replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<b>$1</b>').
-			replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<i>$1</i>').
+			replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<strong>$1</strong>').
+			replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<em>$1</em>').
 			replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
 			replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
 			replaceAll(/<p class="RWDefault">/g,'<p>');
@@ -1142,16 +1142,16 @@ class RealmWorksImporter extends Application
 				case "Labeled_Text":
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += `<p><b>${label}:</b> ` + this.stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link')));
-						if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`
+						result += `<p><strong>${label}:</strong> ` + this.stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link')));
+						if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`
 						result += `</p>`;
 					}
 					break;
 				case "Numeric":
 					if (contents) {
 						// contents will hold just a number
-						result += `<p><b>${label}:</b> ` + this.replaceLinks(contents.textContent, child.getElementsByTagName('link'));
-						if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`
+						result += `<p><strong>${label}:</strong> ` + this.replaceLinks(contents.textContent, child.getElementsByTagName('link'));
+						if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`
 						result += `</p>`;
 					}
 					break;
@@ -1164,9 +1164,9 @@ class RealmWorksImporter extends Application
 							if (tag) tags.push(tag);
 						}
 					}
-					result += `<p><b>${label}:</b> `;
+					result += `<p><strong>${label}:</strong> `;
 					if (tags.length > 0) result += tags.join(', ');
-					if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`;
+					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
 					result += `</p>`;
 					break;
 					
@@ -1185,25 +1185,25 @@ class RealmWorksImporter extends Application
 							}
 						}
 					}
-					result += `<p><b>${label}:</b> `;
+					result += `<p><strong>${label}:</strong> `;
 					if (tagmulti.length > 0) result += tagmulti.join('; ');
-					if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`;
+					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
 					result += `</p>`;
 					break;
 					
 				case "Date_Game":
 					let gamedate = this.getChild(child, 'game_date');
-					result += `<p><b>${label}:</b> `;
+					result += `<p><strong>${label}:</strong> `;
 					if (gamedate) result += gamedate.getAttribute("gregorian");
-					if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`;
+					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
 					result += `</p>`;
 					// annotation
 					break;
 				case "Date_Range":
 					let daterange = this.getChild(child, 'date_range');
-					result += `<p><b>${label}:</b> `;
+					result += `<p><strong>${label}:</strong> `;
 					if (daterange) result += `${daterange.getAttribute("gregorian_start")} to ${daterange.getAttribute("gregorian_end")}`;
-					if (annotation) result += `; <i>${this.stripHtml(annotation.textContent)}</i>`;
+					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
 					result += `</p>`;
 					// annotation
 					break;
@@ -1336,9 +1336,9 @@ class RealmWorksImporter extends Application
 		// Start the HTML with a link to the parent (if known)
 		let html = "";
 		
-		html += '<p><b>Category:</b> ' + this.structure.categories.get(topic.getAttribute('category_id')) + '</p>';
+		html += '<p><strong>Category:</strong> ' + this.structure.categories.get(topic.getAttribute('category_id')) + '</p>';
 		if (parent_id) {
-			html += '<p><b>' + this.governing_content_label + '</b>' + this.formatLink(parent_id, null) + '</p>';
+			html += '<p><strong>' + this.governing_content_label + '</strong>' + this.formatLink(parent_id, null) + '</p>';
 		}
 		
 		// Generate the HTML for the sections within the topic
@@ -1348,9 +1348,9 @@ class RealmWorksImporter extends Application
 			case 'alias':
 				// These come first
 				if (node.getAttribute('is_true_name') === 'true')
-					html += `<p><b>True Name: </b><i>${node.getAttribute('name')}</i></p>`;
+					html += `<p><strong>True Name: </strong><em>${node.getAttribute('name')}</em></p>`;
 				else
-					html += `<p><b>Alias: </b><i>${node.getAttribute('name')}</i></p>`;
+					html += `<p><strong>Alias: </strong><em>${node.getAttribute('name')}</em></p>`;
 				break;
 			case 'section':
 				html += await this.writeSection(topic, node, 1); // Start with H1
@@ -1393,7 +1393,7 @@ class RealmWorksImporter extends Application
 					else if (rating)  // rating is a number, attitude is the string for the rating
 						text += ' (' + rating + ')';
 					if (annot.length > 0)
-						text += '; <i>(' + annot[0].textContent + ')</i>';
+						text += '; <em>(' + annot[0].textContent + ')</em>';
 					
 					text += ': ' + this.formatLink(target_id, null);
 					connections.push({cname, text});
