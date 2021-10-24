@@ -1,3 +1,7 @@
+1.5 Use the "GM Notes" module to properly support handling Revealed information.
+The normal journal entry is the player visible version of a revealed topic, and the GM Notes is the FULL topic.
+If a topic is NOT revealed to players, then the journal entry will contain the FULL topic.
+
 1.4
 FIX: Custom section names should now be decoded properly.
 IMPROVEMENT: bold and italic text now encoded as strong and em text (to match how Foundry VTT does it).

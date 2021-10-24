@@ -94,7 +94,7 @@ Hooks.once('init', () => {
 	});
     game.settings.register(GS_MODULE_NAME, GS_PROCESS_REVEAL, {
 		name: "Manage the revealed state of things",
-		hint: "Any topics marked as revealed will have player permission set to OBSERVER and will have their contents only show the revealed snippets, and actors/tables/playlists from those topics will only be created if they are revealed.",
+		hint: "Any topics marked as revealed will have player permission set to OBSERVER and will have their contents only show the revealed snippets; the 'GM Notes' module will allow access to the FULL topic contents. Player permission of Actors and RollTables will also be set accordingly.",
 		scope: "world",
 		type:  Boolean,
 		default: false,
@@ -267,7 +267,7 @@ class RealmWorksImporter extends Application
 		let prefix = topic.getAttribute('prefix');
 		let suffix = topic.getAttribute('suffix');
 		if (prefix || suffix) {
-			result += '(';
+			result += ' (';
 			if (suffix) result += suffix;
 			if (suffix && prefix) result += ' - ';
 			if (prefix) result += prefix;
@@ -581,7 +581,7 @@ class RealmWorksImporter extends Application
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
-	formatLink(topic_id, orig_link_text) {
+	formatLink(topic_id, orig_link_text, apply_reveal) {
 		let link_text, prefix="",suffix="";
 		if (orig_link_text) {
 			// TODO: Move any formatting in orig_link_text to OUTSIDE the JournalEntry directive
@@ -604,6 +604,11 @@ class RealmWorksImporter extends Application
 				link_text = topic_id;
 			}
 		}
+		
+		// If we are only showing revealed information, and the linked topic is NOT revealed,
+		// then enter the link as if it was normal text.
+		if (apply_reveal && !this.revealed_topics.has(topic_id))
+			return `${prefix}${link_text}${suffix}`;
 		
 		const id = this.entity_for_topic.get(topic_id)?.data._id;
 		if (id)
@@ -907,7 +912,7 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	replaceLinks(original, links, direction="0") {
+	replaceLinks(original, links, apply_reveal, direction="0") {
 		// <link target_id="Topic_10" original_uuid="E76194B6-44F4-FC06-3418-68935B3A6BA9" signature="1028506">
 		//     <span_info><span_list><span directions="0" start="3519" length="58"/>
 		let link_map = [];
@@ -928,7 +933,7 @@ class RealmWorksImporter extends Application
 		let result = original.replaceAll("&#xd;","\n");		// to deal with extra characters in tables
 		for (const link of link_map) {
 			let linktext = result.slice(link.start, link.finish);
-			result = result.slice(0,link.start) + this.formatLink(link.target_id, linktext) + result.slice(link.finish);
+			result = result.slice(0,link.start) + this.formatLink(link.target_id, linktext, apply_reveal) + result.slice(link.finish);
 		}
 		return result;
 	}
@@ -1130,7 +1135,7 @@ class RealmWorksImporter extends Application
 				const sntype     = child.getAttribute('type');
 				const style      = child.getAttribute('style');
 				const contents   = this.getChild(child, 'contents');
-				const gmdir      = this.getChild(child, 'gm_directions');
+				const gmdir      = apply_reveal ? null : this.getChild(child, 'gm_directions');
 				const annotation = this.getChild(child, 'annotation');
 				const label      = child.getAttribute('label') ?? this.structure.facets.get(child.getAttribute('facet_id'));
 				
@@ -1161,22 +1166,25 @@ class RealmWorksImporter extends Application
 					result += '<section style="' + margin + bgcol + '">';
 				}
 				if (gmdir) {
-					result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), /*direction*/ "1")) + '</section>';
+					result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), apply_reveal, /*direction*/ "1")) + '</section>';
 				}
 				
 				switch (sntype) {
 				case "Multi_Line":
 					if (contents) {
-						let text = this.simplifyPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link')));
+						let text = this.simplifyPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link'), apply_reveal));
 						result += text;
-						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output
-						result += await this.addTable(topic, section_name, text, apply_reveal);
+						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output.
+						// Each topic is processed twice when doing REVEAL processing,
+						// so only create the table ONCE if that is happening (preferably when apply_reveal is true)
+						if (!this.process_reveal || apply_reveal || !child.hasAttribute('is_revealed'))
+							result += await this.addTable(topic, section_name, text, apply_reveal);
 					}
 					break;
 				case "Labeled_Text":
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += `<p><strong>${label}:</strong> ` + this.stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link')));
+						result += `<p><strong>${label}:</strong> ` + this.stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link'), apply_reveal));
 						if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`
 						result += `</p>`;
 					}
@@ -1184,7 +1192,7 @@ class RealmWorksImporter extends Application
 				case "Numeric":
 					if (contents) {
 						// contents will hold just a number
-						result += `<p><strong>${label}:</strong> ` + this.replaceLinks(contents.textContent, child.getElementsByTagName('link'));
+						result += `<p><strong>${label}:</strong> ` + this.replaceLinks(contents.textContent, child.getElementsByTagName('link'), apply_reveal);
 						if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`
 						result += `</p>`;
 					}
@@ -1356,7 +1364,7 @@ class RealmWorksImporter extends Application
 		let result = "";
 		for (const child_id of child_map.get(top_id)) {
 			if (apply_reveal && !this.revealed_topics.has(child_id)) continue;
-			result += '<li>' + this.formatLink(child_id, null) + this.addDescendents(child_map, depth-1, child_id, apply_reveal) + '</li>';
+			result += '<li>' + this.formatLink(child_id, null, apply_reveal) + this.addDescendents(child_map, depth-1, child_id, apply_reveal) + '</li>';
 		}
 		return (result.length > 0) ? `<ul>${result}</ul>` : "";
 	}
@@ -1364,22 +1372,14 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async formatOneTopic(topic, child_map, parent_id) {
-		//console.debug(`formatOneTopic('${topic.getAttribute("public_name")}', ${child_map}, ${parent_id}`);
+	async formatTopicBody(topic, child_map, parent_id, apply_reveal) {
+		const topic_id = topic.getAttribute('topic_id');
+		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
-		// Extract only the links that we know are in this topic (if any).
-		// Collect linkage children and create an alias/title-to-topic map:
-		//   <linkage target_id="Topic_345" target_name="Air/Raft" direction="Outbound" />
-		const this_topic_id = topic.getAttribute('topic_id');
-		console.debug(`formatOneTopic('${this.title_of_topic.get(this_topic_id)}')`);
-
-		// Topics which are NOT revealed will not have any snippets hidden (since the players can't see those topics anyway)
-		const apply_reveal = this.process_reveal && this.revealed_topics.has(this_topic_id);
-		
 		// Start the HTML with the category of the topic
 		let html = '<p><strong>Category:</strong> ' + this.structure.categories.get(topic.getAttribute('category_id')) + '</p>';
 		if (parent_id && (!apply_reveal || this.revealed_topics.has(parent_id))) {
-			html += '<p><strong>' + this.governing_content_label + '</strong>' + this.formatLink(parent_id, null) + '</p>';
+			html += '<p><strong>' + this.governing_content_label + '</strong>' + this.formatLink(parent_id, null, apply_reveal) + '</p>';
 		}
 
 		// Generate the HTML for the sections within the topic
@@ -1440,7 +1440,7 @@ class RealmWorksImporter extends Application
 					if (annot.length > 0)
 						text += '; <em>(' + annot[0].textContent + ')</em>';
 					
-					text += ': ' + this.formatLink(target_id, cname);
+					text += ': ' + this.formatLink(target_id, cname, apply_reveal);
 					connections.push({cname, text});
 				}
 				break;
@@ -1464,12 +1464,12 @@ class RealmWorksImporter extends Application
 				return p1.name ? (p2.name ? p1.name.localeCompare(p2.name, undefined, {numeric: true}) : -1) : p2.name ? 1 : 0;
 			});
 			return `<h1>Content Links: ${dir}</h1><p>` + ordered.map(ref => {
-				return functhis.formatLink(ref.topic_id, ref.name);
+				return functhis.formatLink(ref.topic_id, ref.name, apply_reveal);
 			}).join(' ') + '</p>';
 		}
 			
 		if (this.addInboundLinks) {
-			const targets = this.links_in.get(this_topic_id);
+			const targets = this.links_in.get(topic_id);
 			if (targets) {
 				let unique_ids = new Set();
 				for (const target_id of targets) {
@@ -1497,19 +1497,41 @@ class RealmWorksImporter extends Application
 
 		// Now we do the GOVERNED CONTENT,
 		// but we are formatting the topics as per the RW navigation pane, NOT the "Governed Content" summary panel
-		if (this.governed_max_depth > 0 && child_map.has(this_topic_id)) {
+		if (this.governed_max_depth > 0 && child_map.has(topic_id)) {
 			// These need to be in a sorted order
-			html += '<h1>Governed Content</h1>' + this.addDescendents(child_map, this.governed_max_depth, this_topic_id, apply_reveal);
+			let gov_content = this.addDescendents(child_map, this.governed_max_depth, topic_id, apply_reveal);
+			if (gov_content.length > 0) html += '<h1>Governed Content</h1>' + gov_content;
 		}
+		return html;
+	}
+
+	//
+	// Write one RW topic
+	//
+	async formatOneTopic(topic, child_map, parent_id) {
+		const topic_id = topic.getAttribute('topic_id');
+		console.debug(`formatOneTopic('${this.title_of_topic.get(topic_id)}')`);
+
+		// Topics which are NOT revealed will not have any snippets hidden (since the players can't see those topics anyway).
+		// Otherwise the normal journal entry will contain the 
+		const apply_reveal = this.process_reveal && this.revealed_topics.has(topic_id);
 		
 		// Format as a data block usable by JournalEntry.update
+		let content = await this.formatTopicBody(topic, child_map, parent_id, apply_reveal);
+		let gmnotes = apply_reveal ? await this.formatTopicBody(topic, child_map, parent_id, false) : null;
+		
 		let result = {
-			_id:      this.entity_for_topic.get(this_topic_id).data._id,
-			//name:     this.title_of_topic.get(this_topic_id),  -- already set correctly during initial creation
-			topic_id: this_topic_id,
+			_id:      this.entity_for_topic.get(topic_id).data._id,
+			//name:     this.title_of_topic.get(topic_id),  -- already set correctly during initial creation
+			topic_id: topic_id,
 			uuid:     topic.getAttribute("original_uuid"),
-			content:  html,
+			content:  content,
 		};
+		if (apply_reveal && content !== gmnotes) {
+			// full version available in GM-notes
+			console.info(`Adding GM-Notes for ${topic.getAttribute('public_name')}`);
+			result["flags.gm-notes.notes"] = gmnotes;
+		}
 		//console.debug(`Finished topic '${topic.getAttribute("public_name")}' in folder ${result.folder}`);
 		
 		if (apply_reveal) {
@@ -1559,8 +1581,9 @@ class RealmWorksImporter extends Application
 	async formatActors(topic) {
 		console.debug(`Formatting actor for topic '${this.title_of_topic.get(topic.getAttribute("topic_id"))}'`);
 		let result = [];
-		let topicname = topic.getAttribute('public_name');
-		let uuid = topic.getAttribute("original_uuid");
+		const topicname = topic.getAttribute('public_name');
+		const uuid = topic.getAttribute("original_uuid");
+		const topic_apply_reveal = (this.process_reveal && topic.hasAttribute('is_revealed'));
 		
 		// Since we can't "update" actors in a safe way, always delete if required.
 		if (this.overwriteExisting) {
@@ -1570,16 +1593,11 @@ class RealmWorksImporter extends Application
 			}
 		}
 
-		// If doing reveal processing, ignore this topic if it isn't revealed
-		let apply_reveal = (this.process_reveal && topic.hasAttribute('is_revealed'));
-
 		for (const snippet of this.getActorSnippets(topic)) {
 			if (!snippet) {
 				console.warn(`formatActors for '${topicname}':\n <snippet type=Portfolio|Statblock> is missing - Skipping`);
 				continue;
 			}
-			// This particular might not be revealed when it needs to be.
-			if (apply_reveal && !snippet.hasAttribute('is_revealed')) continue;
 
 			const sntype = snippet.getAttribute('type');
 			const ext_object = this.getChild(snippet, 'ext_object'); // <ext_object name="Portrait" type="Picture">
@@ -1623,6 +1641,9 @@ class RealmWorksImporter extends Application
 				console.debug(`formatActors for '${topicname}': reading statblock from ${filename}`);
 				statblock = atob(contents.textContent);
 			}
+			
+			// Determine if the actor(s) should be revealed to the players
+			const apply_reveal = (topic_apply_reveal && snippet.hasAttribute('is_revealed'));
 
 			// Call the ACTOR creator for the specific GAME SYSTEM that is installed
 			//console.debug(`ACTOR ${topic.getAttribute('public_name')} = HTML '${html}'`);
@@ -1705,7 +1726,8 @@ class RealmWorksImporter extends Application
 	}
 	
 	//
-	// Create a PLAYLIST for each topic, containing all AUDIO snippets from that topic
+	// Create a PLAYLIST for each topic, containing all AUDIO snippets from that topic.
+	// (playlists do not have visibility permissions)
 	//
 	
 	async createPlaylists(topics) {
