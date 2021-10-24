@@ -1,3 +1,6 @@
+1.6
+Provide module configuration options to specify scene padding and scene grid size.
+
 1.5 Use the "GM Notes" module to properly support handling Revealed information.
 The normal journal entry is the player visible version of a revealed topic, and the GM Notes is the FULL topic.
 If a topic is NOT revealed to players, then the journal entry will contain the FULL topic.

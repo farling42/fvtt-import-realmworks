@@ -36,6 +36,8 @@ const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
 const GS_GOVERNED_MAX_DEPTH = "governingMaxDepth";
 const GS_SECTION_NUMBERING = "sectionNumbering";
 const GS_PROCESS_REVEAL = "processReveal";
+const GS_SCENE_PADDING = "scenePadding";
+const GS_SCENE_GRID = "sceneGrid";
 
 const GS_FLAGS_UUID = "uuid";
 
@@ -98,6 +100,27 @@ Hooks.once('init', () => {
 		scope: "world",
 		type:  Boolean,
 		default: false,
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_SCENE_PADDING, {
+		name: "Default Scene Padding",
+		hint: "The default value for the 'Padding Percentage' of created scenes",
+		scope: "world",
+		type:  Number,
+		default: 0.25,
+		range: {
+			min: 0.0,
+			max: 0.5,
+			step: 0.05
+		},
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_SCENE_GRID, {
+		name: "Default Scene Grid size",
+		hint: "The default grid size (pixels) for scenes",
+		scope: "world",
+		type:  Number,
+		default: 100,
 		config: true,
 	});
 /*	
@@ -310,6 +333,12 @@ class RealmWorksImporter extends Application
 			this.governed_max_depth = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
 			this.section_numbering = game.settings.get(GS_MODULE_NAME, GS_SECTION_NUMBERING);
 			this.process_reveal = game.settings.get(GS_MODULE_NAME, GS_PROCESS_REVEAL);
+			this.scene_padding  = game.settings.get(GS_MODULE_NAME, GS_SCENE_PADDING);
+			this.scene_grid     = game.settings.get(GS_MODULE_NAME, GS_SCENE_GRID);
+			if (this.scene_grid < 50) {
+				console.warn(`CONFIGURED SCENE GRID SIZE IS TOO SMALL (${this.scene_grid}), USING 50`);
+				this.scene_grid = 50;
+			}
 			this.por_html = "html";
 			
 			switch (game.system.id) {
@@ -736,7 +765,8 @@ class RealmWorksImporter extends Application
 			navigation: false,
 			width  : tex.baseTexture.width,
 			height : tex.baseTexture.height,
-			padding: 0,
+			padding: this.scene_padding,
+			grid   : this.scene_grid,
 			journal: this.entity_for_topic.get(scene_topic_id)?.data._id,
 		};
 		
@@ -764,6 +794,10 @@ class RealmWorksImporter extends Application
 		// Add some notes
 		let notes = [];
 		let pinnum = 0;
+		// X,Y padding for pin positions are offset by the scene padding, which is scaled to the nearest larger number of grid squares.
+		let x_pad = this.scene_grid * Math.ceil((scenedata.width  * scenedata.padding) / this.scene_grid);
+		let y_pad = this.scene_grid * Math.ceil((scenedata.height * scenedata.padding) / this.scene_grid);
+		//console.debug(`SCENE '${scenedata.name}': width=${scenedata.width}, height=${scenedata.height}, padding=${scenedata.padding}, x_pad=${x_pad}, y_pad=${y_pad}`);
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
 			const pin_topic_id = pin.getAttribute('topic_id');
 			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
@@ -777,8 +811,8 @@ class RealmWorksImporter extends Application
 			const notedata = {
 				name: pinname,
 				entryId: entryid,
-				x: pin.getAttribute('x'),
-				y: pin.getAttribute('y'),
+				x: x_pad + +pin.getAttribute('x'),
+				y: y_pad + +pin.getAttribute('y'),
 				icon: 'icons/svg/circle.svg',		// Where do we get a good icon?
 				iconSize: 32,		// minimum size 32
 				iconTint: entryid ? '#7CFC00' : '#c00000',
