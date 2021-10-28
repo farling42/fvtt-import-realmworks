@@ -207,7 +207,7 @@ Hooks.on("renderSidebarTab", async (app, html) => {
 
 class RealmWorksImporter extends Application
 {
-	// entity_for_topic is a map: key = topic_id, value = JournalEntry
+	// document_for_topic is a map: key = topic_id, value = JournalEntry
 	static ConnectionName = {
 		Arbitrary: "<strong>Arbitrary connection to</strong>",
 		Generic: "<strong>Simple connection to</strong>",
@@ -617,7 +617,7 @@ class RealmWorksImporter extends Application
 		if (apply_reveal && !this.revealed_topics.has(topic_id))
 			return `${prefix}${link_text}${suffix}`;
 		
-		const id = this.entity_for_topic.get(topic_id)?.data._id;
+		const id = this.document_for_topic.get(topic_id)?.data._id;
 		if (id)
 			return `${prefix}@JournalEntry[${id}]{${link_text}}${suffix}`;
 		else
@@ -745,7 +745,7 @@ class RealmWorksImporter extends Application
 			height : tex.baseTexture.height,
 			padding: this.scene_padding,
 			grid   : this.scene_grid,
-			journal: this.entity_for_topic.get(scene_topic_id)?.data._id,
+			journal: this.document_for_topic.get(scene_topic_id)?.data._id,
 		};
 		
 		// Maybe we should UPDATE rather than CREATE?
@@ -779,7 +779,7 @@ class RealmWorksImporter extends Application
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
 			const pin_topic_id = pin.getAttribute('topic_id');
 			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
-			let entryid = this.entity_for_topic.get(pin_topic_id)?.data._id;
+			let entryid = this.document_for_topic.get(pin_topic_id)?.data._id;
 			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent;
 			let gmdir   = pin.getElementsByTagName('gm_directions')?.[0]?.textContent;
 			let label = '';
@@ -1492,7 +1492,7 @@ class RealmWorksImporter extends Application
 					if (apply_reveal && !this.revealed_topics.has(target_id)) continue;	// link is not revealed
 					unique_ids.add(target_id);
 				}
-				if (unique_ids.size > 0) html += contentlinks('In', [...unique_ids].map(target_id => { return {topic_id: target_id, name: functhis.connectionname_of_topic.get(target_id)}} ));
+				if (unique_ids.size > 0) html += contentlinks('In', [...unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ));
 			}
 		}
 		if (this.addOutboundLinks) {
@@ -1506,7 +1506,7 @@ class RealmWorksImporter extends Application
 					if (apply_reveal && !this.revealed_topics.has(target_id)) continue;	// link is not revealed
 					unique_ids.add(target_id);
 				}
-				if (unique_ids.size > 0) html += contentlinks('Out', [...unique_ids].map(target_id => { return {topic_id: target_id, name: functhis.connectionname_of_topic.get(target_id)}} ));
+				if (unique_ids.size > 0) html += contentlinks('Out', [...unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ));
 			}
 		}
 
@@ -1535,7 +1535,7 @@ class RealmWorksImporter extends Application
 		let content = await this.formatTopicBody(topic, apply_reveal);
 		let gmnotes = apply_reveal ? await this.formatTopicBody(topic, false) : null;
 		
-		let topic_document = this.entity_for_topic.get(topic_id);
+		let topic_document = this.document_for_topic.get(topic_id);
 		let topicdata = {
 			_id:      topic_document.data._id,
 			//name:     this.title_of_topic.get(topic_id),  -- already set correctly during initial creation
@@ -2016,7 +2016,7 @@ class RealmWorksImporter extends Application
 		this.ui_message.val(`Creating ${topics.length} empty journal entries`);
 		console.info(`Creating ${topics.length} empty journal entries`);
 		
-		this.entity_for_topic = new Map();
+		this.document_for_topic = new Map();
 		await Promise.allSettled(topics.map(async(topic) => {
 			let topic_id = topic.getAttribute("topic_id");
 			if (this.overwriteExisting || this.importOnlyNew) {
@@ -2029,17 +2029,17 @@ class RealmWorksImporter extends Application
 					}
 				}
 			}
-			let newtopic = await JournalEntry.create({
+			let topic_doc = await JournalEntry.create({
 				name:   this.title_of_topic.get(topic_id),
 				folder: journal_folders.get(topic.getAttribute('category_id'))
 			});
-			await newtopic.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, topic.getAttribute("original_uuid"));
-			return { topic_id : topic_id, topic : newtopic };
+			await topic_doc.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, topic.getAttribute("original_uuid"));
+			return { topic_id : topic_id, topic : topic_doc };
 		}))
-		// Now add all valid entries to entity_for_topic synchronously
+		// Now add all valid entries to document_for_topic synchronously
 		.then(results => results.forEach(result => {
 				if (result.status === 'fulfilled')
-					this.entity_for_topic.set(result.value.topic_id, result.value.topic);
+					this.document_for_topic.set(result.value.topic_id, result.value.topic);
 				else
 					console.warn(`JE creation failed due to ${result.reason}`);
 			}));
@@ -2096,7 +2096,7 @@ class RealmWorksImporter extends Application
 		delete this.scene_folder;
 		delete this.playlist_folder;
 		delete this.rolltable_folder;
-		delete this.entity_for_topic;
+		delete this.document_for_topic;
 		if (this.addInboundLinks) delete this.links_in;
 	}
 } // class
