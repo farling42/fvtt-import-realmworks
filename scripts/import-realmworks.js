@@ -60,6 +60,11 @@ Hooks.once('init', () => {
 	for (const label of game.system.entityTypes.Actor) {
 		actors[label] = label
 	}
+	let items = {}
+	for (const label of game.system.entityTypes.Item) {
+		items[label] = label
+	}
+	
 	// Get the list of Actor choices Actor.types[] system/template.json
     game.settings.register(GS_MODULE_NAME, GS_ACTOR_TYPE, {
 		name: "Default Actor Type",
@@ -554,34 +559,9 @@ class RealmWorksImporter extends Application
 					}
 				}
 			}
-			// Collect parent information:
-			let parent_map = new Map();
-			let child_map = new Map();
-			this.title_of_topic = new Map();
-			this.connectionname_of_topic = new Map();
-			this.revealed_topics = new Set();
-			for (const topic of topic_nodes) {
-				let parent_id = topic.getAttribute('topic_id');
-				this.title_of_topic.set(parent_id, this.journaltitle(topic));
-				this.connectionname_of_topic.set(parent_id, this.journallinktitle(topic));
-				if (topic.hasAttribute('is_revealed')) this.revealed_topics.add(parent_id);
-				let found = [];
-				for (const child of topic.getElementsByTagName('topicchild')) {
-					const child_id = child.getAttribute('topic_id');
-					parent_map.set(child_id, parent_id);
-					found.push(child_id);
-				}
-				// Ensure entries inside child_map are in alphabetical order.
-				if (found.length > 0) {
-					found.sort( (p1,p2) => this.title_of_topic.get(p1).localeCompare(this.title_of_topic.get(p2), undefined, {numeric: true} ));
-					child_map.set(parent_id, found);
-				}
-				
-			}
-			
 			// Do the actual work!
-			console.info(`Found ${topic_nodes.length} topics and ${parent_map.size} parents`);
-			await this.parseXML(topic_nodes, parent_map, child_map);
+			console.info(`Found ${topic_nodes.length} topics`);
+			await this.parseXML(topic_nodes);
 			
 			console.info('******  Finished  ******');
 			this.ui_message.val('--- Finished ---');
@@ -595,8 +575,6 @@ class RealmWorksImporter extends Application
 			delete this.title_of_topic;
 			delete this.connectionname_of_topic;
 			delete this.revealed_topics;
-			parent_map.clear();
-			child_map.clear();
 			
 			// Automatically close the window after the import is finished
 			//this.close();
@@ -1393,12 +1371,12 @@ class RealmWorksImporter extends Application
 			return this.header(numbering.length, (this.section_numbering ? numbering.join('.') + '. ' : '') + section_name) + result;
 	}
 
-	addDescendents(child_map, depth, top_id, apply_reveal) {
-		if (depth < 1 || !child_map.has(top_id)) return "";
+	addDescendents(depth, top_id, apply_reveal) {
+		if (depth < 1 || !this.child_map.has(top_id)) return "";
 		let result = "";
-		for (const child_id of child_map.get(top_id)) {
+		for (const child_id of this.child_map.get(top_id)) {
 			if (apply_reveal && !this.revealed_topics.has(child_id)) continue;
-			result += '<li>' + this.formatLink(child_id, null, apply_reveal) + this.addDescendents(child_map, depth-1, child_id, apply_reveal) + '</li>';
+			result += '<li>' + this.formatLink(child_id, null, apply_reveal) + this.addDescendents(depth-1, child_id, apply_reveal) + '</li>';
 		}
 		return (result.length > 0) ? `<ul>${result}</ul>` : "";
 	}
@@ -1406,12 +1384,15 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async formatTopicBody(topic, child_map, parent_id, apply_reveal) {
+	async formatTopicBody(topic, apply_reveal) {
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
 		// Start the HTML with the category of the topic
 		let html = '<p><strong>Category:</strong> ' + this.structure.categories.get(topic.getAttribute('category_id')) + '</p>';
+		
+		// Put PARENT information into the topic (if required)
+		const parent_id = this.parent_map.get(topic_id);
 		if (parent_id && (!apply_reveal || this.revealed_topics.has(parent_id))) {
 			html += '<p><strong>' + this.governing_content_label + '</strong>' + this.formatLink(parent_id, null, apply_reveal) + '</p>';
 		}
@@ -1531,9 +1512,9 @@ class RealmWorksImporter extends Application
 
 		// Now we do the GOVERNED CONTENT,
 		// but we are formatting the topics as per the RW navigation pane, NOT the "Governed Content" summary panel
-		if (this.governed_max_depth > 0 && child_map.has(topic_id)) {
+		if (this.governed_max_depth > 0 && this.child_map.has(topic_id)) {
 			// These need to be in a sorted order
-			let gov_content = this.addDescendents(child_map, this.governed_max_depth, topic_id, apply_reveal);
+			let gov_content = this.addDescendents(this.governed_max_depth, topic_id, apply_reveal);
 			if (gov_content.length > 0) html += '<h1>Governed Content</h1>' + gov_content;
 		}
 		return html;
@@ -1542,20 +1523,21 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async formatOneTopic(topic, child_map, parent_id) {
-		const topic_id = topic.getAttribute('topic_id');
-		console.debug(`formatOneTopic('${this.title_of_topic.get(topic_id)}')`);
+	async createTopic(topic) {
+		const topic_id  = topic.getAttribute('topic_id');
+		console.debug(`createTopic('${this.title_of_topic.get(topic_id)}')`);
 
 		// Topics which are NOT revealed will not have any snippets hidden (since the players can't see those topics anyway).
 		// Otherwise the normal journal entry will contain the 
 		const apply_reveal = this.process_reveal && this.revealed_topics.has(topic_id);
 		
 		// Format as a data block usable by JournalEntry.update
-		let content = await this.formatTopicBody(topic, child_map, parent_id, apply_reveal);
-		let gmnotes = apply_reveal ? await this.formatTopicBody(topic, child_map, parent_id, false) : null;
+		let content = await this.formatTopicBody(topic, apply_reveal);
+		let gmnotes = apply_reveal ? await this.formatTopicBody(topic, false) : null;
 		
-		let result = {
-			_id:      this.entity_for_topic.get(topic_id).data._id,
+		let topic_document = this.entity_for_topic.get(topic_id);
+		let topicdata = {
+			_id:      topic_document.data._id,
 			//name:     this.title_of_topic.get(topic_id),  -- already set correctly during initial creation
 			topic_id: topic_id,
 			uuid:     topic.getAttribute("original_uuid"),
@@ -1564,15 +1546,17 @@ class RealmWorksImporter extends Application
 		if (apply_reveal && content !== gmnotes) {
 			// full version available in GM-notes
 			console.info(`Adding GM-Notes for ${topic.getAttribute('public_name')}`);
-			result["flags.gm-notes.notes"] = gmnotes;
+			topicdata["flags.gm-notes.notes"] = gmnotes;
 		}
-		//console.debug(`Finished topic '${topic.getAttribute("public_name")}' in folder ${result.folder}`);
+		//console.debug(`Finished topic '${topic.getAttribute("public_name")}' in folder ${topicdata.folder}`);
 		
 		if (apply_reveal) {
-			result.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
+			topicdata.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
 		}
-		
-		return result;
+
+		// Finally send the update to Foundry
+		await topic_document.update(topicdata)
+			.catch(e => console.warn(`JournalEntry.update() failed for '${topic_node.getAttribute("public_name")}':\n${e}`));
 	}
 
 	// Examine each topic within topics to see if it should be converted into an actor:
@@ -1931,13 +1915,32 @@ class RealmWorksImporter extends Application
 	// Parse the entire Realm Works file supplied in 'xmlString'
 	// and extract each element into relevant areas of the world DB
 	//
-	async parseXML(topics, parent_map, child_map)
+	async parseXML(topics)
 	{
-		let category_names = new Set();
-		for (const topic of topics)  {
-			category_names.add(this.structure.categories.get(topic.getAttribute('category_id')));
-		}
-
+		// Collect parent information:
+		this.parent_map = new Map();
+		this.child_map  = new Map();
+		this.title_of_topic = new Map();
+		this.connectionname_of_topic = new Map();
+		this.revealed_topics = new Set();
+		for (const topic of topics) {
+			let topic_id = topic.getAttribute('topic_id');
+			this.title_of_topic.set(topic_id, this.journaltitle(topic));
+			this.connectionname_of_topic.set(topic_id, this.journallinktitle(topic));
+			if (topic.hasAttribute('is_revealed')) this.revealed_topics.add(topic_id);
+			let found = [];
+			for (const child of topic.getElementsByTagName('topicchild')) {
+				const child_id = child.getAttribute('topic_id');
+				this.parent_map.set(child_id, topic_id);
+				found.push(child_id);
+			}
+			// Ensure entries inside child_map are in alphabetical order.
+			if (found.length > 0) {
+				found.sort( (p1,p2) => this.title_of_topic.get(p1).localeCompare(this.title_of_topic.get(p2), undefined, {numeric: true} ));
+				this.child_map.set(topic_id, found);
+			}
+		}		
+		
 		// Maybe delete the old folders before creating a new one?
 		if (this.deleteOldFolders) {
 			// Delete folders with the given name.
@@ -2045,13 +2048,8 @@ class RealmWorksImporter extends Application
 		console.info(`Generating ${topics.length} journal contents`);
 		await Promise.allSettled(topics.map(async(topic_node) => {
 			if (!(this.importOnlyNew && this.existing_topics.has(topic_node.getAttribute("original_uuid")))) {
-				let topic_id = topic_node.getAttribute('topic_id');
-				await this.formatOneTopic(topic_node, child_map, parent_map.get(topic_id))
-				.then(async(topicdata) => {
-					await this.entity_for_topic.get(topic_id).update(topicdata)
-						.catch(e => console.warn(`JournalEntry.update() failed for '${topic_node.getAttribute("public_name")}':\n${e}`));
-				})
-				.catch(e => console.warn(`formatOneTopic failed for ${topic_node.getAttribute("public_name")}:\n${e}`))
+				await this.createTopic(topic_node)
+				.catch(e => console.warn(`createTopic failed for ${topic_node.getAttribute("public_name")}:\n${e}`))
 			}
 		}));
 		//
@@ -2092,6 +2090,8 @@ class RealmWorksImporter extends Application
 		await this.createPlaylists(topics);
 		
 		// Tidy up "this" - hopefully recovering some memory before the next run.
+		delete this.child_map;
+		delete this.parent_map;
 		delete this.actor_folder;
 		delete this.scene_folder;
 		delete this.playlist_folder;
