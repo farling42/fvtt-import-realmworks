@@ -38,6 +38,7 @@ const GS_SECTION_NUMBERING = "sectionNumbering";
 const GS_PROCESS_REVEAL = "processReveal";
 const GS_SCENE_PADDING = "scenePadding";
 const GS_SCENE_GRID = "sceneGrid";
+const GS_CREATE_ITEMS = "createItems";
 
 const GS_FLAGS_UUID = "uuid";
 
@@ -102,6 +103,14 @@ Hooks.once('init', () => {
     game.settings.register(GS_MODULE_NAME, GS_PROCESS_REVEAL, {
 		name: "Manage the revealed state of things",
 		hint: "Any topics marked as revealed will have player permission set to OBSERVER and will have their contents only show the revealed snippets; the 'GM Notes' module will allow access to the FULL topic contents. Player permission of Actors and RollTables will also be set accordingly.",
+		scope: "world",
+		type:  Boolean,
+		default: false,
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_CREATE_ITEMS, {
+		name: "Create Items",
+		hint: "Any topics built from specific categories will be converted into Items rather than Journal Entries",
 		scope: "world",
 		type:  Boolean,
 		default: false,
@@ -265,6 +274,22 @@ class RealmWorksImporter extends Application
 		fillmap(result.partitions, 'partition',        'partition_id');
 		fillmap(result.facets,     'facet_global',     'facet_id');
 		fillmap(result.facets,     'facet',            'facet_id');
+
+		// Determine which categories should be mapped to Items (only if enabled)
+		result.category_item_type = new Map();
+		if (this.create_items) {
+			for (const [category_id,category_name] of result.categories.entries()) {
+				// TEMP: use startsWith instead of looking for exact match,
+				// simply because Duplicating an existing category uses the same name with " Copy" appended to it.
+				for (const [cat_name,item_type] of this.category_item_types.entries())
+					if (category_name.startsWith(cat_name))
+						result.category_item_type.set(category_id, item_type);
+					
+				//if (this.category_item_types.has(category_name)) {
+				//	result.category_item_type.set(category_id, this.category_item_types.get(category_name));
+				//}
+			}
+		}
 		
 		// Mapping from tag back to the name of the containing domain.
 		result.domain_of_tag = new Map();
@@ -340,19 +365,28 @@ class RealmWorksImporter extends Application
 			this.process_reveal = game.settings.get(GS_MODULE_NAME, GS_PROCESS_REVEAL);
 			this.scene_padding  = game.settings.get(GS_MODULE_NAME, GS_SCENE_PADDING);
 			this.scene_grid     = game.settings.get(GS_MODULE_NAME, GS_SCENE_GRID);
+			this.create_items   = game.settings.get(GS_MODULE_NAME, GS_CREATE_ITEMS);
 			if (this.scene_grid < 50) {
 				console.warn(`CONFIGURED SCENE GRID SIZE IS TOO SMALL (${this.scene_grid}), USING 50`);
 				this.scene_grid = 50;
 			}
 			this.por_html = "html";
+
+			// This will be moved into conditional area later
+			this.item_data_func = function(structure,topic,itemtype,content,category) { return { description: { value: content }} };
+			this.get_item_type  = function(structure,topic,initialType) { return initialType; };
+			this.category_item_types = new Map();
 			
 			switch (game.system.id) {
 			case 'pf1':
 				this.actor_data_func = function(html) { return { details: { notes: { value: html }}} };
 				let {default:RWPF1Actor} = await import("./actor-pf1.js");
 				this.init_actors = RWPF1Actor.initModule;
-				this.create_actor_data = RWPF1Actor.createActorData;
+				this.create_actor_data  = RWPF1Actor.createActorData;
 				this.post_create_actors = RWPF1Actor.postCreateActors;
+				this.get_item_type  = RWPF1Actor.getItemType;
+				this.item_data_func = RWPF1Actor.createItemData;
+				this.category_item_types = RWPF1Actor.CategoryItemTypes;
 				break;
 
 			case 'dnd5e':
@@ -612,6 +646,8 @@ class RealmWorksImporter extends Application
 			}
 		}
 		
+		let link_type = this.topic_item_type.has(topic_id) ? 'Item' : 'JournalEntry';
+		
 		// If we are only showing revealed information, and the linked topic is NOT revealed,
 		// then enter the link as if it was normal text.
 		if (apply_reveal && !this.revealed_topics.has(topic_id))
@@ -619,9 +655,9 @@ class RealmWorksImporter extends Application
 		
 		const id = this.document_for_topic.get(topic_id)?.data._id;
 		if (id)
-			return `${prefix}@JournalEntry[${id}]{${link_text}}${suffix}`;
+			return `${prefix}@${link_type}[${id}]{${link_text}}${suffix}`;
 		else
-			return `${prefix}@JournalEntry[${link_text}]${suffix}`;
+			return `${prefix}@${link_type}[${link_text}]${suffix}`;
 	}
 	
 	//
@@ -1389,7 +1425,7 @@ class RealmWorksImporter extends Application
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
 		// Start the HTML with the category of the topic
-		let html = '<p><strong>Category:</strong> ' + this.structure.categories.get(topic.getAttribute('category_id')) + '</p>';
+		let html = '<p><strong>Category:</strong> ' + this.category_of_topic.get(topic_id) + '</p>';
 		
 		// Put PARENT information into the topic (if required)
 		const parent_id = this.parent_map.get(topic_id);
@@ -1545,7 +1581,7 @@ class RealmWorksImporter extends Application
 		};
 		if (apply_reveal && content !== gmnotes) {
 			// full version available in GM-notes
-			console.info(`Adding GM-Notes for ${topic.getAttribute('public_name')}`);
+			console.info(`Adding GM-Notes for topic '${topic.getAttribute('public_name')}'`);
 			topicdata["flags.gm-notes.notes"] = gmnotes;
 		}
 		//console.debug(`Finished topic '${topic.getAttribute("public_name")}' in folder ${topicdata.folder}`);
@@ -1559,6 +1595,41 @@ class RealmWorksImporter extends Application
 			.catch(e => console.warn(`JournalEntry.update() failed for '${topic_node.getAttribute("public_name")}':\n${e}`));
 	}
 
+	//
+	// Create an Item
+	//
+	async createItem(topic) {
+		const topic_id  = topic.getAttribute('topic_id');
+		console.debug(`createItem('${this.title_of_topic.get(topic_id)}')`);
+
+		const apply_reveal = this.process_reveal && this.revealed_topics.has(topic_id);
+		let topic_name = topic.getAttribute('public_name');
+		let category = this.category_of_topic.get(topic_id);
+		
+		let topic_document = this.document_for_topic.get(topic_id);
+		if (!topic_document) {
+			console.error(`document_for_topic does not have ${topic_id} for '${this.title_of_topic.get(topic_id)}'`);
+			return;
+		}
+		
+		let content  = await this.formatTopicBody(topic, apply_reveal);
+		let gmnotes  = apply_reveal ? await this.formatTopicBody(topic, false) : null;
+		let itemdata = {
+			_id:  topic_document.data._id,
+			data: await this.item_data_func(this.structure, topic, topic_document.type, content,category),
+		}
+			
+		if (apply_reveal && content !== gmnotes) {
+			// full version available in GM-notes
+			console.info(`Adding GM-Notes for Item '${topic.getAttribute('public_name')}'`);
+			itemdata["flags.gm-notes.notes"] = gmnotes;
+		}
+		if (apply_reveal) itemdata.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
+
+		await topic_document.update(itemdata)
+			.catch(e => console.warn(`Failed to create item ${topic_name}`));
+	}
+	
 	// Examine each topic within topics to see if it should be converted into an actor:
 	// i.e. it contains a Portfolio or Statblock snippet type directly, not in a child topic.
 	getActorSnippets(node, onlyone=false) {
@@ -1766,7 +1837,7 @@ class RealmWorksImporter extends Application
 		// Write out sounds that we find, as a playlist named after the topic.
 		for (const topic of topics) {
 			// If only creating from NEW topics, the ignore existing topics
-			if (this.importOnlyNew && this.existing_topics.has(topic.getAttribute("original_uuid"))) continue;
+			if (this.importOnlyNew && this.existing_docs.has(topic.getAttribute("original_uuid"))) continue;
 
 			const snippets = getSoundSnippets(topic);
 			if (snippets.length === 0) continue;
@@ -1917,12 +1988,14 @@ class RealmWorksImporter extends Application
 	//
 	async parseXML(topics)
 	{
-		// Collect parent information:
+		// Collect information about the topics
 		this.parent_map = new Map();
 		this.child_map  = new Map();
 		this.title_of_topic = new Map();
 		this.connectionname_of_topic = new Map();
 		this.revealed_topics = new Set();
+		this.topic_item_type = new Map();		// [topic_id,Item#type]only contains topics which need to be created as items
+		this.category_of_topic = new Map();
 		for (const topic of topics) {
 			let topic_id = topic.getAttribute('topic_id');
 			this.title_of_topic.set(topic_id, this.journaltitle(topic));
@@ -1939,6 +2012,12 @@ class RealmWorksImporter extends Application
 				found.sort( (p1,p2) => this.title_of_topic.get(p1).localeCompare(this.title_of_topic.get(p2), undefined, {numeric: true} ));
 				this.child_map.set(topic_id, found);
 			}
+			// See if this topic should be created as an ITEM instead of a JOURNAL ENTRY
+			let category_id   = topic.getAttribute('category_id');
+			let category_name = this.structure.categories.get(category_id);
+			this.category_of_topic.set(topic_id, category_name);
+			if (this.structure.category_item_type.has(category_id))
+				this.topic_item_type.set(topic_id, this.structure.category_item_type.get(category_id));
 		}		
 		
 		// Maybe delete the old folders before creating a new one?
@@ -1954,9 +2033,9 @@ class RealmWorksImporter extends Application
 
 		// Create the folders now
 		console.info('Creating folders');
-		this.actor_folder = await this.getFolder(this.folderName, 'Actor');
-		this.scene_folder    = await this.getFolder(this.folderName, 'Scene');
-		this.playlist_folder = await this.getFolder(this.folderName, 'Playlist');
+		this.actor_folder     = await this.getFolder(this.folderName, 'Actor');
+		this.scene_folder     = await this.getFolder(this.folderName, 'Scene');
+		this.playlist_folder  = await this.getFolder(this.folderName, 'Playlist');
 		this.rolltable_folder = await this.getFolder(this.folderName, 'RollTable');
 		await DirectoryPicker.verifyPath(DirectoryPicker.parse(this.asset_directory));
 		
@@ -1975,37 +2054,44 @@ class RealmWorksImporter extends Application
 				}
 			}
 		}
-		if (this.importOnlyNew) {
-			this.existing_topics = new Map();
+		if (this.importOnlyNew || this.overwriteExisting) {
+			this.existing_docs = new Map();
 			for (const je of game.journal) {
 				let uuid = je.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
-				if (uuid) this.existing_topics.set(uuid, je);
+				if (uuid) this.existing_docs.set(uuid, je);
 			}
-			console.debug(`Found '${GS_FLAGS_UUID}' flag on ${this.existing_topics.size} journal entries`);
-		} else if (this.overwriteExisting) {
-			this.existing_topics = new Map();
-			for (const je of game.journal) {   // .find(j => j.name)
-				let uuid = je.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
-				if (uuid) this.existing_topics.set(uuid, je);
+			for (const item of game.items) {
+				let uuid = item.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
+				if (uuid) this.existing_docs.set(uuid, item);
 			}
-			console.debug(`Found '${GS_FLAGS_UUID}' flag on ${this.existing_topics.size} journal entries`);
+			console.debug(`Found '${GS_FLAGS_UUID}' flag on ${this.existing_docs.size} journal entries/items`);
 		}
 
-		// See which journal folders need creating
-		// Journal folders + journal top parent will be created as/when necessary
+		// Create FOLDERS for ITEMS and JOURNAL ENTRIES
 		let journal_parent;
+		let item_parent;
 		let journal_folders = new Map();
+		let item_folders    = new Map();
 		for (const topic of topics) {
 			// If the topic exists, then we don't need to worry about which folder it is in.
 			if (this.overwriteExisting || this.importOnlyNew) {
-				if (this.existing_topics.has(topic.getAttribute("original_uuid"))) continue;
+				if (this.existing_docs.has(topic.getAttribute("original_uuid"))) continue;
 			}
 			// The topic doesn't already exist, so we need to ensure that the parent folder exists
 			let category_id = topic.getAttribute('category_id');
-			if (!journal_folders.has(category_id)) {
-				if (!journal_parent) journal_parent = (await this.getFolder(this.folderName, 'JournalEntry')).id;
-				await this.getFolder(this.structure.categories.get(category_id), 'JournalEntry', journal_parent)
-				.then(f => journal_folders.set(category_id, f.id));
+			
+			if (this.topic_item_type.has(topic.getAttribute('topic_id'))) {
+				if (!item_folders.has(category_id)) {
+					if (!item_parent) item_parent = (await this.getFolder(this.folderName, 'Item')).id;
+					await this.getFolder(this.structure.categories.get(category_id), 'Item', item_parent)
+					.then(f => item_folders.set(category_id, f.id));
+				}
+			} else {
+				if (!journal_folders.has(category_id)) {
+					if (!journal_parent) journal_parent = (await this.getFolder(this.folderName, 'JournalEntry')).id;
+					await this.getFolder(this.structure.categories.get(category_id), 'JournalEntry', journal_parent)
+					.then(f => journal_folders.set(category_id, f.id));
+				}
 			}
 		}
 
@@ -2013,27 +2099,39 @@ class RealmWorksImporter extends Application
 		// TOPICS => JOURNAL ENTRIES
 		//
 		// Generate empty topic entries first, so that we have Foundry id's for each topic.
-		this.ui_message.val(`Creating ${topics.length} empty journal entries`);
-		console.info(`Creating ${topics.length} empty journal entries`);
+		this.ui_message.val(`Creating ${topics.length} empty items and journal entries`);
+		console.info(`Creating ${topics.length} empty items and journal entries`);
 		
 		this.document_for_topic = new Map();
 		await Promise.allSettled(topics.map(async(topic) => {
-			let topic_id = topic.getAttribute("topic_id");
+			const topic_id = topic.getAttribute("topic_id");
+			let uuid = topic.getAttribute("original_uuid");
 			if (this.overwriteExisting || this.importOnlyNew) {
-				let uuid = topic.getAttribute("original_uuid");
-				if (this.existing_topics.has(uuid)) {
+				if (this.existing_docs.has(uuid)) {
 					// Return the existing topic
 					return {
 						topic_id: topic_id,
-						topic: this.existing_topics.get(uuid),
+						topic: this.existing_docs.get(uuid),
 					}
 				}
 			}
-			let topic_doc = await JournalEntry.create({
-				name:   this.title_of_topic.get(topic_id),
-				folder: journal_folders.get(topic.getAttribute('category_id'))
-			});
-			await topic_doc.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, topic.getAttribute("original_uuid"));
+			let topic_doc;
+			
+			if (this.topic_item_type.has(topic_id)) {
+				topic_doc = await Item.create({
+					name:   this.title_of_topic.get(topic_id),
+					type:   await this.get_item_type(this.structure, topic, this.topic_item_type.get(topic_id)),
+					folder: item_folders.get(topic.getAttribute('category_id')),
+					data:   {}
+				}).catch(e => console.error(`Failed to create ITEM '${this.title_of_topic.get(topic_id)}':\n${e}`));
+			} else {
+				topic_doc = await JournalEntry.create({
+					name:   this.title_of_topic.get(topic_id),
+					folder: journal_folders.get(topic.getAttribute('category_id'))
+				}).catch(e => console.error(`Failed to create JOURNAL ENTRY '${this.title_of_topic.get(topic_id)}':\n${e}`));
+			}
+				
+			await topic_doc.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, uuid);
 			return { topic_id : topic_id, topic : topic_doc };
 		}))
 		// Now add all valid entries to document_for_topic synchronously
@@ -2041,17 +2139,24 @@ class RealmWorksImporter extends Application
 				if (result.status === 'fulfilled')
 					this.document_for_topic.set(result.value.topic_id, result.value.topic);
 				else
-					console.warn(`JE creation failed due to ${result.reason}`);
+					console.warn(`Document creation failed due to ${result.reason}`);
 			}));
-		// Asynchronously generate each of the Journal Entries
-		this.ui_message.val(`Generating ${topics.length} journal contents`);
-		console.info(`Generating ${topics.length} journal contents`);
-		await Promise.allSettled(topics.map(async(topic_node) => {
-			if (!(this.importOnlyNew && this.existing_topics.has(topic_node.getAttribute("original_uuid")))) {
-				await this.createTopic(topic_node)
-				.catch(e => console.warn(`createTopic failed for ${topic_node.getAttribute("public_name")}:\n${e}`))
+		
+		// Asynchronously generate each of the Journal Entries and Items
+		this.ui_message.val(`Populating ${topics.length} items and journal entries`);
+		console.info(`Populating ${topics.length} items and journal entries`);
+		await Promise.allSettled(topics.map(async(topic) => {
+			if (!(this.importOnlyNew && this.existing_docs.has(topic.getAttribute("original_uuid")))) {
+				if (this.topic_item_type.has(topic.getAttribute('topic_id'))) {
+					await this.createItem(topic)
+					.catch(e => console.warn(`createItem failed for ${topic.getAttribute("public_name")}:\n${e}`))
+				} else {
+					await this.createTopic(topic)
+					.catch(e => console.warn(`createTopic failed for ${topic.getAttribute("public_name")}:\n${e}`))
+				}
 			}
 		}));
+		
 		//
 		// HL PORTFOLIOS => ACTORS
 		//
@@ -2070,7 +2175,7 @@ class RealmWorksImporter extends Application
 		// TODO: if actors.length > 1 then put them inside a folder named after the topic.
 		// TODO: if this.overwriteExisting, then how will post_create_actors work when the actor might already have lots of things added to it?
 		await Promise.allSettled(actor_topics.map(async(topic_node) => {
-			if (!(this.importOnlyNew && this.existing_topics.has(topic_node.getAttribute("original_uuid"))))
+			if (!(this.importOnlyNew && this.existing_docs.has(topic_node.getAttribute("original_uuid"))))
 				await this.formatActors(topic_node)
 				.then(async(actors) =>
 					await Actor.create(actors)
@@ -2097,6 +2202,8 @@ class RealmWorksImporter extends Application
 		delete this.playlist_folder;
 		delete this.rolltable_folder;
 		delete this.document_for_topic;
+		delete this.existing_docs;
+		delete this.category_of_topic;
 		if (this.addInboundLinks) delete this.links_in;
 	}
 } // class

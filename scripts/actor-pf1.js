@@ -2,6 +2,25 @@
 
 export default class RWPF1Actor {
 
+	// Do we need the translated name for these categories?
+	// item.type = weapon | equipment | consumable | loot | class | spell | feat | buff | attack | race | container
+	// This coarse list (based purely on topic category) will be refined by getItemType (which can look inside the topic structure)
+	static CategoryItemTypes = new Map([
+		[ "Feat",                  "feat" ],
+		[ "Archetype/Domain/Etc.", "feat" ],
+		[ "Trait/Drawback",        "feat" ],
+		[ "Skill",                 "feat" ],
+		[ "Magic Item",            "equipment" ],
+		[ "Mundane Weapon",        "equipment" ],
+		[ "Mundane Item",          "equipment" ],
+		[ "Mundane Armor/Shield",  "equipment" ],
+		[ "Named Object",          "equipment" ],
+		[ "Named Equipment",       "equipment" ],
+		[ "Race",                  "race" ],
+		[ "Class",                 "class" ],
+		[ "Spell",                 "spell" ],
+	]);
+
 	static ability_names = {
 		"strength" : "str",
 		"dexterity" : "dex",
@@ -1143,5 +1162,191 @@ export default class RWPF1Actor {
 				}
 			}
 		}
+	}
+	
+	//
+	// Determine the ITEM type of the given node:
+	// if it can't be determined only by CategoryItemTypes (at top).
+	// item.type = weapon | equipment | consumable | loot | class | spell | feat | buff | attack | race | container
+	//
+	static async getItemType(structure, topic, initial_type) {
+		for (const tag of topic.getElementsByTagName('tag_assign')) {
+			const tag_id = tag.getAttribute('tag_id');
+			const tag_name = structure.tags.get(tag.getAttribute('tag_id'));
+			if (!tag_name) continue;
+			
+			switch (tag_name) {
+			case "Weapon":
+			case "Light Melee Weapons":
+			case "One-Handed Melee Weapons":
+			case "Two-Handed Melee Weapons":
+			case "Ranged Weapons":
+				return 'weapon';
+				
+			case "Rod": 
+			case "Spellbook":
+			case "Wondrous Item":
+			case "Light Armor":
+			case "Medium Armor":
+			case "Heavy Armor":
+			case "Shield":
+				return 'equipment';
+
+			case "Potion":
+			case "Scroll":
+			case "Staff":
+			case "Wand":
+				return 'consumable';
+
+			//case "":
+				//return 'loot';
+			//case "":
+				//return 'class';
+			//case "":
+				//return 'spell';
+			case "Archetype":
+			case "Trait":
+				return 'feat';
+			//case "":
+				//return 'buff';
+			//case "":
+				//return 'attack';
+			//case "":
+				//return 'race';
+			//case "":
+				//return 'container';
+			}
+		}
+		
+		// No more-specific item type detected, so use the provided default
+		return initial_type;
+	}
+	
+	//
+	// Create the ITEM data
+	//
+	static async createItemData(structure,topic,itemtype,content,category) {
+		// item.type = weapon | equipment | consumable | loot | class | spell | feat | buff | attack | race | container
+
+		let item = {
+			// "type" will be promoted outside of the item.data object
+			description: {
+				value : content,
+			}
+		}
+		console.debug(`****PF1.ITEM: ${topic.getAttribute('public_name')}`);
+		
+		if (itemtype==='feat') item.featType='feat';
+		
+		item.equipmentType = 'misc';
+		item.equipmentSubtype = 'other';
+	
+		// Tag determines itemtype
+		for (const tag of topic.getElementsByTagName('tag_assign')) {
+			const tag_id = tag.getAttribute('tag_id');
+			const tag_name = structure.tags.get(tag.getAttribute('tag_id'));
+			if (!tag_name) continue;
+			console.debug(`    Checking tag '${tag_name}'`);
+			
+			switch (tag_name) {
+			case 'Archetype':
+				item.featType = 'classFeature';
+				break;
+				
+			case 'Trait':
+				item.featType = 'trait';
+				break;
+			// Domain tags for "Magic Item type"
+			case 'Armor/Shield':
+				item.equipmentType = 'armor';
+				item.equipmentSubtype = 'lightArmor'; // 'mediumArmor' // 'heavyArmor'
+				break;
+			case 'Shield':
+				item.equipmentType = 'shield';
+				item.equipmentSubtype = 'lightShield'; // 'heavyShield' // 'towerShield' // 'other'
+				break;
+			case 'Weapon':
+				item.weaponType = 'simple';		// simple|martial|exotic|misc
+				item.weaponSubtype = 'light';	// light|1h|2h|ranged  (for weaponType=="misc" it is splash|other)
+				break;
+			case 'Wondrous Item':
+				item.equipmentType = 'misc';
+				item.equipmentSubtype = 'wondrous';
+				break;
+				
+			case 'Construct Modification':
+				break;
+
+			case 'Potion':
+				item.consumableType='potion';
+				break;
+			case 'Scroll':
+				item.consumableType='scroll';
+				break;
+			case 'Staff':
+				item.consumableType='staff';
+				break;
+			case 'Wand':
+				item.consumableType='wand';
+				break;
+
+
+			//case 'Ring' : 
+			//case 'Rod': 
+			//case 'Spellbook':
+			//case 'Wondrous Item':
+				
+			// Domain tags for "Magic Item Slot"
+			case "Armor":
+				item.slot='armor';
+				break;
+			case "Shield": 
+				if (item.equipmentType==='armor') item.equipmentType='shield';
+				item.slot='shield';
+				break;
+			case "Belt":   item.slot='belt'; break;
+			case "Body":   item.slot='body'; break;
+			case "Chest":  item.slot='chest'; break;
+			case "Eyes":   item.slot='eyes'; break;
+			case "Feet":   item.slot='feet'; break;
+			case "Hands":  item.slot='hands'; break;
+			case "Head":   item.slot='head'; break;
+			case "Neck":   item.slot='neck'; break;
+			case "None":   item.slot='slotless'; break;
+			case "Ring":   item.slot='ring'; break;
+			case "Wrist":  item.slot='wrists'; break;
+			case "Headband":  item.slot='headband'; break;
+			case "Shoulders": item.slot='shoulders'; break;
+			// Domain tags for "Special Item Type"
+			//case 'Artifact':
+			//case "Cursed Item":
+			//case "Magic Item":
+			//	item.equipmentType = 'misc';
+			//	item.equipmentSubtype = 'wondrous';
+			//	break;
+			
+			// Armour Types
+			case 'Light Armor':  item.equipmentType = 'armor'; item.equipmentSubtype = 'lightArmor';  break;
+			case 'Medium Armor': item.equipmentType = 'armor'; item.equipmentSubtype = 'mediumArmor'; break;
+			case 'Heavy Armor':  item.equipmentType = 'armor'; item.equipmentSubtype = 'heavyArmor';  break;
+			case "Shields":      item.equipmentType = 'shield'; break;
+			
+			// Weapon Types
+			case "Light Melee Weapons":      item.weaponSubtype = 'light';  break;
+			case "One-Handed Melee Weapons": item.weaponSubtype = '1h';     break;
+			case "Two-Handed Melee Weapons": item.weaponSubtype = '2h';     break;
+			case "Ranged Weapons":           item.weaponSubtype = 'ranged'; break;
+			//case "Ranged Siege Engines":
+			//case "Close Assault Siege Engines" :
+			case "Simple Weapons":  item.weaponType = 'simple';  break;
+			case "Martial Weapons": item.weaponType = 'martial'; break; 
+			case "Exotic Weapons":  item.weaponType = 'exotic';  break;
+			
+			default:
+				break;
+			}
+		}
+		
+		return item;
 	}
 }

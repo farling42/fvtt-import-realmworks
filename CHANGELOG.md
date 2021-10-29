@@ -1,3 +1,6 @@
+1.7
+Provide initial parsing of relevant topics to Items rather than Journal - only for PF1 at the moment.
+
 1.6
 Provide module configuration options to specify scene padding and scene grid size.
 
