@@ -1418,6 +1418,13 @@ class RealmWorksImporter extends Application
 	}
 
 	//
+	// Return true if the snippet/map_pin which contains the given link is revealed
+	linkIsRevealed(node) {
+		while (node && node.nodeName !== 'snippet' && node.nodeName !== 'map_pin') node = node.parentNode;
+		return node && node.getAttribute("is_revealed");
+	}
+	
+	//
 	// Write one RW topic
 	//
 	async formatTopicBody(topic, apply_reveal) {
@@ -1520,7 +1527,7 @@ class RealmWorksImporter extends Application
 		}
 			
 		if (this.addInboundLinks) {
-			const targets = this.links_in.get(topic_id);
+			const targets = apply_reveal ? this.revealed_links_in.get(topic_id) : this.links_in.get(topic_id);
 			if (targets) {
 				let unique_ids = new Set();
 				for (const target_id of targets) {
@@ -1539,7 +1546,7 @@ class RealmWorksImporter extends Application
 				for (const link of links) {
 					let target_id = link.getAttribute("target_id");
 					if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
-					if (apply_reveal && !this.revealed_topics.has(target_id)) continue;	// link is not revealed
+					if (apply_reveal && !(this.revealed_topics.has(target_id) && this.linkIsRevealed(link)) ) continue;	// link is not revealed
 					unique_ids.add(target_id);
 				}
 				if (unique_ids.size > 0) html += contentlinks('Out', [...unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ));
@@ -2041,16 +2048,25 @@ class RealmWorksImporter extends Application
 		
 		// Create a mapping to indicate which topics link INTO each topic
 		if (this.addInboundLinks) {
+			if (this.process_reveal) this.revealed_links_in = new Map();
 			this.links_in = new Map();
 			for (const child of topics) {
 				const topic_id = child.getAttribute("topic_id");
 				const links = child.getElementsByTagName('link');
 				for (const link of links) {
+					// All links
 					const target_id = link.getAttribute('target_id');
 					if (this.links_in.has(target_id))
 						this.links_in.get(target_id).push(topic_id);
 					else
 						this.links_in.set(target_id, [topic_id]);
+					
+					if (this.process_reveal && this.linkIsRevealed(link)) {
+						if (this.revealed_links_in.has(target_id))
+							this.revealed_links_in.get(target_id).push(topic_id);
+						else
+							this.revealed_links_in.set(target_id, [topic_id]);
+					}
 				}
 			}
 		}
