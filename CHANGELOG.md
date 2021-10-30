@@ -1,5 +1,6 @@
 1.7
-Provide initial parsing of relevant topics to Items rather than Journal - only for PF1 at the moment.
+FIX: Content Links in revealed topics should only show links to REVEALED snippets/map_pins.
+FEATURE: Provide initial parsing of relevant topics to Items rather than Journal - only for PF1 at the moment.
 
 1.6
 Provide module configuration options to specify scene padding and scene grid size.
