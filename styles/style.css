@@ -1,14 +1,119 @@
-button.import-cd {
-    flex-shrink: 1 !important; 
-    flex: unset !important;
-    margin: 5px 4px 0px 3px !important;
-    clear: both;
+/* The various sections used in the decoded RW documents */
+section.secret {
+	/* UNDO the standard Foundry SECRET formatting */
+	background: #00000000;
+	border-top: 0px;
+	border-bottom: 0px;
+	padding-left: 8px; /* Align with our REVEALED flag formatting */
+}
+form.editable section.gmDirAndContents {
+	/* snippet with both GM-directions and non-GM content - only to be seen by GMs */
+	/* This must appear BEFORE section.revealed, to get correct REVEALED indication */
+	border: 2px solid #b4b4b4;
+	padding: 2px;
+	margin: 2px 0px;
+}
+form.editable section.revealed {
+	/* Only show REVEALED state to GM (form.editable) - might not work in LOCKED compendium */
+	border-left: 5px solid green;
+	background: #d0e5d380;   /* The RW colour for revealed snippets */
+	padding-left: 3px;
+}
+/* The first set are for the STYLE chosen in RW: Normal, Callout, Handout, Flavor, Read-Aloud */
+section.Normal, section.Callout, section.Handout, section.Flavor, section.Read_Aloud, section.gmDirAndContents, section.gmDirections {
+	/*font-family: tahoma;*/
+}
+section.Callout, section.Handout, section.Flavor, section.Read_Aloud {
+	padding: 1px;
+	margin: 2px 0px;
+}
+section.Callout {
+	/* snippet with RW style of "Callout" */
+	background: #bebebe80;
+}
+section.Handout {
+	/* snippet with RW style of "Handout" */
+	background: #e8e1d980;
+}
+section.Flavor {
+	/* snippet with RW style of "Flavor" */
+	background: #efd4d280;
+	font-style: italic;
+}
+section.Read_Aloud {
+	/* snippet with RW style of "Read_Aloud" */
+	background: #d1dff280;
+}
+section.gmDirections {
+	/* The GM-Directions part of a snippet */
+	background: #fffbed80;
+	border: 2px solid #d2c5b5;
+	padding: 0px 3px;
+}
+section.RWcategory, section.RWparent, section.RWrelationships, section.RWcontentlinks, section.RWgovernedContent, section.RWalias {
+	/* RWcategory: For the "Category: <name>" definition at the TOP of each journal entry */
+	/* RWparent:   For the "Parent: <name>" at the TOP of each journal entry */
+	/*font-family: tahoma;*/
+}
+section.RWrelationships {
+	background:	#20002020;
+}
+section.RWcontentlinks {
+	background:	#20200020;
+}
+section.RWgovernedContent {
+	background:	#00202020;
 }
 
-#cd-importer .form-group {
-    margin: 10px
+/* The various paragraphs used in the decoded RW documents */
+p.RWDefault {
+	;
+}
+p.RWSnippet {
+	;
+}
+p.RWBullet:before {
+    content:"• ";
+}
+p.RWBullet {
+	;
+}
+p.RWEnumerated {
+	;
+}
+p.RWtrueName {
+	font-style: italic;
+	text-decoration: underline;
+}
+p.RWalias {
+	font-style: italic;
 }
 
-#cd-importer .window-content {
-    overflow: unset
+/* The various spans used in the decoded RW documents */
+span.RWSnippet {
+	;
+}
+
+span.RWannotation:before {
+	content: "; ";
+}
+span.RWannotation {
+	font-style: italic;
+}
+span.RWlabel {
+	font-weight: bold;
+}
+span.RWrelationship {
+	font-weight: bold;
+}
+span.RWrelationshipQualifier:before, span.RWrelationshipAttitude:before, span.RWrelationshipRating:before {
+	content: " (";
+	font-style: italic;
+}
+span.RWrelationshipQualifier, span.RWrelationshipAttitude, span.RWrelationshipRating {
+	font-style: italic;
+}
+span.RWrelationshipQualifier:after, span.RWrelationshipAttitude:after, span.RWrelationshipRating:after {
+	content: ")";
+	font-style: italic;
 }

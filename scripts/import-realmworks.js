@@ -35,13 +35,14 @@ const GS_ACTOR_TYPE = "actorType";
 const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
 const GS_GOVERNED_MAX_DEPTH = "governingMaxDepth";
 const GS_SECTION_NUMBERING = "sectionNumbering";
-const GS_PROCESS_REVEAL = "processReveal";
 const GS_SCENE_PADDING = "scenePadding";
 const GS_SCENE_GRID = "sceneGrid";
 const GS_CREATE_ITEMS = "createItems";
+const GS_SCENE_REVEALED_NAVIGATION = "sceneRevealedNavigation";
+const GS_SCENE_TOKEN_VISION = "sceneTokenVision";
 
 const GS_FLAGS_UUID = "uuid";
-
+const GS_FLAGS_PIN_PERMISSION = "pinPermission";
 //
 // Register game settings
 //
@@ -100,17 +101,25 @@ Hooks.once('init', () => {
 		default: true,
 		config: true,
 	});
-    game.settings.register(GS_MODULE_NAME, GS_PROCESS_REVEAL, {
-		name: "Manage the revealed state of things",
-		hint: "Any topics marked as revealed will have player permission set to OBSERVER and will have their contents only show the revealed snippets; the 'GM Notes' module will allow access to the FULL topic contents. Player permission of Actors and RollTables will also be set accordingly.",
+    game.settings.register(GS_MODULE_NAME, GS_CREATE_ITEMS, {
+		name: "Create Items",
+		hint: "Any topics built from specific categories will be converted into Items rather than Journal Entries",
 		scope: "world",
 		type:  Boolean,
 		default: false,
 		config: true,
 	});
-    game.settings.register(GS_MODULE_NAME, GS_CREATE_ITEMS, {
-		name: "Create Items",
-		hint: "Any topics built from specific categories will be converted into Items rather than Journal Entries",
+    game.settings.register(GS_MODULE_NAME, GS_SCENE_REVEALED_NAVIGATION, {
+		name: "Enable navigation on revealed scenes",
+		hint: "Select this if revealed Scenes should have NAVIGATION automatically ticked (Configure Scene: Accessibility: Navigation)",
+		scope: "world",
+		type:  Boolean,
+		default: false,
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_SCENE_TOKEN_VISION, {
+		name: "Created scenes require Vision",
+		hint: "This flag will be copied to the 'Token Vision' and 'Fog Exploration' for each created scene",
 		scope: "world",
 		type:  Boolean,
 		default: false,
@@ -213,23 +222,108 @@ Hooks.on("renderSidebarTab", async (app, html) => {
     }
 })
 
+// Basic HTML constructs
+const END_SECTION = '</section>';
+//
+// Utility functions which aren't required inside the class
+//
+function span(classname,body) {
+	return `<span class="${classname}">${body}</span>`;
+}
+function paragraph(classname,body) {
+	return `<p class="${classname}">${body}</p>`;
+}
+const IS_SECRET = 0;
+const IS_REVEALED = 1;
+const NO_STATE = null;
+function htmlsection(classname,revealed=NO_STATE) {
+	if (revealed===NO_STATE)
+		return `<section class="${classname}">`;
+	else if (revealed)
+		return `<section class="${classname} revealed">`;
+	else
+		return `<section class="${classname} secret">`;
+}
+function header(lvl, name) {
+	return `<h${lvl}>${name}</h${lvl}>`;
+}
+function formatAnnotation(annotation) {
+	return span("RWannotation", stripHtml(annotation.textContent));
+}
+function labelledField(label, content, annotation=null) {
+	let body = span("RWlabel", `${label}: `);
+	if (content) body += content;
+	if (annotation) body += formatAnnotation(annotation);
+	return paragraph("RWDefault",body);
+}	
+
+// If the paragraph contains only a single Realm Works paragraph+span, then replace with a simple paragraph
+// Strip <p class="RWDefault"><span class="RWSnippet">...</span></p> from the supplied text
+function stripPara(original) {
+	const prefix = '<p class="RWDefault"><span class="RWSnippet">';
+	const suffix = '</span></p>';
+	if (original && original.startsWith(prefix) && original.endsWith(suffix)) {
+		const result = original.slice(prefix.length, -suffix.length);
+		// Don't do it if there is another paragraph in the middle
+		if (!result.includes('<p')) return result;
+	}
+	return original;
+}
+// Strip all HTML from the string.
+function stripHtml(original) {
+	return original.replace(/<[^>]+>/g, '');
+}
+//
+// Convert Utf8Array to UTF-8 string
+//
+function Utf8ArrayToStr(array) {
+	let out, i, len, c;
+	let char2, char3;
+
+	out = "";
+	len = array.length;
+	i = 0;
+	while(i < len) {
+		c = array[i++];
+		switch(c >> 4)
+		{ 
+		case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
+			// 0xxxxxxx
+			out += String.fromCharCode(c);
+			break;
+		case 12: case 13:
+			// 110x xxxx   10xx xxxx
+			char2 = array[i++];
+			out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
+			break;
+		case 14:
+			// 1110 xxxx  10xx xxxx  10xx xxxx
+			char2 = array[i++];
+			char3 = array[i++];
+			out += String.fromCharCode(((c & 0x0F) << 12) |
+						((char2 & 0x3F) << 6) |
+						((char3 & 0x3F) << 0));
+			break;
+		}
+	}
+	return out;
+}
+	
 
 class RealmWorksImporter extends Application
 {
 	// document_for_topic is a map: key = topic_id, value = JournalEntry
 	static ConnectionName = {
-		Arbitrary: "<strong>Arbitrary connection to</strong>",
-		Generic: "<strong>Simple connection to</strong>",
-		Union: "<strong>Family Relationship to</strong> (Union with)",
-		Parent_To_Offspring: "<strong>Family Relationship to</strong> (Immediate Ancestor of)",
-		Offspring_To_Parent: "<strong>Family Relationship to</strong> (Offspring of)",
-		Master_To_Minion: "<strong>Comprises or Encompasses</strong>",
-		Minion_To_Master: "<strong>Belongs To or Within</strong>",
-		Public_Attitude_Towards: "<strong>Public Attitude Towards</strong>",
-		Private_Attitude_Towards: "<strong>Private Attitude Towards</strong>",
+		Arbitrary:           span("RWrelationship", "Arbitrary connection to"),
+		Generic:             span("RWrelationship", "Simple connection to"),
+		Union:               span("RWrelationship", "Family Relationship to") + span("RWrelationshipQualifier", "Union with"),
+		Parent_To_Offspring: span("RWrelationship", "Family Relationship to") + span("RWrelationshipQualifier", "Immediate Ancestor of"),
+		Offspring_To_Parent: span("RWrelationship", "Family Relationship to") + span("RWrelationshipQualifier", "Offspring of"),
+		Master_To_Minion:    span("RWrelationship", "Comprises or Encompasses"),
+		Minion_To_Master:    span("RWrelationship", "Belongs To or Within"),
+		Public_Attitude_Towards:  span("RWrelationship", "Public Attitude Towards"),
+		Private_Attitude_Towards: span("RWrelationship", "Private Attitude Towards"),
 	}
-
-
 
 	// Foundry VTT default options for the dialogue window,
 	// note that we supply the HTML file that will show the window.
@@ -362,9 +456,10 @@ class RealmWorksImporter extends Application
 			this.governing_content_label = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
 			this.governed_max_depth = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
 			this.section_numbering = game.settings.get(GS_MODULE_NAME, GS_SECTION_NUMBERING);
-			this.process_reveal = game.settings.get(GS_MODULE_NAME, GS_PROCESS_REVEAL);
 			this.scene_padding  = game.settings.get(GS_MODULE_NAME, GS_SCENE_PADDING);
 			this.scene_grid     = game.settings.get(GS_MODULE_NAME, GS_SCENE_GRID);
+			this.scene_token_vision        = game.settings.get(GS_MODULE_NAME, GS_SCENE_TOKEN_VISION);
+			this.scene_revealed_navigation = game.settings.get(GS_MODULE_NAME, GS_SCENE_REVEALED_NAVIGATION);
 			this.create_items   = game.settings.get(GS_MODULE_NAME, GS_CREATE_ITEMS);
 			if (this.scene_grid < 50) {
 				console.warn(`CONFIGURED SCENE GRID SIZE IS TOO SMALL (${this.scene_grid}), USING 50`);
@@ -622,7 +717,7 @@ class RealmWorksImporter extends Application
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
-	formatLink(topic_id, orig_link_text, apply_reveal) {
+	formatLink(topic_id, orig_link_text) {
 		let link_text, prefix="",suffix="";
 		if (orig_link_text) {
 			// TODO: Move any formatting in orig_link_text to OUTSIDE the JournalEntry directive
@@ -648,68 +743,11 @@ class RealmWorksImporter extends Application
 		
 		let link_type = this.topic_item_type.has(topic_id) ? 'Item' : 'JournalEntry';
 		
-		// If we are only showing revealed information, and the linked topic is NOT revealed,
-		// then enter the link as if it was normal text.
-		if (apply_reveal && !this.revealed_topics.has(topic_id))
-			return `${prefix}${link_text}${suffix}`;
-		
 		const id = this.document_for_topic.get(topic_id)?.data._id;
 		if (id)
 			return `${prefix}@${link_type}[${id}]{${link_text}}${suffix}`;
 		else
 			return `${prefix}@${link_type}[${link_text}]${suffix}`;
-	}
-	
-	//
-	// Convert Utf8Array to UTF-8 string
-	//
-	Utf8ArrayToStr(array) {
-		let out, i, len, c;
-		let char2, char3;
-
-		out = "";
-		len = array.length;
-		i = 0;
-		while(i < len) {
-			c = array[i++];
-			switch(c >> 4)
-			{ 
-			case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
-				// 0xxxxxxx
-				out += String.fromCharCode(c);
-				break;
-			case 12: case 13:
-				// 110x xxxx   10xx xxxx
-				char2 = array[i++];
-				out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
-				break;
-			case 14:
-				// 1110 xxxx  10xx xxxx  10xx xxxx
-				char2 = array[i++];
-				char3 = array[i++];
-				out += String.fromCharCode(((c & 0x0F) << 12) |
-							((char2 & 0x3F) << 6) |
-							((char3 & 0x3F) << 0));
-				break;
-			}
-		}
-		return out;
-	}
-	// If the paragraph contains only a single Realm Works paragraph+span, then replace with a simple paragraph
-	// Strip <p class="RWDefault"><span class="RWSnippet">...</span></p> from the supplied text
-	stripPara(original) {
-		const prefix = '<p class="RWDefault"><span class="RWSnippet">';
-		const suffix = '</span></p>';
-		if (original && original.startsWith(prefix) && original.endsWith(suffix)) {
-			const result = original.slice(prefix.length, -suffix.length);
-			// Don't do it if there is another paragraph in the middle
-			if (!result.includes('<p')) return result;
-		}
-		return original;
-	}
-	// Strip all HTML from the string.
-	stripHtml(original) {
-		return original.replace(/<[^>]+>/g, '');
 	}
 	
 	// Some image files are changed to .png (from .bmp .gif .tif .tiff)
@@ -746,7 +784,7 @@ class RealmWorksImporter extends Application
 	}
 
 	// Convert a Smart_Image into a scene
-	async createScene(topic, smart_image) {
+	async createScene(topic, smart_image, is_revealed) {
 		//<snippet facet_name="Map" type="Smart_Image" search_text="">
 		//  <smart_image name="Map">
 		//    <asset filename="n5uvmpam.eb4.png">
@@ -757,6 +795,7 @@ class RealmWorksImporter extends Application
 		// These need to be created as Scenes (and linked from the original topic?)
 		//const scenename = smart_image.parentElement?.getAttribute('facet_name');
 		const scene_topic_id = topic.getAttribute("topic_id");
+		const uuid     = topic.getAttribute("original_uuid");
 		const asset    = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 		const contents = this.getChild(asset, 'contents'); // <contents>
 		const filename = asset?.getAttribute('filename');
@@ -776,18 +815,22 @@ class RealmWorksImporter extends Application
 			img    : imagename,
 			folder : this.scene_folder.id,
 			active : false,
-			navigation: false,
+			// Ensure navigation is true or false, and not null or undefined
+			navigation: (is_revealed && this.scene_revealed_navigation) ? true : false,
 			width  : tex.baseTexture.width,
 			height : tex.baseTexture.height,
 			padding: this.scene_padding,
 			grid   : this.scene_grid,
 			journal: this.document_for_topic.get(scene_topic_id)?.data._id,
+			tokenVision:    this.scene_token_vision,
+			fogExploration: this.scene_token_vision,
+			permission: { "default": is_revealed ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
+			flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
 		};
 		
 		// Maybe we should UPDATE rather than CREATE?
 		let scene;
 		let delete_old_notes = false;
-		let uuid = topic.getAttribute("original_uuid");
 		if (this.overwriteExisting) {
 			let existing = game.scenes.find(s => s.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid && s.data.name === scenedata.name);
 			if (existing) {
@@ -800,7 +843,6 @@ class RealmWorksImporter extends Application
 		if (!scene) {
 			//console.debug(`Creating scene in folder ${scenedata.folder}`);
 			scene = await Scene.create(scenedata).catch(e => console.warn(`Failed to create new scene ${scenename} due to ${e}`));
-			if (scene) await scene.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, uuid);
 		}
 		//if (scene) console.debug(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
 		if (!scene) return;
@@ -813,7 +855,14 @@ class RealmWorksImporter extends Application
 		let y_pad = this.scene_grid * Math.ceil((scenedata.height * scenedata.padding) / this.scene_grid);
 		//console.debug(`SCENE '${scenedata.name}': width=${scenedata.width}, height=${scenedata.height}, padding=${scenedata.padding}, x_pad=${x_pad}, y_pad=${y_pad}`);
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
-			const pin_topic_id = pin.getAttribute('topic_id');
+			// TODO - If map pin hasn't revealed, then we probably don't want to show it.
+			// Foundry doesn't display the PIN if the destination topic is not OBSERVABLE,
+			// but it doesn't allow us to control visibility of the PIN directly.
+			
+			let pin_topic_id = pin.getAttribute('topic_id');
+			// Pretend topic isn't linked, if the linked topic is not revealed
+			//if (apply_reveal && (!pin.getAttribute('is_revealed') || !this.revealed_topics.has(pin_topic_id))) pin_topic_id = null;
+			
 			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
 			let entryid = this.document_for_topic.get(pin_topic_id)?.data._id;
 			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent;
@@ -836,6 +885,8 @@ class RealmWorksImporter extends Application
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
 				scene: scene.id,
+				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_PIN_PERMISSION] : pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE }},
+				//permission: { "default": pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 			};
 			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
@@ -873,7 +924,7 @@ class RealmWorksImporter extends Application
 	}
 
 	// base64 is the base64 string containing the .por file
-	// format is one of the character formats in the .por file: 'html', 'text', 'xml' (need to do this.Utf8ArrayToStr to get to string)
+	// format is one of the character formats in the .por file: 'html', 'text', 'xml' (need to do Utf8ArrayToStr to get to string)
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
 	
 	readPortfolio(data) {
@@ -883,7 +934,7 @@ class RealmWorksImporter extends Application
 
 		// Process the index.xml in the root of the portfolio file.
 		if (!this.parser) this.parser = new DOMParser();
-		const xmlDoc = this.parser.parseFromString(this.Utf8ArrayToStr(files['index.xml']),"text/xml");
+		const xmlDoc = this.parser.parseFromString(Utf8ArrayToStr(files['index.xml']),"text/xml");
 		// <document><characters>
 		//   <character name="Fantastic">
 		//    <statblocks><statblock format="html" folder="statblocks_html" filename="1_Fantastic.htm"/>
@@ -960,7 +1011,7 @@ class RealmWorksImporter extends Application
 		return result;
 	}
 
-	replaceLinks(original, links, apply_reveal, direction="0") {
+	replaceLinks(original, links, direction="0") {
 		// <link target_id="Topic_10" original_uuid="E76194B6-44F4-FC06-3418-68935B3A6BA9" signature="1028506">
 		//     <span_info><span_list><span directions="0" start="3519" length="58"/>
 		let link_map = [];
@@ -981,32 +1032,28 @@ class RealmWorksImporter extends Application
 		let result = original.replaceAll("&#xd;","\n");		// to deal with extra characters in tables
 		for (const link of link_map) {
 			let linktext = result.slice(link.start, link.finish);
-			result = result.slice(0,link.start) + this.formatLink(link.target_id, linktext, apply_reveal) + result.slice(link.finish);
+			result = result.slice(0,link.start) + this.formatLink(link.target_id, linktext) + result.slice(link.finish);
 		}
 		return result;
 	}
 		
-	header(lvl, name) {
-		return `<h${lvl}>${name}</h${lvl}>`;
-	}
-		
 	// Remove the default class information from the RW formatting to reduce the size of the final HTML.
-	simplifyPara(original) {
+	simplifyPara(original) { // UNUSED - is it worth keeping?
 		// Too much effort to remove <span> and </span> tags, so just simplify.
 		// Replace <span class="RWSnippet">...</span> with just the ...
 		// Replace <span>...</span> with just the ...
-		return original.
-			replaceAll(/<span class="RWSnippet">/g,'<span>').
-			replaceAll(/<span>([^<]*)<\/span>/g,'$1').
-			replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
-			replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<strong>$1</strong>').
-			replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<em>$1</em>').
-			replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
-			replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
-			replaceAll(/<p class="RWDefault">/g,'<p>');
+		return original;
+			//replaceAll(/<span class="RWSnippet">/g,'<span>').
+			//replaceAll(/<span>([^<]*)<\/span>/g,'$1').
+			//replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
+			//replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<strong>$1</strong>').
+			//replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<em>$1</em>').
+			//replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
+			//replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
+			//replaceAll(/<p class="RWDefault">/g,'<p>');
 	}
 		
-	async addTable(topic, section_name, string, is_revealed) {
+	async createTable(topic, section_name, string, is_revealed) {
 		if (!string.includes("<table")) return "";
 		let result = "";
 		let nodes = this.parser.parseFromString(string, "text/html");
@@ -1052,7 +1099,7 @@ class RealmWorksImporter extends Application
 			for (const rownode of tablenode.rows) {
 				// rownode = HTMLTableRowElement
 				if (!rownode.cells || rownode.cells.length < 2) {
-					console.log('Row has no (or not enough) columns!');
+					console.log(this.title_of_topic.get(topic.getAttribute("topic_id")) + 'table: Row has no (or not enough) columns!');
 					valid = false;
 					break;
 				}
@@ -1074,10 +1121,7 @@ class RealmWorksImporter extends Application
 						valid = false;
 						break;
 					}
-					let details = this.simplifyPara(rownode.cells[datacolumn].innerHTML); // TODO - textContent ?
-					// It might just be <p ...attributes...><span...attributes...>text</span></p>, so remove surrounding flags
-					// Replace extra die words with inline rolls (e.g. "1d20+x" => "[[1d20+x]]")
-					details = details.replace(details1_regexp,'$1').replace(details2_regexp,'$1').replace(dice_regexp,'[[$1]]');
+					let details = rownode.cells[datacolumn].innerHTML.replace(details1_regexp,'$1').replace(details2_regexp,'$1').replace(dice_regexp,'[[$1]]');
 					
 					let pos;
 					if (numbers.length == 1) {
@@ -1136,10 +1180,9 @@ class RealmWorksImporter extends Application
 				displayRoll: true,
 				folder:      this.rolltable_folder?.id,
 				//sort: number,
-				//permission: object,
-				//flags: object
+				permission: { "default": is_revealed ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
+				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
 			};
-			if (is_revealed) tabledata.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
 				
 			let table;
 			if (this.overwriteExisting) {
@@ -1153,96 +1196,77 @@ class RealmWorksImporter extends Application
 			}
 			if (!table) {
 				table = await RollTable.create(tabledata).catch(e => console.warn(`Failed to create roll table '${tabledata.name}' due to ${e}`));
-				if (table) await table.setFlag(GS_MODULE_NAME,GS_FLAGS_UUID, uuid);
 			}
 			// Add the new table to the HTML to be returned
-			result += `<p>@RollTable[${table.id}]{${table.name}}`;
+			result += paragraph("RWDefault", `@RollTable[${table.id}]{${table.name}}`);
 		}
 		
 		return result;
 	}
-
+	
 	//
 	// Write one RW section
 	//
-	async writeSection(topic, section, numbering, apply_reveal) {
+	async writeSection(topic, section, numbering) {
 
 		// Write a "contents" element:
-		// Only <contents> can contain <span> which identify links.
-
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
 		let result = "";
+		let is_all_secret = true;
+		
+		let functhis = this;
 		
 		// Process all the snippets and sections in order
 		// Process all child (not descendent) nodes in this section
 		for (const child of section.children) {
 			if (child.nodeName === 'snippet') {
-				if (apply_reveal && !child.hasAttribute('is_revealed')) continue;
-				
+				const is_revealed = child.hasAttribute('is_revealed');
+				if (is_revealed) is_all_secret = false;
+
 				// Collect all the information from the snippet
 				const sntype     = child.getAttribute('type');
-				const style      = child.getAttribute('style');
+				const style      = child.getAttribute('style') ?? "Normal";
 				const contents   = this.getChild(child, 'contents');
-				const gmdir      = apply_reveal ? null : this.getChild(child, 'gm_directions');
+				const gmdir      = this.getChild(child, 'gm_directions');
 				const annotation = this.getChild(child, 'annotation');
 				const label      = child.getAttribute('label') ?? this.structure.facets.get(child.getAttribute('facet_id'));
 				
-				// If both gmdir and contents, then need an extra border
-				let in_section = false;
-				let margin="";
-				let bgcol="";
-				if (gmdir && contents) {
-					margin = 'border:1px solid black;margin-top:2px;margin-bottom:2px;';
-					in_section = true;
-				}
-				if (style && style !== 'Normal') {
-					if (style === 'Read_Aloud') { // 209,223,242
-						bgcol = 'background-color:#d1dff2;padding:1px;';
-						in_section = true;
-					} else if (style === 'Handout') { // 232,225,217
-						bgcol = 'background-color:#e8e1d9;padding:1px;';
-						in_section = true;
-					} else if (style === 'Flavor') {  // 239,212,210
-						bgcol = 'background-color:#efd4d2;padding:1px;';
-						in_section = true;
-					} else if (style === 'Callout') { // 190,190,190
-						bgcol = 'background-color:#bebebe;padding:1px;';
-						in_section = true;
+				let need_close_section = false;
+				function sectionHeader(normalheader) {
+					if (normalheader) {
+						result += '<section class="';
+						if (gmdir) result += "gmDirAndContents ";
+						result += is_revealed ? "revealed " : "secret ";
+						result += style + '">';
+						need_close_section = true;
 					}
-				}
-				if (in_section) {
-					result += '<section style="' + margin + bgcol + '">';
-				}
-				if (gmdir) {
-					result += '<section class="secret">' + this.simplifyPara(this.replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), apply_reveal, /*direction*/ "1")) + '</section>';
+					if (gmdir) {
+						result += htmlsection("gmDirections", IS_SECRET) + functhis.replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), /*direction*/ "1") + END_SECTION;
+					}
 				}
 				
 				switch (sntype) {
 				case "Multi_Line":
+					sectionHeader(contents);
 					if (contents) {
-						let text = this.simplifyPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link'), apply_reveal));
+						let text = this.replaceLinks(contents.textContent, child.getElementsByTagName('link'));
 						result += text;
 						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output.
-						// Each topic is processed twice when doing REVEAL processing,
-						// so only create the table ONCE if that is happening (preferably when apply_reveal is true)
-						if (!this.process_reveal || apply_reveal || !child.hasAttribute('is_revealed'))
-							result += await this.addTable(topic, section_name, text, apply_reveal);
+						result += await this.createTable(topic, section_name, text, topic.getAttribute('is_revealed') && is_revealed);
 					}
 					break;
 				case "Labeled_Text":
+					sectionHeader(contents);
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += `<p><strong>${label}:</strong> ` + this.stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link'), apply_reveal));
-						if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`
-						result += `</p>`;
+						result += labelledField(label, stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link'))), annotation);
 					}
 					break;
 				case "Numeric":
+					sectionHeader(contents);
 					if (contents) {
 						// contents will hold just a number
-						result += `<p><strong>${label}:</strong> ` + this.replaceLinks(contents.textContent, child.getElementsByTagName('link'), apply_reveal);
-						if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`
-						result += `</p>`;
+						result += labelledField(label, this.replaceLinks(contents.textContent, child.getElementsByTagName('link')), annotation);
 					}
 					break;
 				case "Tag_Standard":
@@ -1254,10 +1278,11 @@ class RealmWorksImporter extends Application
 							if (tag) tags.push(tag);
 						}
 					}
-					result += `<p><strong>${label}:</strong> `;
-					if (tags.length > 0) result += tags.join(', ');
-					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
-					result += `</p>`;
+					let dotags = tags.length > 0;
+					sectionHeader(dotags);
+					if (dotags) {
+						result += labelledField(label, tags.join(', '), annotation);
+					}
 					break;
 					
 				case "Tag_Multi_Domain":
@@ -1275,27 +1300,26 @@ class RealmWorksImporter extends Application
 							}
 						}
 					}
-					result += `<p><strong>${label}:</strong> `;
-					if (tagmulti.length > 0) result += tagmulti.join('; ');
-					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
-					result += `</p>`;
+					let domultitag = tagmulti.length > 0;
+					sectionHeader(domultitag);
+					if (domultitag) {
+						result += labelledField(label, tagmulti.join('; '), annotation);
+					}
 					break;
 					
 				case "Date_Game":
-					let gamedate = this.getChild(child, 'game_date');
-					result += `<p><strong>${label}:</strong> `;
-					if (gamedate) result += gamedate.getAttribute("gregorian");
-					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
-					result += `</p>`;
-					// annotation
+					let dategame = this.getChild(child, 'game_date');
+					sectionHeader(dategame);
+					if (dategame) {
+						result += labelledField(label, dategame.getAttribute("gregorian"), annotation);
+					}
 					break;
 				case "Date_Range":
 					let daterange = this.getChild(child, 'date_range');
-					result += `<p><strong>${label}:</strong> `;
-					if (daterange) result += `${daterange.getAttribute("gregorian_start")} to ${daterange.getAttribute("gregorian_end")}`;
-					if (annotation) result += `; <em>${this.stripHtml(annotation.textContent)}</em>`;
-					result += `</p>`;
-					// annotation
+					sectionHeader(daterange);
+					if (daterange) {
+						result += labelledField(label, `${daterange.getAttribute("gregorian_start")} to ${daterange.getAttribute("gregorian_end")}`, annotation);
+					}
 					break;
 				case "Portfolio":
 					// <ext_object ...>
@@ -1303,14 +1327,15 @@ class RealmWorksImporter extends Application
 					// <contents>
 					let portasset = this.getChild(this.getChild(child, 'ext_object'), 'asset');
 					const portfolio = this.getChild(portasset, 'contents');    // <contents>
+					sectionHeader(portfolio);
 					if (portfolio) {
 						// TODO: for test purposes, extract all .por files!
 						//await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
 						let first=true;
 						for (const [charname, character] of this.readPortfolio(portfolio.textContent)) {
 							if (first) { result += '<hr>'; first=false }
-							result += this.header(numbering.length+1, character.name);
-							let str = this.Utf8ArrayToStr(character[this.por_html]);
+							result += header(numbering.length+1, character.name);
+							let str = Utf8ArrayToStr(character[this.por_html]);
 							if (this.por_html==="text")
 								// text needs to be put inside a pre-formatted block
 								result += "<pre>" + str + "</pre>";
@@ -1332,22 +1357,23 @@ class RealmWorksImporter extends Application
 					const bin_ext_object = this.getChild(child,          'ext_object');  
 					const bin_asset      = this.getChild(bin_ext_object, 'asset');       
 					const bin_contents   = this.getChild(bin_asset,      'contents');    
+					sectionHeader(bin_contents);
 					if (bin_contents) {
-						result += this.header(numbering.length+1, bin_ext_object.getAttribute('name'));
+						result += header(numbering.length+1, bin_ext_object.getAttribute('name'));
 						const bin_filename = bin_asset.getAttribute('filename');
 						const fileext = bin_filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf")
 							result += atob(bin_contents.textContent);
 						else if (sntype === "Picture") {
 							await this.uploadFile(bin_filename, bin_contents.textContent);
-							result += `<p><img src='${this.imageFilename(bin_filename)}'></img></p>`;
+							result += paragraph("RWDefault", `<img src='${this.imageFilename(bin_filename)}'></img>`);
 						} else {
 							let format = 'binary/octet-stream';
 							if (fileext === 'pdf') {
 								format = 'application/pdf';
 							}
 							await this.uploadFile(bin_filename, bin_contents.textContent);
-							result += `<p><a href='${this.imageFilename(bin_filename)}'></a></p>`;
+							result += paragraph("RWDefault", `<a href='${this.imageFilename(bin_filename)}'></a>`);
 						}
 					}
 					break;
@@ -1365,14 +1391,15 @@ class RealmWorksImporter extends Application
 					const map_contents = this.getChild(map_asset,   'contents');  	// <contents>
 					const map_filename = map_asset?.getAttribute('filename');
 					const map_format   = map_filename?.split('.').pop();	// extra suffix from asset filename
+					sectionHeader(map_format && map_contents);
 					if (map_format && map_contents) {
-						result += this.header(numbering.length+1, smart_image.getAttribute('name'));
+						result += header(numbering.length+1, smart_image.getAttribute('name'));
 						await this.uploadFile(map_filename, map_contents.textContent);
-						result += `<p><img src='${this.imageFilename(map_filename)}'></img></p>`;
+						result += paragraph("RWDefault", `<img src='${this.imageFilename(map_filename)}'></img>`);
 
 						// Create the scene now
-						await this.createScene(topic, smart_image)
-							.then(sceneid => result += `<p>@Scene[${sceneid}]{${smart_image.getAttribute('name')}}</p>`)
+						await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
+							.then(sceneid => result += paragraph("RWDefault", `@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
 							.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
 					}
 					break;
@@ -1383,8 +1410,8 @@ class RealmWorksImporter extends Application
 					console.warn(`Unsupported snippet type: ${sntype}`);
 				} // switch sntype
 				
-				if (in_section) {
-					result += '</section>';
+				if (need_close_section) {
+					result += END_SECTION;
 				}
 			}
 		} // for children
@@ -1396,23 +1423,34 @@ class RealmWorksImporter extends Application
 			if (child.nodeName === 'section') {
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
-				result += await this.writeSection(topic, child, numbering.concat(++subsection), apply_reveal);
+				const other_sections = await this.writeSection(topic, child, numbering.concat(++subsection));
+				result += other_sections.html;
+				if (!other_sections.secret) is_all_secret = false;
 			}
 		}
 
 		// The section header needs to be revealed if any of its children were revealed.
-		if (apply_reveal && result.length == 0)
-			return result;
+		if (this.section_numbering)
+			result = header(numbering.length, numbering.join('.') + '. ' + section_name) + result;
 		else
-			return this.header(numbering.length, (this.section_numbering ? numbering.join('.') + '. ' : '') + section_name) + result;
+			result = header(numbering.length, section_name) + result;
+			
+		if (is_all_secret) result = htmlsection("", IS_SECRET) + result + END_SECTION;
+		
+		return { 
+			secret: is_all_secret,
+			html  : result };
 	}
 
-	addDescendents(depth, top_id, apply_reveal) {
+	addDescendents(depth, top_id, only_revealed) {
+		// It will create EITHER a list of all the revealed children,
+		// OR all the not-revealed children.
+		
 		if (depth < 1 || !this.child_map.has(top_id)) return "";
 		let result = "";
 		for (const child_id of this.child_map.get(top_id)) {
-			if (apply_reveal && !this.revealed_topics.has(child_id)) continue;
-			result += '<li>' + this.formatLink(child_id, null, apply_reveal) + this.addDescendents(depth-1, child_id, apply_reveal) + '</li>';
+			if (only_revealed && !this.revealed_topics.has(child_id)) continue;
+			result += '<li>' + this.formatLink(child_id, null) + this.addDescendents(depth-1, child_id, only_revealed) + '</li>';
 		}
 		return (result.length > 0) ? `<ul>${result}</ul>` : "";
 	}
@@ -1427,35 +1465,37 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW topic
 	//
-	async formatTopicBody(topic, apply_reveal) {
+	async formatTopicBody(topic) {
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
 		// Start the HTML with the category of the topic
-		let html = '<p><strong>Category:</strong> ' + this.category_of_topic.get(topic_id) + '</p>';
+		let html = htmlsection("RWcategory", IS_REVEALED) + labelledField("Category", this.category_of_topic.get(topic_id)) + END_SECTION;
 		
 		// Put PARENT information into the topic (if required)
 		const parent_id = this.parent_map.get(topic_id);
-		if (parent_id && (!apply_reveal || this.revealed_topics.has(parent_id))) {
-			html += '<p><strong>' + this.governing_content_label + '</strong>' + this.formatLink(parent_id, null, apply_reveal) + '</p>';
+		if (parent_id) {
+			html += htmlsection("RWparent", this.revealed_topics.has(parent_id)) + labelledField(this.governing_content_label, this.formatLink(parent_id, null)) + END_SECTION;
 		}
 
 		// Generate the HTML for the sections within the topic
+		let revealed_connections = [];
 		let connections = [];
 		let sectionnum = 0;
 		for (const node of topic.children) {
 			switch (node.nodeName) {
 			case 'alias':
 				// These come first
-				if (apply_reveal && !node.hasAttribute('is_revealed')) break;
+				html += htmlsection("RWalias", node.hasAttribute('is_revealed'));
 				if (node.getAttribute('is_true_name') === 'true')
-					html += `<p><strong>True Name: </strong><em>${node.getAttribute('name')}</em></p>`;
+					html += paragraph("RWtrueName", span("RWlabel", "True Name: ") + span("RWalias", node.getAttribute('name')));
 				else
-					html += `<p><strong>Alias: </strong><em>${node.getAttribute('name')}</em></p>`;
+					html += paragraph("RWalias", span("RWlabel", "Alias: ") + span("RWalias", node.getAttribute('name')));
+				html += END_SECTION;
 				break;
 			case 'section':
 				// Always process sections, to properly process revealed status
-				html += await this.writeSection(topic, node, [++sectionnum], apply_reveal);
+				html += (await this.writeSection(topic, node, [++sectionnum])).html;
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1465,11 +1505,10 @@ class RealmWorksImporter extends Application
 			case 'linkage':
 				// linkage is only in RWoutput
 				break;
-			case 'connection':
+			case 'connection':	// relationships
 				// RWoutput: <connection target_id="Topic_2" target_name="Child Feat 1" nature="Master_To_Minion" qualifier="Owner / Subsidiary"/>
 				// RWexport: <connection target_id="Topic_2" nature="Minion_To_Master" qualifier_tag_id="Tag_211" qualifier="Parent / Child" original_uuid="F2E39CB6-7490-553E-40F0-68935B3A6BA9" signature="517108"/>
 				let target_id = node.getAttribute('target_id');
-				if (apply_reveal && !(node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))) break;
 				let cname = this.connectionname_of_topic.get(target_id);
 				if (cname) {
 					let nature    = node.getAttribute('nature');
@@ -1490,16 +1529,17 @@ class RealmWorksImporter extends Application
 							let quals = qualifier.split(' / ');
 							if (quals.length > 1) qualifier = quals[1];
 						}
-						text += ' (' + qualifier + ')';
+						text += span("RWrelationshipQualifier", qualifier);
 					} else if (attitude)
-						text += ' (' + attitude + ')';
+						text += span("RWrelationshipAttitude", attitude);
 					else if (rating)  // rating is a number, attitude is the string for the rating
-						text += ' (' + rating + ')';
-					if (annot.length > 0)
-						text += '; <em>(' + annot[0].textContent + ')</em>';
+						text += span("RWrelationshipRating", rating);
+					if (annot.length > 0) text += formatAnnotation(annot[0]);
 					
-					text += ': ' + this.formatLink(target_id, cname, apply_reveal);
+					text += ': ' + this.formatLink(target_id, cname);
 					connections.push({cname, text});
+					if (node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))
+						revealed_connections.push({cname, text});
 				}
 				break;
 			}
@@ -1507,35 +1547,63 @@ class RealmWorksImporter extends Application
 		
 		// Add the (revealed) CONNECTIONS (prefix/suffix are APPENDED)
 		if (connections.length > 0) {
-			html += '<h1>Relationships</h1><ul>'
-			for (const connection of connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
-				html += '<li>' + connection.text + '</li>';
+			html += htmlsection("RWrelationships", (revealed_connections.length === 0) ? IS_SECRET : NO_STATE) + header(1,'Relationships');
+			
+			if (revealed_connections.length > 0) {
+				html += htmlsection("RWrelationshipsGroup", IS_REVEALED) + '<ul>';
+				for (const connection of revealed_connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
+					html += '<li>' + connection.text + '</li>';
+				}
+				html += '</ul>' + END_SECTION;
 			}
-			html += '</ul>';
+			
+			if (connections.length > revealed_connections.length) {
+				html += htmlsection("RWrelationshipsGroup", IS_SECRET) + '<ul>';
+				for (const connection of connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
+					html += '<li>' + connection.text + '</li>';
+				}
+				html += '</ul>' + END_SECTION;
+			}
+			html += END_SECTION;
 		}
 		
 		// New we do the CONTENT LINKS (prefix/suffix are APPENDED)
 		// Add the optional INBOUND and/or OUTBOUND links
 		let functhis = this;
-		function contentlinks(dir, links) {
-			let ordered = links.sort( (p1,p2) => {
+		function contentlinks(dir, links, revealed_links) {
+			let all_links = links.sort( (p1,p2) => {
 				return p1.name ? (p2.name ? p1.name.localeCompare(p2.name, undefined, {numeric: true}) : -1) : p2.name ? 1 : 0;
-			});
-			return `<h1>Content Links: ${dir}</h1><p>` + ordered.map(ref => {
-				return functhis.formatLink(ref.topic_id, ref.name, apply_reveal);
-			}).join(' ') + '</p>';
+			}).map(ref => { return functhis.formatLink(ref.topic_id, ref.name); }).join(' ');
+			
+			let rev_links = revealed_links.sort( (p1,p2) => {
+				return p1.name ? (p2.name ? p1.name.localeCompare(p2.name, undefined, {numeric: true}) : -1) : p2.name ? 1 : 0;
+			}).map(ref => { return functhis.formatLink(ref.topic_id, ref.name); }).join(' ');
+			
+			let result = htmlsection("RWcontentlinks", (revealed_links.length===0) ? IS_SECRET : NO_STATE) + header(1,`Content Links: ${dir}`);
+
+			if (revealed_links.length > 0)
+				result += htmlsection("RWconnections", IS_REVEALED) + '<p>' + rev_links + '</p>' + END_SECTION;
+			if (links.length > revealed_links.length)
+				result += htmlsection("RWconnections", IS_SECRET) + '<p>' + all_links + '</p>' + END_SECTION;
+				
+			result += END_SECTION;
+			return result;
 		}
 			
 		if (this.addInboundLinks) {
-			const targets = apply_reveal ? this.revealed_links_in.get(topic_id) : this.links_in.get(topic_id);
+			const targets = this.links_in.get(topic_id);
 			if (targets) {
 				let unique_ids = new Set();
+				let revealed_unique_ids = new Set();
 				for (const target_id of targets) {
 					if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
-					if (apply_reveal && !this.revealed_topics.has(target_id)) continue;	// link is not revealed
 					unique_ids.add(target_id);
+					if (this.revealed_topics.has(target_id))
+						revealed_unique_ids.add(target_id);
 				}
-				if (unique_ids.size > 0) html += contentlinks('In', [...unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ));
+				if (unique_ids.size > 0) html += contentlinks('In',
+					[...unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ),
+					[...revealed_unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ));
 			}
 		}
 		if (this.addOutboundLinks) {
@@ -1543,13 +1611,17 @@ class RealmWorksImporter extends Application
 			if (links && links.length > 0)
 			{
 				let unique_ids = new Set();
+				let revealed_unique_ids = new Set();
 				for (const link of links) {
 					let target_id = link.getAttribute("target_id");
 					if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
-					if (apply_reveal && !(this.revealed_topics.has(target_id) && this.linkIsRevealed(link)) ) continue;	// link is not revealed
 					unique_ids.add(target_id);
+					if (this.revealed_topics.has(target_id) && this.linkIsRevealed(link))
+						revealed_unique_ids.add(target_id);
 				}
-				if (unique_ids.size > 0) html += contentlinks('Out', [...unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ));
+				if (unique_ids.size > 0) html += contentlinks('Out',
+					[...unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ),
+					[...revealed_unique_ids].map(target_id => { return {topic_id: target_id, name: this.connectionname_of_topic.get(target_id)}} ) );
 			}
 		}
 
@@ -1557,8 +1629,17 @@ class RealmWorksImporter extends Application
 		// but we are formatting the topics as per the RW navigation pane, NOT the "Governed Content" summary panel
 		if (this.governed_max_depth > 0 && this.child_map.has(topic_id)) {
 			// These need to be in a sorted order
-			let gov_content = this.addDescendents(this.governed_max_depth, topic_id, apply_reveal);
-			if (gov_content.length > 0) html += '<h1>Governed Content</h1>' + gov_content;
+			let revealed_gov_content = this.addDescendents(this.governed_max_depth, topic_id, true);
+			let hidden_gov_content   = this.addDescendents(this.governed_max_depth, topic_id, false);
+
+			html += htmlsection("RWgovernedContent", (revealed_gov_content.length===0) ? IS_SECRET : NO_STATE);
+			html += header(1, 'Governed Content');
+			
+			if (revealed_gov_content.length > 0)
+				html += htmlsection("RWgovernedContentGroup", IS_REVEALED) + revealed_gov_content + END_SECTION;
+			if (hidden_gov_content.length > revealed_gov_content.length)
+				html += htmlsection("RWgovernedContentGroup", IS_SECRET) + hidden_gov_content + END_SECTION;
+			html += END_SECTION;
 		}
 		return html;
 	}
@@ -1570,33 +1651,16 @@ class RealmWorksImporter extends Application
 		const topic_id  = topic.getAttribute('topic_id');
 		console.debug(`createTopic('${this.title_of_topic.get(topic_id)}')`);
 
-		// Topics which are NOT revealed will not have any snippets hidden (since the players can't see those topics anyway).
-		// Otherwise the normal journal entry will contain the 
-		const apply_reveal = this.process_reveal && this.revealed_topics.has(topic_id);
-		
-		// Format as a data block usable by JournalEntry.update
-		let content = await this.formatTopicBody(topic, apply_reveal);
-		let gmnotes = apply_reveal ? await this.formatTopicBody(topic, false) : null;
-		
 		let topic_document = this.document_for_topic.get(topic_id);
 		let topicdata = {
 			_id:      topic_document.data._id,
 			//name:     this.title_of_topic.get(topic_id),  -- already set correctly during initial creation
 			topic_id: topic_id,
 			uuid:     topic.getAttribute("original_uuid"),
-			content:  content,
+			content:  await this.formatTopicBody(topic),
+			permission: { "default": this.revealed_topics.has(topic_id) ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE }
 		};
-		if (apply_reveal && content !== gmnotes) {
-			// full version available in GM-notes
-			console.info(`Adding GM-Notes for topic '${topic.getAttribute('public_name')}'`);
-			topicdata["flags.gm-notes.notes"] = gmnotes;
-		}
-		//console.debug(`Finished topic '${topic.getAttribute("public_name")}' in folder ${topicdata.folder}`);
 		
-		if (apply_reveal) {
-			topicdata.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
-		}
-
 		// Finally send the update to Foundry
 		await topic_document.update(topicdata)
 			.catch(e => console.warn(`JournalEntry.update() failed for '${topic_node.getAttribute("public_name")}':\n${e}`));
@@ -1609,7 +1673,6 @@ class RealmWorksImporter extends Application
 		const topic_id  = topic.getAttribute('topic_id');
 		console.debug(`createItem('${this.title_of_topic.get(topic_id)}')`);
 
-		const apply_reveal = this.process_reveal && this.revealed_topics.has(topic_id);
 		let topic_name = topic.getAttribute('public_name');
 		let category = this.category_of_topic.get(topic_id);
 		
@@ -1619,19 +1682,12 @@ class RealmWorksImporter extends Application
 			return;
 		}
 		
-		let content  = await this.formatTopicBody(topic, apply_reveal);
-		let gmnotes  = apply_reveal ? await this.formatTopicBody(topic, false) : null;
+		let content  = await this.formatTopicBody(topic);
 		let itemdata = {
 			_id:  topic_document.data._id,
-			data: await this.item_data_func(this.structure, topic, topic_document.type, content,category),
+			data: await this.item_data_func(this.structure, topic, topic_document.type, content, category),
+			permission: { "default": this.revealed_topics.has(topic_id) ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 		}
-			
-		if (apply_reveal && content !== gmnotes) {
-			// full version available in GM-notes
-			console.info(`Adding GM-Notes for Item '${topic.getAttribute('public_name')}'`);
-			itemdata["flags.gm-notes.notes"] = gmnotes;
-		}
-		if (apply_reveal) itemdata.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
 
 		await topic_document.update(itemdata)
 			.catch(e => console.warn(`Failed to create item ${topic_name}`));
@@ -1679,7 +1735,7 @@ class RealmWorksImporter extends Application
 		let result = [];
 		const topicname = topic.getAttribute('public_name');
 		const uuid = topic.getAttribute("original_uuid");
-		const topic_apply_reveal = (this.process_reveal && topic.hasAttribute('is_revealed'));
+		const topic_is_revealed = topic.getAttribute('is_revealed');
 		
 		// Since we can't "update" actors in a safe way, always delete if required.
 		if (this.overwriteExisting) {
@@ -1696,6 +1752,7 @@ class RealmWorksImporter extends Application
 			}
 
 			const sntype = snippet.getAttribute('type');
+			const is_revealed = topic_is_revealed && snippet.hasAttribute('is_revealed');
 			const ext_object = this.getChild(snippet, 'ext_object'); // <ext_object name="Portrait" type="Picture">
 			if (!ext_object) {
 				console.warn(`formatActors for '${topicname}':\n no <ext_object> for ${sntype} - Skipping`);
@@ -1738,9 +1795,6 @@ class RealmWorksImporter extends Application
 				statblock = atob(contents.textContent);
 			}
 			
-			// Determine if the actor(s) should be revealed to the players
-			const apply_reveal = (topic_apply_reveal && snippet.hasAttribute('is_revealed'));
-
 			// Call the ACTOR creator for the specific GAME SYSTEM that is installed
 			//console.debug(`ACTOR ${topic.getAttribute('public_name')} = HTML '${html}'`);
 			if (!this.parser)
@@ -1751,7 +1805,7 @@ class RealmWorksImporter extends Application
 					for (const [charname, character] of portfolio) {
 						// The lack of XML will be because this is a MINION of another character.
 						if (character.xml) {
-							const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
+							const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(Utf8ArrayToStr(character.xml), "text/xml"));
 							await this.create_actor_data(json.document.public.character)
 							.then(async (actorlist) => {
 								for (let actor of actorlist) {
@@ -1761,13 +1815,13 @@ class RealmWorksImporter extends Application
 									actor.token = {
 										disposition: actor.relationship === 'ally' ? 1 : actor.relationship === 'enemy' ? -1 : 0
 									};
-									let extradata = await this.actor_data_func(this.Utf8ArrayToStr(port[this.por_html]));
+									let extradata = await this.actor_data_func(Utf8ArrayToStr(port[this.por_html]));
 									actor.data = foundry.utils.mergeObject(actor.data, extradata);
 									if (extradata.items) actor.items = actor.items.concat(extradata.items);
 									if (port?.imgfilename)
 										actor.img = this.imageFilename(port.imgfilename);
-									if (apply_reveal) actor.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
-									actor.flags = { GS_MODULE_NAME: { GS_FLAGS_UUID : uuid } }
+									actor.permission = { "default": is_revealed ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE };
+									actor.flags[GS_MODULE_NAME][GS_FLAGS_UUID] = uuid;
 									result.push(actor);
 								}
 							})
@@ -1780,13 +1834,13 @@ class RealmWorksImporter extends Application
 						let actor = {
 							name: character.name,
 							type: this.actor_type,
-							data: await this.actor_data_func(this.Utf8ArrayToStr(character[this.por_html])),
-							flags: { GS_MODULE_NAME: { GS_FLAGS_UUID : uuid } }
+							data: await this.actor_data_func(Utf8ArrayToStr(character[this.por_html])),
+							flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid } },
 						};
 						if (actor.data.items) actordata.items = actor.data.items;
 						if (character.imgfilename)
 							actor.img = this.imageFilename(character.imgfilename)
-						if (apply_reveal) actor.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
+						actor.permission = { "default": is_revealed ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE };
 						result.push(actor);
 					}
 				}
@@ -1794,15 +1848,15 @@ class RealmWorksImporter extends Application
 				// No portfolio file available for decoding, so simply store the STATBLOCK in the relevant location on the Actor
 				let name = ext_object.getAttribute('name');
 				const annotation = this.getChild(snippet, 'annotation');
-				if (annotation) name += ':' + this.stripHtml(annotation.textContent);
+				if (annotation) name += ':' + stripHtml(annotation.textContent);
 				let actor = {
 					name: name,
 					type: this.actor_type,
 					data: await this.actor_data_func(statblock),
-					flags: { GS_MODULE_NAME: { GS_FLAGS_UUID : uuid } }
+					flags: { [GS_MODULE_NAME]: { [GS_FLAGS_UUID] : uuid }},
+					permission: { "default": is_revealed ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 				};
 				if (actor.data.items) actor.items = actor.data.items;
-				if (apply_reveal) actor.permission = { "default": CONST.ENTITY_PERMISSIONS.OBSERVER };
 				result.push(actor);
 			}
 		}
@@ -1849,6 +1903,8 @@ class RealmWorksImporter extends Application
 			const snippets = getSoundSnippets(topic);
 			if (snippets.length === 0) continue;
 
+			let uuid = topic.getAttribute("original_uuid");
+
 			let playlist = {
 				name: topic.getAttribute('public_name'),
 				description: "",
@@ -1858,6 +1914,7 @@ class RealmWorksImporter extends Application
 				//	"seed": 840,
 				sounds: [],
 				folder: this.playlist_folder?.id,
+				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid } },
 			};
 			
 			// Sound file has already been uploaded
@@ -1887,11 +1944,10 @@ class RealmWorksImporter extends Application
 				};
 				
 				const annotation = this.getChild(snippet, 'annotation');
-				if (annotation) sound.description = this.stripHtml(annotation.textContent);
+				if (annotation) sound.description = stripHtml(annotation.textContent);
 				
 				playlist.sounds.push(sound);
 			}
-			let uuid = topic.getAttribute("original_uuid");
 			if (this.overwriteExisting) {
 				let existing = game.playlists.find(p => p.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid);
 				if (existing) {
@@ -1902,7 +1958,6 @@ class RealmWorksImporter extends Application
 				}
 			}
 			await Playlist.create(playlist)
-				.then(async(p) => await p.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, uuid))
 				.catch(e => console.warn(`Failed to create playlist '${name}' due to ${e}`));
 		}
 	}
@@ -1943,7 +1998,7 @@ class RealmWorksImporter extends Application
 			if (this.create_actor_data) {
 				// no XML means it is a MINION, and has been created from the XML of another character.
 				if (character.xml) {
-					const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(this.Utf8ArrayToStr(character.xml), "text/xml"));
+					const json = RealmWorksImporter.xmlToObject(this.parser.parseFromString(Utf8ArrayToStr(character.xml), "text/xml"));
 					const actorlist = await this.create_actor_data(json.document.public.character);
 
 					for (let actordata of actorlist) {
@@ -1951,7 +2006,7 @@ class RealmWorksImporter extends Application
 						let port = portfolio.get(actordata.name);
 
 						// Store the raw statblock (but don't overwrite the rest of data)
-						actordata.data = foundry.utils.mergeObject(actordata.data, await this.actor_data_func(this.Utf8ArrayToStr(port[this.por_html])));
+						actordata.data = foundry.utils.mergeObject(actordata.data, await this.actor_data_func(Utf8ArrayToStr(port[this.por_html])));
 						actordata.token = {
 							disposition: actordata.relationship === 'ally' ? 1 : actordata.relationship === 'enemy' ? -1 : 0
 						};
@@ -1972,7 +2027,7 @@ class RealmWorksImporter extends Application
 				let actordata = {
 					name: character.name,
 					type: this.actor_type,
-					data: await this.actor_data_func(this.Utf8ArrayToStr(character[this.por_html])),
+					data: await this.actor_data_func(Utf8ArrayToStr(character[this.por_html])),
 					folder: actor_folder_id,
 				};
 				if (actordata.data.items) actordata.items = actordata.data.items;
@@ -2048,7 +2103,6 @@ class RealmWorksImporter extends Application
 		
 		// Create a mapping to indicate which topics link INTO each topic
 		if (this.addInboundLinks) {
-			if (this.process_reveal) this.revealed_links_in = new Map();
 			this.links_in = new Map();
 			for (const child of topics) {
 				const topic_id = child.getAttribute("topic_id");
@@ -2060,13 +2114,6 @@ class RealmWorksImporter extends Application
 						this.links_in.get(target_id).push(topic_id);
 					else
 						this.links_in.set(target_id, [topic_id]);
-					
-					if (this.process_reveal && this.linkIsRevealed(link)) {
-						if (this.revealed_links_in.has(target_id))
-							this.revealed_links_in.get(target_id).push(topic_id);
-						else
-							this.revealed_links_in.set(target_id, [topic_id]);
-					}
 				}
 			}
 		}
@@ -2138,16 +2185,16 @@ class RealmWorksImporter extends Application
 					name:   this.title_of_topic.get(topic_id),
 					type:   await this.get_item_type(this.structure, topic, this.topic_item_type.get(topic_id)),
 					folder: item_folders.get(topic.getAttribute('category_id')),
-					data:   {}
+					flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
+					data:   {},
 				}).catch(e => console.error(`Failed to create ITEM '${this.title_of_topic.get(topic_id)}':\n${e}`));
 			} else {
 				topic_doc = await JournalEntry.create({
 					name:   this.title_of_topic.get(topic_id),
-					folder: journal_folders.get(topic.getAttribute('category_id'))
+					folder: journal_folders.get(topic.getAttribute('category_id')),
+					flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
 				}).catch(e => console.error(`Failed to create JOURNAL ENTRY '${this.title_of_topic.get(topic_id)}':\n${e}`));
 			}
-				
-			await topic_doc.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, uuid);
 			return { topic_id : topic_id, topic : topic_doc };
 		}))
 		// Now add all valid entries to document_for_topic synchronously
@@ -2191,17 +2238,18 @@ class RealmWorksImporter extends Application
 		// TODO: if actors.length > 1 then put them inside a folder named after the topic.
 		// TODO: if this.overwriteExisting, then how will post_create_actors work when the actor might already have lots of things added to it?
 		await Promise.allSettled(actor_topics.map(async(topic_node) => {
-			if (!(this.importOnlyNew && this.existing_docs.has(topic_node.getAttribute("original_uuid"))))
+			let uuid = topic_node.getAttribute("original_uuid");
+			if (!(this.importOnlyNew && this.existing_docs.has(uuid)))
 				await this.formatActors(topic_node)
-				.then(async(actors) =>
+				.then(async(actors) => {
+					for (let actor of actors) actor.flags = { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }}
+					
 					await Actor.create(actors)
 					.then( async(new_actors) => { 
-						for (let actor of new_actors)
-							await actor.setFlag(GS_MODULE_NAME, GS_FLAGS_UUID, topic_node.getAttribute("original_uuid"));
 						if (this.post_create_actors)
 							await this.post_create_actors(new_actors)
 					})
-				)
+				})
 				.catch(error => console.warn(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))
 		}))
 

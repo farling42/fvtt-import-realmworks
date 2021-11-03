@@ -1,3 +1,12 @@
+1.8
+FEATURE: No longer requires "GM Notes" module for handling revealed topics.
+FEATURE: Revealed snippets are identified to the GM in displayed documents by a green bar on the left side.
+FEATURE: Revealed smart images can have their corresponding scene automatically made navigable (and their vision/fog disabled).
+FEATURE: For GMs, Relationships, Content Links and Governed Content will show REVEALED parts separately from the full list.
+FEATURE: Lots of CSS have been added to more closely match the Snippet Style in RW.
+KNOWN BUG: Revealed state of map pins is ignored - only pins connected to non-revealed topics will be hidden on each scene.
+KNOWN BUG: All links are displayed in revealed snippets of revealed topics - even if the linked document is not visible.
+
 1.7
 FIX: Content Links in revealed topics should only show links to REVEALED snippets/map_pins.
 FEATURE: Provide initial parsing of relevant topics to Items rather than Journal - only for PF1 at the moment.
