@@ -1821,7 +1821,7 @@ class RealmWorksImporter extends Application
 									if (port?.imgfilename)
 										actor.img = this.imageFilename(port.imgfilename);
 									actor.permission = { "default": is_revealed ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE };
-									actor.flags[GS_MODULE_NAME][GS_FLAGS_UUID] = uuid;
+									actor.flags = { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid } };
 									result.push(actor);
 								}
 							})
