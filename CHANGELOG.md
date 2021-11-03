@@ -4,8 +4,10 @@ FEATURE: Revealed snippets are identified to the GM in displayed documents by a 
 FEATURE: Revealed smart images can have their corresponding scene automatically made navigable (and their vision/fog disabled).
 FEATURE: For GMs, Relationships, Content Links and Governed Content will show REVEALED parts separately from the full list.
 FEATURE: Lots of CSS have been added to more closely match the Snippet Style in RW.
+FEATURE: Created Scenes, Actors and Tables are only made OBSERVABLE to players if the topic AND the snippet are both revealed.
+FEATURE: Snippets with both GM notes and non-GM notes will be grouped together in a box for GMs (in a similar presentation to RW).
 KNOWN BUG: Revealed state of map pins is ignored - only pins connected to non-revealed topics will be hidden on each scene.
-KNOWN BUG: All links are displayed in revealed snippets of revealed topics - even if the linked document is not visible.
+KNOWN BUG: All links are displayed in revealed snippets of revealed topics - even if the linked document is not revealed.
 
 1.7
 FIX: Content Links in revealed topics should only show links to REVEALED snippets/map_pins.
