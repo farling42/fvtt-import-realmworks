@@ -42,7 +42,24 @@ const GS_SCENE_REVEALED_NAVIGATION = "sceneRevealedNavigation";
 const GS_SCENE_TOKEN_VISION = "sceneTokenVision";
 
 const GS_FLAGS_UUID = "uuid";
-const GS_FLAGS_PIN_PERMISSION = "pinPermission";
+const GS_FLAGS_PIN_IS_REVEALED = "pinIsRevealed";
+
+//
+// Handle correct visibility of Notes on a Scene
+//
+
+let original_Note_refresh;
+function Note_refresh() {
+	original_Note_refresh.call(this);
+	// Hide the Note if the RW revealed flag is set to false
+	if (!game.user.isGM && this.visible) {
+		const value = this.document.data.flags[GS_MODULE_NAME]?.[GS_FLAGS_PIN_IS_REVEALED];
+		if (value !== undefined && !value) this.visible = false;
+	}
+	return this;
+}
+
+
 //
 // Register game settings
 //
@@ -205,6 +222,9 @@ Hooks.once('init', () => {
 		default: false,
 		config: false,
 	});
+
+	original_Note_refresh = Note.prototype.refresh;
+	Note.prototype.refresh = Note_refresh;
 })
 
 
@@ -720,7 +740,7 @@ class RealmWorksImporter extends Application
 	formatLink(topic_id, orig_link_text) {
 		let link_text, prefix="",suffix="";
 		if (orig_link_text) {
-			// TODO: Move any formatting in orig_link_text to OUTSIDE the JournalEntry directive
+			// Move any formatting in orig_link_text to OUTSIDE the JournalEntry directive
 			// (since {abc} won't be used as the link name if it contains HTML elements)
 			link_text = orig_link_text;
 			while (link_text.startsWith("<") && link_text.endsWith(">")) {
@@ -855,13 +875,10 @@ class RealmWorksImporter extends Application
 		let y_pad = this.scene_grid * Math.ceil((scenedata.height * scenedata.padding) / this.scene_grid);
 		//console.debug(`SCENE '${scenedata.name}': width=${scenedata.width}, height=${scenedata.height}, padding=${scenedata.padding}, x_pad=${x_pad}, y_pad=${y_pad}`);
 		for (const pin of smart_image.getElementsByTagName('map_pin')) {
-			// TODO - If map pin hasn't revealed, then we probably don't want to show it.
-			// Foundry doesn't display the PIN if the destination topic is not OBSERVABLE,
-			// but it doesn't allow us to control visibility of the PIN directly.
-			
-			let pin_topic_id = pin.getAttribute('topic_id');
-			// Pretend topic isn't linked, if the linked topic is not revealed
-			//if (apply_reveal && (!pin.getAttribute('is_revealed') || !this.revealed_topics.has(pin_topic_id))) pin_topic_id = null;
+			// Pin revealed state is handled by our hijacking of Note#refresh
+			let pin_topic_id    = pin.getAttribute('topic_id');
+			let pin_is_revealed = pin.hasAttribute('is_revealed');
+			//let pin_is_revealed = pin.hasAttribute('is_revealed') && (!pin_topic_id || this.revealed_topics.has(pin_topic_id));
 			
 			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
 			let entryid = this.document_for_topic.get(pin_topic_id)?.data._id;
@@ -870,22 +887,23 @@ class RealmWorksImporter extends Application
 			let label = '';
 			if (desc  && desc.length  > 0) label += '\n' + desc.replace('&#xd;\n','\n');
 			if (gmdir && gmdir.length > 0) label += '\nGMDIR: ' + gmdir.replace('&#xd;\n','\n');
+
 			
 			const notedata = {
 				name: pinname,
 				entryId: entryid,
 				x: x_pad + +pin.getAttribute('x'),
 				y: y_pad + +pin.getAttribute('y'),
-				icon: 'icons/svg/circle.svg',		// Where do we get a good icon?
+				icon:     pin_is_revealed ? 'icons/svg/circle.svg' : 'icons/svg/blind.svg',
 				iconSize: 32,		// minimum size 32
-				iconTint: entryid ? '#7CFC00' : '#c00000',
+				iconTint: entryid ? '#7CFC00' : '#c000c0',
 				// Embellish title if there is more to follow in the note
 				text: (label.length>0) ? `**${pinname}**${label}` : pinname,
 				fontSize: 24,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
 				scene: scene.id,
-				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_PIN_PERMISSION] : pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE }},
+				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_PIN_IS_REVEALED] : pin_is_revealed }},
 				//permission: { "default": pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 			};
 			notes.push(notedata);
@@ -1329,8 +1347,8 @@ class RealmWorksImporter extends Application
 					const portfolio = this.getChild(portasset, 'contents');    // <contents>
 					sectionHeader(portfolio);
 					if (portfolio) {
-						// TODO: for test purposes, extract all .por files!
-						//await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
+						// for test purposes, extract all .por files!
+						// await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
 						let first=true;
 						for (const [charname, character] of this.readPortfolio(portfolio.textContent)) {
 							if (first) { result += '<hr>'; first=false }
@@ -1596,7 +1614,7 @@ class RealmWorksImporter extends Application
 				let unique_ids = new Set();
 				let revealed_unique_ids = new Set();
 				for (const target_id of targets) {
-					if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
+					if (target_id.startsWith('Plot_')) continue;
 					unique_ids.add(target_id);
 					if (this.revealed_topics.has(target_id))
 						revealed_unique_ids.add(target_id);
@@ -1614,7 +1632,7 @@ class RealmWorksImporter extends Application
 				let revealed_unique_ids = new Set();
 				for (const link of links) {
 					let target_id = link.getAttribute("target_id");
-					if (target_id.startsWith('Plot_')) continue;	// TODO: ignore links to plots
+					if (target_id.startsWith('Plot_')) continue;
 					unique_ids.add(target_id);
 					if (this.revealed_topics.has(target_id) && this.linkIsRevealed(link))
 						revealed_unique_ids.add(target_id);
@@ -2235,7 +2253,6 @@ class RealmWorksImporter extends Application
 
 		// Asynchronously get the data for all the actors,
 		// don't CREATE the Actors until we've had a chance to remove duplicates
-		// TODO: if actors.length > 1 then put them inside a folder named after the topic.
 		// TODO: if this.overwriteExisting, then how will post_create_actors work when the actor might already have lots of things added to it?
 		await Promise.allSettled(actor_topics.map(async(topic_node) => {
 			let uuid = topic_node.getAttribute("original_uuid");
