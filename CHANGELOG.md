@@ -1,3 +1,10 @@
+1.9
+Don't display links in journals if the linked item is not observable by the player (just display the non-link text).
+Only display the "Realm Works Import" button for GMs.
+
+1.8.1
+Fix bug that stopped Actors being created from HL Portfolios
+
 1.8
 FEATURE: No longer requires "GM Notes" module for handling revealed topics.
 FEATURE: Revealed snippets are identified to the GM in displayed documents by a green bar on the left side.
