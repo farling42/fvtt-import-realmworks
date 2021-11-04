@@ -1,4 +1,9 @@
+1.10
+Don't include GM Directions in Notes that are displayed to players.
+Account for snippet annotations that might have links in them.
+
 1.9
+Only revealed map pins will be visible to players in scenes. For GMs, not-revealed pins will be displayed with a "blind" icon.
 Don't display links in journals if the linked item is not observable by the player (just display the non-link text).
 Only display the "Realm Works Import" button for GMs.
 

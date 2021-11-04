@@ -43,6 +43,7 @@ const GS_SCENE_TOKEN_VISION = "sceneTokenVision";
 
 const GS_FLAGS_UUID = "uuid";
 const GS_FLAGS_PIN_IS_REVEALED = "pinIsRevealed";
+const GS_FLAGS_PIN_GM_NOTE = "pinGmNote";
 
 //
 // Handle correct visibility of Notes on a Scene
@@ -51,12 +52,66 @@ const GS_FLAGS_PIN_IS_REVEALED = "pinIsRevealed";
 let original_Note_refresh;
 function Note_refresh() {
 	original_Note_refresh.call(this);
+	// Don't do anything if it isn't one of OUR notes
+	const flags = this.document.data.flags[GS_MODULE_NAME];
+	if (!flags) {
+		console.debug(`Note_refresh: no flags`);
+		return this;
+	}
 	// Hide the Note if the RW revealed flag is set to false
 	if (!game.user.isGM && this.visible) {
-		const value = this.document.data.flags[GS_MODULE_NAME]?.[GS_FLAGS_PIN_IS_REVEALED];
+		const value = flags[GS_FLAGS_PIN_IS_REVEALED];
 		if (value !== undefined && !value) this.visible = false;
 	}
 	return this;
+}
+
+// Ideally we'd override only Note#text to return GM-notes for Note tooltip, 
+// but since that isn't possible we have to override Note#_drawTooltip instead :-(
+
+let original_Note_drawTooltip;
+function Note_drawTooltip() {	
+	let newtext = this.text;
+	if (game.user.isGM)
+	{
+		const flags = this.document.data.flags[GS_MODULE_NAME];
+		if (flags) {
+			const value = flags[GS_FLAGS_PIN_GM_NOTE];
+			if (value) newtext = value;
+		}
+	}
+
+	// The following is a copy of Note#_drawTooltip() except
+    // Create the Text object
+    const textStyle = this._getTextStyle();
+    const text = new PreciseText(/*this.text*/ newtext, textStyle);
+    text.visible = false;
+    const halfPad = (0.5 * this.size) + 12;
+
+    // Configure Text position
+    switch ( this.data.textAnchor ) {
+      case CONST.TEXT_ANCHOR_POINTS.CENTER:
+        text.anchor.set(0.5, 0.5);
+        text.position.set(0, 0);
+        break;
+      case CONST.TEXT_ANCHOR_POINTS.BOTTOM:
+        text.anchor.set(0.5, 0);
+        text.position.set(0, halfPad);
+        break;
+      case CONST.TEXT_ANCHOR_POINTS.TOP:
+        text.anchor.set(0.5, 1);
+        text.position.set(0, -halfPad);
+        break;
+      case CONST.TEXT_ANCHOR_POINTS.LEFT:
+        text.anchor.set(1, 0.5);
+        text.position.set(-halfPad, 0);
+        break;
+      case CONST.TEXT_ANCHOR_POINTS.RIGHT:
+        text.anchor.set(0, 0.5);
+        text.position.set(halfPad, 0);
+        break;
+    }
+    return text;
 }
 
 
@@ -225,6 +280,9 @@ Hooks.once('init', () => {
 
 	original_Note_refresh = Note.prototype.refresh;
 	Note.prototype.refresh = Note_refresh;
+	
+	original_Note_drawTooltip = Note.prototype._drawTooltip;
+	Note.prototype._drawTooltip = Note_drawTooltip;
 })
 
 
@@ -267,8 +325,12 @@ function htmlsection(classname,revealed=NO_STATE) {
 function header(lvl, name) {
 	return `<h${lvl}>${name}</h${lvl}>`;
 }
+// Strip all HTML from the string.
+function stripHtml(original) {
+	return original.replace(/<[^>]+>/g, '');
+}
 function formatAnnotation(annotation) {
-	return span("RWannotation", stripHtml(annotation.textContent));
+	return span("RWannotation", stripHtml(annotation));
 }
 function labelledField(label, content, annotation=null) {
 	let body = span("RWlabel", `${label}: `);
@@ -288,10 +350,6 @@ function stripPara(original) {
 		if (!result.includes('<p')) return result;
 	}
 	return original;
-}
-// Strip all HTML from the string.
-function stripHtml(original) {
-	return original.replace(/<[^>]+>/g, '');
 }
 //
 // Convert Utf8Array to UTF-8 string
@@ -882,14 +940,10 @@ class RealmWorksImporter extends Application
 			
 			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
 			let entryid = this.document_for_topic.get(pin_topic_id)?.data._id;
-			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent;
-			let gmdir   = pin.getElementsByTagName('gm_directions')?.[0]?.textContent;
-			let label = '';
-			if (desc  && desc.length  > 0) label += '\n' + desc.replace('&#xd;\n','\n');
-			if (gmdir && gmdir.length > 0) label += '\nGMDIR: ' + gmdir.replace('&#xd;\n','\n');
-
+			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent?.replace('&#xd;\n','\n');
+			let gmdir   = pin.getElementsByTagName('gm_directions')?.[0]?.textContent?.replace('&#xd;\n','\n');
 			
-			const notedata = {
+			let notedata = {
 				name: pinname,
 				entryId: entryid,
 				x: x_pad + +pin.getAttribute('x'),
@@ -897,15 +951,15 @@ class RealmWorksImporter extends Application
 				icon:     pin_is_revealed ? 'icons/svg/circle.svg' : 'icons/svg/blind.svg',
 				iconSize: 32,		// minimum size 32
 				iconTint: entryid ? '#7CFC00' : '#c000c0',
-				// Embellish title if there is more to follow in the note
-				text: (label.length>0) ? `**${pinname}**${label}` : pinname,
+				text: desc ? `**${pinname}**\n` + desc : pinname,
 				fontSize: 24,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
 				scene: scene.id,
-				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_PIN_IS_REVEALED] : pin_is_revealed }},
+				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_PIN_IS_REVEALED] : pin_is_revealed }}			
 				//permission: { "default": pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 			};
+			if (gmdir) notedata.flags[GS_MODULE_NAME][GS_FLAGS_PIN_GM_NOTE] = (desc ? notedata.text : `**${pinname}**`) + '\nGMDIR: ' + gmdir;
 			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
 		}
@@ -1246,8 +1300,10 @@ class RealmWorksImporter extends Application
 				const style      = child.getAttribute('style') ?? "Normal";
 				const contents   = this.getChild(child, 'contents');
 				const gmdir      = this.getChild(child, 'gm_directions');
-				const annotation = this.getChild(child, 'annotation');
+				const links      = child.getElementsByTagName('link');
 				const label      = child.getAttribute('label') ?? this.structure.facets.get(child.getAttribute('facet_id'));
+				let   annotation = this.getChild(child, 'annotation');
+				if (annotation) annotation = this.replaceLinks(annotation.textContent, links);
 				
 				let need_close_section = false;
 				function sectionHeader(normalheader) {
@@ -1259,7 +1315,7 @@ class RealmWorksImporter extends Application
 						need_close_section = true;
 					}
 					if (gmdir) {
-						result += htmlsection("gmDirections", IS_SECRET) + functhis.replaceLinks(gmdir.textContent, child.getElementsByTagName('link'), /*direction*/ "1") + END_SECTION;
+						result += htmlsection("gmDirections", IS_SECRET) + functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1") + END_SECTION;
 					}
 				}
 				
@@ -1267,7 +1323,7 @@ class RealmWorksImporter extends Application
 				case "Multi_Line":
 					sectionHeader(contents);
 					if (contents) {
-						let text = this.replaceLinks(contents.textContent, child.getElementsByTagName('link'));
+						let text = this.replaceLinks(contents.textContent, links);
 						result += text;
 						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output.
 						result += await this.createTable(topic, section_name, text, topic.getAttribute('is_revealed') && is_revealed);
@@ -1277,14 +1333,14 @@ class RealmWorksImporter extends Application
 					sectionHeader(contents);
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += labelledField(label, stripPara(this.replaceLinks(contents.textContent, child.getElementsByTagName('link'))), annotation);
+						result += labelledField(label, stripPara(this.replaceLinks(contents.textContent, links)), annotation);
 					}
 					break;
 				case "Numeric":
 					sectionHeader(contents);
 					if (contents) {
 						// contents will hold just a number
-						result += labelledField(label, this.replaceLinks(contents.textContent, child.getElementsByTagName('link')), annotation);
+						result += labelledField(label, this.replaceLinks(contents.textContent, links), annotation);
 					}
 					break;
 				case "Tag_Standard":
@@ -1552,7 +1608,8 @@ class RealmWorksImporter extends Application
 						text += span("RWrelationshipAttitude", attitude);
 					else if (rating)  // rating is a number, attitude is the string for the rating
 						text += span("RWrelationshipRating", rating);
-					if (annot.length > 0) text += formatAnnotation(annot[0]);
+					// No links possible in the annotation of a relationship.
+					if (annot.length > 0) text += formatAnnotation(annot[0].textContent);
 					
 					text += ': ' + this.formatLink(target_id, cname);
 					connections.push({cname, text});
