@@ -1,6 +1,7 @@
 1.10
 Don't include GM Directions in Notes that are displayed to players.
 Account for snippet annotations that might have links in them.
+Veracity (Truth) of snippets is displayed to GMs (dashed border for Partial Truth, solid border for Lie)
 
 1.9
 Only revealed map pins will be visible to players in scenes. For GMs, not-revealed pins will be displayed with a "blind" icon.

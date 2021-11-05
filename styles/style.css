@@ -9,14 +9,27 @@ section.secret {
 form.editable section.gmDirAndContents {
 	/* snippet with both GM-directions and non-GM content - only to be seen by GMs */
 	/* This must appear BEFORE section.revealed, to get correct REVEALED indication */
-	border: 2px solid #b4b4b4;
-	padding: 2px;
+	border:  3px solid #b4b4b4;
+	padding: 3px;
+	margin:  2px 0px;
+}
+form.editable section.revealed {
+	/* Revealed background could be overridden by veracity */
+	background: #d0e5d380;   /* The RW colour for revealed snippets */
+}
+form.editable section.veracity-Partial {
+	border: 3px dashed #e4b5e4;
+	background: #00000000;	/* no background */
+	margin: 2px 0px;
+}
+form.editable section.veracity-Lie {
+	border: 3px solid #e7c2e8;
+	background: #00000000;	/* no background */
 	margin: 2px 0px;
 }
 form.editable section.revealed {
 	/* Only show REVEALED state to GM (form.editable) - might not work in LOCKED compendium */
 	border-left: 5px solid green;
-	background: #d0e5d380;   /* The RW colour for revealed snippets */
 	padding-left: 3px;
 }
 /* The first set are for the STYLE chosen in RW: Normal, Callout, Handout, Flavor, Read-Aloud */

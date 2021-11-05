@@ -1302,6 +1302,7 @@ class RealmWorksImporter extends Application
 				const gmdir      = this.getChild(child, 'gm_directions');
 				const links      = child.getElementsByTagName('link');
 				const label      = child.getAttribute('label') ?? this.structure.facets.get(child.getAttribute('facet_id'));
+				const veracity   = child.getAttribute('veracity');
 				let   annotation = this.getChild(child, 'annotation');
 				if (annotation) annotation = this.replaceLinks(annotation.textContent, links);
 				
@@ -1311,6 +1312,7 @@ class RealmWorksImporter extends Application
 						result += '<section class="';
 						if (gmdir) result += "gmDirAndContents ";
 						result += is_revealed ? "revealed " : "secret ";
+						if (veracity) result += `veracity-${veracity} `;
 						result += style + '">';
 						need_close_section = true;
 					}
