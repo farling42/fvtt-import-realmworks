@@ -114,6 +114,60 @@ function Note_drawTooltip() {
     return text;
 }
 
+const RW_editor_options = {
+	title: "RW Blocks",
+	items : [
+		{
+			title: "Veracity: Partial Truth",
+			block: 'section',
+			classes: 'veracity-Partial',
+			wrapper: true
+		},
+		{
+			title: "Veracity: Lie",
+			block: 'section',
+			classes: 'veracity-Lie',
+			wrapper: true
+		},
+		{
+			title: "Style: Callout",
+			block: 'section',
+			classes: 'Callout',
+			wrapper: true
+		},
+		{
+			title: "Style: Handout",
+			block: 'section',
+			classes: 'Handout',
+			wrapper: true
+		},
+		{
+			title: "Style: Flavor",
+			block: 'section',
+			classes: 'Flavor',
+			wrapper: true
+		},
+		{
+			title: "Style: Read Aloud",
+			block: 'section',
+			classes: 'Read_Aloud',
+			wrapper: true
+		},
+		{
+			title: "Style: GM Directions",
+			block: 'section',
+			classes: 'gmDirections',
+			wrapper: true
+		},
+		{
+			title: "Block: GM Directions & Contents",
+			block: 'section',
+			classes: 'gmDirAndContents',
+			wrapper: true,
+			exact:   true   /* Prevent removal of other nested sections */
+		},	
+	]
+};
 
 //
 // Register game settings
@@ -283,6 +337,14 @@ Hooks.once('init', () => {
 	
 	original_Note_drawTooltip = Note.prototype._drawTooltip;
 	Note.prototype._drawTooltip = Note_drawTooltip;
+	
+	// New sections for the editor
+	CONFIG.TinyMCE.style_formats.push(RW_editor_options);
+	// From World Smiths Toolkit
+	//CONFIG.TinyMCE.plugins += " searchreplace visualchars visualblocks textpattern preview template";
+    //CONFIG.TinyMCE.toolbar += " | searchreplace template";
+    //CONFIG.TinyMCE.visualchars_default_state = true;
+    //CONFIG.TinyMCE.visualblocks_default_state = true;
 })
 
 
@@ -300,54 +362,56 @@ Hooks.on("renderSidebarTab", async (app, html) => {
     }
 })
 
-// Basic HTML constructs
-const END_SECTION = '</section>';
 //
 // Utility functions which aren't required inside the class
 //
-function span(classname,body) {
-	return `<span class="${classname}">${body}</span>`;
+function hstrong(string) {
+	return `<strong>${string}</strong>`;
 }
-function paragraph(classname,body) {
-	return `<p class="${classname}">${body}</p>`;
+function hitalic(string) {
+	return `<em>${string}</em>`;
 }
-const IS_SECRET = 0;
-const IS_REVEALED = 1;
-const NO_STATE = null;
-function htmlsection(classname,revealed=NO_STATE) {
-	if (revealed===NO_STATE)
-		return `<section class="${classname}">`;
-	else if (revealed)
-		return `<section class="${classname} revealed">`;
+function hlabel(string) {
+	return `<strong>${string}</strong>: `;
+}
+function hqualifier(string) {
+	return ` <em>(${string})</em>`;
+}
+function hpara(body) {
+	return `<p>${body}</p>`;
+}
+function hnamedsection(name, revealed, body) {
+	if (revealed)
+		return `<section class="${name}">${body}</section>`;
 	else
-		return `<section class="${classname} secret">`;
+		return `<section class="${name} secret">${body}</section>`;
+}
+function hsection(revealed, body) {
+	if (revealed)
+		/*return `<section>${body}</section>`;*/
+		return body;
+	else
+		return `<section class="secret">${body}</section>`;
 }
 function header(lvl, name) {
 	return `<h${lvl}>${name}</h${lvl}>`;
 }
+function hannot(annotation) {
+	return `; <em>${stripHtml(annotation)}</em>`;
+}
+function labelledField(label, content, annotation=null) {
+	let body = hlabel(label);
+	if (content) body += content;
+	if (annotation) body += hannot(annotation);
+	return hpara(body);
+}	
 // Strip all HTML from the string.
 function stripHtml(original) {
 	return original.replace(/<[^>]+>/g, '');
 }
-function formatAnnotation(annotation) {
-	return span("RWannotation", stripHtml(annotation));
-}
-function labelledField(label, content, annotation=null) {
-	let body = span("RWlabel", `${label}: `);
-	if (content) body += content;
-	if (annotation) body += formatAnnotation(annotation);
-	return paragraph("RWDefault",body);
-}	
-
-// If the paragraph contains only a single Realm Works paragraph+span, then replace with a simple paragraph
-// Strip <p class="RWDefault"><span class="RWSnippet">...</span></p> from the supplied text
 function stripPara(original) {
-	const prefix = '<p class="RWDefault"><span class="RWSnippet">';
-	const suffix = '</span></p>';
-	if (original && original.startsWith(prefix) && original.endsWith(suffix)) {
-		const result = original.slice(prefix.length, -suffix.length);
-		// Don't do it if there is another paragraph in the middle
-		if (!result.includes('<p')) return result;
+	if (original.startsWith('<p>') && original.endsWith('</p>')) {
+		return original.slice(3,-4);
 	}
 	return original;
 }
@@ -392,15 +456,15 @@ class RealmWorksImporter extends Application
 {
 	// document_for_topic is a map: key = topic_id, value = JournalEntry
 	static ConnectionName = {
-		Arbitrary:           span("RWrelationship", "Arbitrary connection to"),
-		Generic:             span("RWrelationship", "Simple connection to"),
-		Union:               span("RWrelationship", "Family Relationship to") + span("RWrelationshipQualifier", "Union with"),
-		Parent_To_Offspring: span("RWrelationship", "Family Relationship to") + span("RWrelationshipQualifier", "Immediate Ancestor of"),
-		Offspring_To_Parent: span("RWrelationship", "Family Relationship to") + span("RWrelationshipQualifier", "Offspring of"),
-		Master_To_Minion:    span("RWrelationship", "Comprises or Encompasses"),
-		Minion_To_Master:    span("RWrelationship", "Belongs To or Within"),
-		Public_Attitude_Towards:  span("RWrelationship", "Public Attitude Towards"),
-		Private_Attitude_Towards: span("RWrelationship", "Private Attitude Towards"),
+		Arbitrary:           hstrong("Arbitrary connection to"),
+		Generic:             hstrong("Simple connection to"),
+		Union:               hstrong("Family Relationship to") + hqualifier("Union with"),
+		Parent_To_Offspring: hstrong("Family Relationship to") + hqualifier("Immediate Ancestor of"),
+		Offspring_To_Parent: hstrong("Family Relationship to") + hqualifier("Offspring of"),
+		Master_To_Minion:    hstrong("Comprises or Encompasses"),
+		Minion_To_Master:    hstrong("Belongs To or Within"),
+		Public_Attitude_Towards:  hstrong("Public Attitude Towards"),
+		Private_Attitude_Towards: hstrong("Private Attitude Towards"),
 	}
 
 	// Foundry VTT default options for the dialogue window,
@@ -1114,15 +1178,28 @@ class RealmWorksImporter extends Application
 		// Too much effort to remove <span> and </span> tags, so just simplify.
 		// Replace <span class="RWSnippet">...</span> with just the ...
 		// Replace <span>...</span> with just the ...
-		return original;
-			//replaceAll(/<span class="RWSnippet">/g,'<span>').
-			//replaceAll(/<span>([^<]*)<\/span>/g,'$1').
-			//replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
-			//replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<strong>$1</strong>').
-			//replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<em>$1</em>').
-			//replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
-			//replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
-			//replaceAll(/<p class="RWDefault">/g,'<p>');
+		let result = original.
+			replaceAll(/<span class="RWSnippet">/g,'<span>').
+			replaceAll(/<span>([^<]*)<\/span>/g,'$1').
+			replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
+			replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<strong>$1</strong>').
+			replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<em>$1</em>').
+			replaceAll(/<span class="RWSnippet" /g,'<span ').
+			replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
+			replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
+			replaceAll(/<p class="RWDefault">/g,'<p>').
+			replaceAll(/<p class="RWDefault" /g,'<p ').
+			replaceAll(/<p class="RWSnippet">/g,'<p>').
+			replaceAll(/<p class="RWSnippet" /g,'<p ').
+			replaceAll(/<p class="RWBullet">(.*?)<\/p>/g, '<ul><li>$1</li></ul>').
+			replaceAll(/<p class="RWEnumerated">(.*?)<\/p>/g, '<ol><li>$1</li></ol>').
+			replaceAll(/<\/ul><ul>/g,'').		// Two consecutive RWBullet, so merge into a single ul list
+			replaceAll(/<\/ol><ol>/g,'');		// Two consecutive RWEnumberated, so merge into a single ol list
+
+		// Replace <p class="RWBullet"> sequence with <ul><li>text</li></ul>
+		// Replace <p class="RWEnumated"> sequence with <ol><li>text</li><ol>
+		
+		return result;
 	}
 		
 	async createTable(topic, section_name, string, is_revealed) {
@@ -1270,7 +1347,7 @@ class RealmWorksImporter extends Application
 				table = await RollTable.create(tabledata).catch(e => console.warn(`Failed to create roll table '${tabledata.name}' due to ${e}`));
 			}
 			// Add the new table to the HTML to be returned
-			result += paragraph("RWDefault", `@RollTable[${table.id}]{${table.name}}`);
+			result += hpara(`@RollTable[${table.id}]{${table.name}}`);
 		}
 		
 		return result;
@@ -1297,7 +1374,7 @@ class RealmWorksImporter extends Application
 
 				// Collect all the information from the snippet
 				const sntype     = child.getAttribute('type');
-				const style      = child.getAttribute('style') ?? "Normal";
+				const style      = child.getAttribute('style');
 				const contents   = this.getChild(child, 'contents');
 				const gmdir      = this.getChild(child, 'gm_directions');
 				const links      = child.getElementsByTagName('link');
@@ -1309,15 +1386,19 @@ class RealmWorksImporter extends Application
 				let need_close_section = false;
 				function sectionHeader(normalheader) {
 					if (normalheader) {
-						result += '<section class="';
-						if (gmdir) result += "gmDirAndContents ";
-						result += is_revealed ? "revealed " : "secret ";
-						if (veracity) result += `veracity-${veracity} `;
-						result += style + '">';
-						need_close_section = true;
+						let classes="";
+						if (gmdir)        classes += "gmDirAndContents ";
+						if (!is_revealed) classes += "secret ";
+						if (veracity)     classes += `veracity-${veracity} `;
+						if (style)        classes += style;
+						
+						if (classes) {
+							result += `<section class="${classes}">`;
+							need_close_section = true;
+						}
 					}
 					if (gmdir) {
-						result += htmlsection("gmDirections", IS_SECRET) + functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1") + END_SECTION;
+						result += hnamedsection("gmDirections", false, functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1")));
 					}
 				}
 				
@@ -1326,7 +1407,7 @@ class RealmWorksImporter extends Application
 					sectionHeader(contents);
 					if (contents) {
 						let text = this.replaceLinks(contents.textContent, links);
-						result += text;
+						result += this.simplifyPara(text);
 						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output.
 						result += await this.createTable(topic, section_name, text, topic.getAttribute('is_revealed') && is_revealed);
 					}
@@ -1335,7 +1416,7 @@ class RealmWorksImporter extends Application
 					sectionHeader(contents);
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += labelledField(label, stripPara(this.replaceLinks(contents.textContent, links)), annotation);
+						result += labelledField(label, stripPara(this.simplifyPara(this.replaceLinks(contents.textContent, links))), annotation);
 					}
 					break;
 				case "Numeric":
@@ -1442,14 +1523,14 @@ class RealmWorksImporter extends Application
 							result += atob(bin_contents.textContent);
 						else if (sntype === "Picture") {
 							await this.uploadFile(bin_filename, bin_contents.textContent);
-							result += paragraph("RWDefault", `<img src='${this.imageFilename(bin_filename)}'></img>`);
+							result += hpara(`<img src='${this.imageFilename(bin_filename)}'></img>`);
 						} else {
 							let format = 'binary/octet-stream';
 							if (fileext === 'pdf') {
 								format = 'application/pdf';
 							}
 							await this.uploadFile(bin_filename, bin_contents.textContent);
-							result += paragraph("RWDefault", `<a href='${this.imageFilename(bin_filename)}'></a>`);
+							result += hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
 						}
 					}
 					break;
@@ -1471,11 +1552,11 @@ class RealmWorksImporter extends Application
 					if (map_format && map_contents) {
 						result += header(numbering.length+1, smart_image.getAttribute('name'));
 						await this.uploadFile(map_filename, map_contents.textContent);
-						result += paragraph("RWDefault", `<img src='${this.imageFilename(map_filename)}'></img>`);
+						result += hpara(`<img src='${this.imageFilename(map_filename)}'></img>`);
 
 						// Create the scene now
 						await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
-							.then(sceneid => result += paragraph("RWDefault", `@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
+							.then(sceneid => result += hpara(`@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
 							.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
 					}
 					break;
@@ -1487,7 +1568,7 @@ class RealmWorksImporter extends Application
 				} // switch sntype
 				
 				if (need_close_section) {
-					result += END_SECTION;
+					result += '</section>';
 				}
 			}
 		} // for children
@@ -1505,17 +1586,13 @@ class RealmWorksImporter extends Application
 			}
 		}
 
-		// The section header needs to be revealed if any of its children were revealed.
-		if (this.section_numbering)
-			result = header(numbering.length, numbering.join('.') + '. ' + section_name) + result;
-		else
-			result = header(numbering.length, section_name) + result;
-			
-		if (is_all_secret) result = htmlsection("", IS_SECRET) + result + END_SECTION;
+		// The section header needs to be hidden if ALL of its children are hidden.
+		let hdg = header(numbering.length, (this.section_numbering ? (numbering.join('.') + '. ') : "") + section_name);
+		if (is_all_secret) hdg = hsection(false, hdg);
 		
 		return { 
 			secret: is_all_secret,
-			html  : result };
+			html  : hdg + result };
 	}
 
 	addDescendents(depth, top_id, only_revealed) {
@@ -1546,12 +1623,12 @@ class RealmWorksImporter extends Application
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
 		// Start the HTML with the category of the topic
-		let html = htmlsection("RWcategory", IS_REVEALED) + labelledField("Category", this.category_of_topic.get(topic_id)) + END_SECTION;
+		let html = labelledField("Category", this.category_of_topic.get(topic_id));
 		
 		// Put PARENT information into the topic (if required)
 		const parent_id = this.parent_map.get(topic_id);
 		if (parent_id) {
-			html += htmlsection("RWparent", this.revealed_topics.has(parent_id)) + labelledField(this.governing_content_label, this.formatLink(parent_id, null)) + END_SECTION;
+			html += hsection(this.revealed_topics.has(parent_id), labelledField(this.governing_content_label, this.formatLink(parent_id, null)));
 		}
 
 		// Generate the HTML for the sections within the topic
@@ -1562,12 +1639,12 @@ class RealmWorksImporter extends Application
 			switch (node.nodeName) {
 			case 'alias':
 				// These come first
-				html += htmlsection("RWalias", node.hasAttribute('is_revealed'));
+				let alias;
 				if (node.getAttribute('is_true_name') === 'true')
-					html += paragraph("RWtrueName", span("RWlabel", "True Name: ") + span("RWalias", node.getAttribute('name')));
+					alias = `<p style="text-decoration: underline">${hitalic(hlabel("True Name") + node.getAttribute('name'))}</p>`;
 				else
-					html += paragraph("RWalias", span("RWlabel", "Alias: ") + span("RWalias", node.getAttribute('name')));
-				html += END_SECTION;
+					alias = `<p>${hitalic(hlabel("Alias") + node.getAttribute('name'))}</p>`;
+				html += hsection(node.hasAttribute('is_revealed'), alias);
 				break;
 			case 'section':
 				// Always process sections, to properly process revealed status
@@ -1605,13 +1682,13 @@ class RealmWorksImporter extends Application
 							let quals = qualifier.split(' / ');
 							if (quals.length > 1) qualifier = quals[1];
 						}
-						text += span("RWrelationshipQualifier", qualifier);
+						text += hqualifier(qualifier);
 					} else if (attitude)
-						text += span("RWrelationshipAttitude", attitude);
+						text += hqualifier(attitude);
 					else if (rating)  // rating is a number, attitude is the string for the rating
-						text += span("RWrelationshipRating", rating);
+						text += hqualifier(rating);
 					// No links possible in the annotation of a relationship.
-					if (annot.length > 0) text += formatAnnotation(annot[0].textContent);
+					if (annot.length > 0) text += hannot(annot[0].textContent);
 					
 					text += ': ' + this.formatLink(target_id, cname);
 					connections.push({cname, text});
@@ -1624,24 +1701,23 @@ class RealmWorksImporter extends Application
 		
 		// Add the (revealed) CONNECTIONS (prefix/suffix are APPENDED)
 		if (connections.length > 0) {
-			html += htmlsection("RWrelationships", (revealed_connections.length === 0) ? IS_SECRET : NO_STATE) + header(1,'Relationships');
+			html += hsection(revealed_connections.length, header(1,'Relationships'));
 			
 			if (revealed_connections.length > 0) {
-				html += htmlsection("RWrelationshipsGroup", IS_REVEALED) + '<ul>';
+				let content = "";
 				for (const connection of revealed_connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
-					html += '<li>' + connection.text + '</li>';
+					content += '<li>' + connection.text + '</li>';
 				}
-				html += '</ul>' + END_SECTION;
+				html += hsection(true, `<ul>${content}</ul>`);
 			}
 			
 			if (connections.length > revealed_connections.length) {
-				html += htmlsection("RWrelationshipsGroup", IS_SECRET) + '<ul>';
+				let content = "";
 				for (const connection of connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
-					html += '<li>' + connection.text + '</li>';
+					content += '<li>' + connection.text + '</li>';
 				}
-				html += '</ul>' + END_SECTION;
+				html += hsection(false, `<ul>${content}</ul>`);
 			}
-			html += END_SECTION;
 		}
 		
 		// New we do the CONTENT LINKS (prefix/suffix are APPENDED)
@@ -1656,15 +1732,13 @@ class RealmWorksImporter extends Application
 				return p1.name ? (p2.name ? p1.name.localeCompare(p2.name, undefined, {numeric: true}) : -1) : p2.name ? 1 : 0;
 			}).map(ref => { return functhis.formatLink(ref.topic_id, ref.name); }).join(' ');
 			
-			let result = htmlsection("RWcontentlinks", (revealed_links.length===0) ? IS_SECRET : NO_STATE) + header(1,`Content Links: ${dir}`);
-
+			let result = "";
 			if (revealed_links.length > 0)
-				result += htmlsection("RWconnections", IS_REVEALED) + '<p>' + rev_links + '</p>' + END_SECTION;
+				result += hsection(true, `<p>${rev_links}</p>`);
 			if (links.length > revealed_links.length)
-				result += htmlsection("RWconnections", IS_SECRET) + '<p>' + all_links + '</p>' + END_SECTION;
-				
-			result += END_SECTION;
-			return result;
+				result += hsection(false, `<p>${all_links}</p>`);
+
+			return hsection(revealed_links.length, header(1,`Content Links: ${dir}`)) + result;
 		}
 			
 		if (this.addInboundLinks) {
@@ -1709,14 +1783,13 @@ class RealmWorksImporter extends Application
 			let revealed_gov_content = this.addDescendents(this.governed_max_depth, topic_id, true);
 			let hidden_gov_content   = this.addDescendents(this.governed_max_depth, topic_id, false);
 
-			html += htmlsection("RWgovernedContent", (revealed_gov_content.length===0) ? IS_SECRET : NO_STATE);
-			html += header(1, 'Governed Content');
-			
+			let result = "";
 			if (revealed_gov_content.length > 0)
-				html += htmlsection("RWgovernedContentGroup", IS_REVEALED) + revealed_gov_content + END_SECTION;
+				result += hsection(true, revealed_gov_content);
 			if (hidden_gov_content.length > revealed_gov_content.length)
-				html += htmlsection("RWgovernedContentGroup", IS_SECRET) + hidden_gov_content + END_SECTION;
-			html += END_SECTION;
+				result += hsection(false, hidden_gov_content);
+			
+			html += hsection(revealed_gov_content.length, header(1, 'Governed Content')) + result;
 		}
 		return html;
 	}

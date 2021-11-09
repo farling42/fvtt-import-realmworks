@@ -1,40 +1,19 @@
 /* The various sections used in the decoded RW documents */
-section.secret {
-	/* UNDO the standard Foundry SECRET formatting */
-	background: #00000000;
-	border-top: 0px;
-	border-bottom: 0px;
-	padding-left: 8px; /* Align with our REVEALED flag formatting */
-}
 form.editable section.gmDirAndContents {
-	/* snippet with both GM-directions and non-GM content - only to be seen by GMs */
-	/* This must appear BEFORE section.revealed, to get correct REVEALED indication */
+	/* Only to be seen by GMs - snippet with both GM-directions and non-GM content */
 	border:  3px solid #b4b4b4;
 	padding: 3px;
 	margin:  2px 0px;
 }
-form.editable section.revealed {
-	/* Revealed background could be overridden by veracity */
-	background: #d0e5d380;   /* The RW colour for revealed snippets */
-}
 form.editable section.veracity-Partial {
+	/* Only seen by the GMs */
 	border: 3px dashed #e4b5e4;
-	background: #00000000;	/* no background */
 	margin: 2px 0px;
 }
 form.editable section.veracity-Lie {
+	/* Only seen by the GMs */
 	border: 3px solid #e7c2e8;
-	background: #00000000;	/* no background */
 	margin: 2px 0px;
-}
-form.editable section.revealed {
-	/* Only show REVEALED state to GM (form.editable) - might not work in LOCKED compendium */
-	border-left: 5px solid green;
-	padding-left: 3px;
-}
-/* The first set are for the STYLE chosen in RW: Normal, Callout, Handout, Flavor, Read-Aloud */
-section.Normal, section.Callout, section.Handout, section.Flavor, section.Read_Aloud, section.gmDirAndContents, section.gmDirections {
-	/*font-family: tahoma;*/
 }
 section.Callout, section.Handout, section.Flavor, section.Read_Aloud {
 	padding: 1px;
@@ -62,71 +41,4 @@ section.gmDirections {
 	background: #fffbed80;
 	border: 2px solid #d2c5b5;
 	padding: 0px 3px;
-}
-section.RWcategory, section.RWparent, section.RWrelationships, section.RWcontentlinks, section.RWgovernedContent, section.RWalias {
-	/* RWcategory: For the "Category: <name>" definition at the TOP of each journal entry */
-	/* RWparent:   For the "Parent: <name>" at the TOP of each journal entry */
-	/*font-family: tahoma;*/
-}
-section.RWrelationships {
-	background:	#20002020;
-}
-section.RWcontentlinks {
-	background:	#20200020;
-}
-section.RWgovernedContent {
-	background:	#00202020;
-}
-
-/* The various paragraphs used in the decoded RW documents */
-p.RWDefault {
-	;
-}
-p.RWSnippet {
-	;
-}
-p.RWBullet:before {
-    content:"• ";
-}
-p.RWBullet {
-	;
-}
-p.RWEnumerated {
-	;
-}
-p.RWtrueName {
-	font-style: italic;
-	text-decoration: underline;
-}
-p.RWalias {
-	font-style: italic;
-}
-
-/* The various spans used in the decoded RW documents */
-span.RWSnippet {
-	;
-}
-
-span.RWannotation:before {
-	content: "; ";
-}
-span.RWannotation {
-	font-style: italic;
-}
-span.RWlabel {
-	font-weight: bold;
-}
-span.RWrelationship {
-	font-weight: bold;
-}
-span.RWrelationshipQualifier:before, span.RWrelationshipAttitude:before, span.RWrelationshipRating:before {
-	content: " (";
-	font-style: italic;
-}
-span.RWrelationshipQualifier, span.RWrelationshipAttitude, span.RWrelationshipRating {
-	font-style: italic;
-}
-span.RWrelationshipQualifier:after, span.RWrelationshipAttitude:after, span.RWrelationshipRating:after {
-	content: ")";
-	font-style: italic;
 }

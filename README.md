@@ -38,6 +38,13 @@ Each *Table* within RW topics will be examined to see if it can be used to creat
 
 Any parent topic in the RWoutput file will have a list of governed content at the end of the page which contains links to the descendent topics (the maximum depth of the descendents can be configured in the module settings); and child topics will have a "governing content" added at the top of the journal entry.
 
+## Additional Presentation
+
+The *Text Editor* has some additional options under the "RW Blocks" which allow paragraphs to be displayed in the Veracity (Partial Truth/Lie) and/or Style (Callout, Handout, Flavor, Read-Aloud).
+
+![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
+
+
 ## Libraries
 This module uses the following libraries from other sources:
 - UZIP for decoding HL portfolio files (MIT/GPLv3 license, from https://stuk.github.io/jszip/)
