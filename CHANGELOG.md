@@ -1,3 +1,8 @@
+1.11
+Go back to minimal HTML. Remove most of the CSS styling.
+Add Veracity and Style block styles to the text editor.
+Add a picture to the README.md file to show the formatted text.
+
 1.10
 Don't include GM Directions in Notes that are displayed to players.
 Account for snippet annotations that might have links in them.
