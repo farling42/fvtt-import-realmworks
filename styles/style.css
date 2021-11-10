@@ -1,6 +1,5 @@
-/* The various sections used in the decoded RW documents */
+/* Formmating ONLY for GMs */
 form.editable section.gmDirAndContents {
-	/* Only to be seen by GMs - snippet with both GM-directions and non-GM content */
 	border:  3px solid #b4b4b4;
 	padding: 3px;
 	margin:  2px 0px;
@@ -15,6 +14,7 @@ form.editable section.veracity-Lie {
 	border: 3px solid #e7c2e8;
 	margin: 2px 0px;
 }
+/* Formatting for ALL users */
 section.Callout, section.Handout, section.Flavor, section.Read_Aloud {
 	padding: 1px;
 	margin: 2px 0px;
@@ -41,4 +41,23 @@ section.gmDirections {
 	background: #fffbed80;
 	border: 2px solid #d2c5b5;
 	padding: 0px 3px;
+}
+/*
+ * Additional settings to work with Monk's Enhanced Journal
+ */
+form[editable="true"] section.gmDirAndContents {
+	/* Only to be seen by GMs - snippet with both GM-directions and non-GM content */
+	border:  3px solid #b4b4b4;
+	padding: 3px;
+	margin:  2px 0px;
+}
+form[editable="true"] section.veracity-Partial {
+	/* Only seen by the GMs */
+	border: 3px dashed #e4b5e4;
+	margin: 2px 0px;
+}
+form[editable="true"] section.veracity-Lie {
+	/* Only seen by the GMs */
+	border: 3px solid #e7c2e8;
+	margin: 2px 0px;
 }

@@ -1,3 +1,6 @@
+1.11.1
+Add additional CSS to allow the GM-only formatting to be seen in Monk's Enhanced Journal.
+
 1.11
 Go back to minimal HTML. Remove most of the CSS styling.
 Add Veracity and Style block styles to the text editor.
