@@ -386,18 +386,15 @@ function header(lvl, name) {
 function hannot(annotation) {
 	return `; <em>${stripHtml(annotation)}</em>`;
 }
-function namedsection(name, revealed, body) {
-	if (revealed)
-		return `<section class="${name}">${body}</section>`;
-	else
-		return `<section class="${name} secret">${body}</section>`;
+function startSection(section_context, classes) {
+	return `<section class="${classes}">`;
 }
-function simplesection(revealed, body) {
+function simplesection(section_context, revealed, body) {
 	if (revealed)
 		/*return `<section>${body}</section>`;*/
 		return body;
 	else
-		return `<section class="secret">${body}</section>`;
+		return startSection(section_context, "secret") + body + '</section>';
 }
 function labelledField(label, content, annotation=null) {
 	let body = hlabel(label);
@@ -1356,7 +1353,7 @@ class RealmWorksImporter extends Application
 	//
 	// Write one RW section
 	//
-	async writeSection(topic, section, numbering) {
+	async writeSection(topic, section, numbering, section_context) {
 
 		// Write a "contents" element:
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
@@ -1388,17 +1385,19 @@ class RealmWorksImporter extends Application
 					if (normalheader) {
 						let classes=[];
 						if (gmdir)        classes.push("RWgmDirAndContents");
-						if (!is_revealed) classes.push("secret");
 						if (veracity)     classes.push(`RWveracity-${veracity}`);
 						if (style)        classes.push(`RW${style}`);
+						if (!is_revealed) classes.push("secret");
 						
 						if (classes.length > 0) {
-							result += `<section class="${classes.join(' ')}">`;
+							result += startSection(section_context, classes.join(' '));
 							need_close_section = true;
 						}
 					}
 					if (gmdir) {
-						result += namedsection("RWgmDirections", false, functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1")));
+						// This is always a separate section - since it needs a box to be drawn around it.
+						let gmbody = functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
+						result += `<section class="RWgmDirections secret">${gmbody}</section>`;
 					}
 				}
 				
@@ -1575,24 +1574,26 @@ class RealmWorksImporter extends Application
 		
 		// We can now add any sub-sections. This code has to be HERE so that we can maintain the correct reveal status
 		// for any snippets that are in this section and not one of the sub-sections.
-		let subsection = 0;
+		let subsection_count = 0;
 		for (const child of section.children) {
 			if (child.nodeName === 'section') {
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
-				const other_sections = await this.writeSection(topic, child, numbering.concat(++subsection));
-				result += other_sections.html;
-				if (!other_sections.secret) is_all_secret = false;
+				const subsection = await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
+				result += subsection.html;
+				section_context = subsection.section_context;
+				if (!subsection.secret) is_all_secret = false;
 			}
 		}
 
 		// The section header needs to be hidden if ALL of its children are hidden.
 		let hdg = header(numbering.length, (this.section_numbering ? (numbering.join('.') + '. ') : "") + section_name);
-		if (is_all_secret) hdg = simplesection(false, hdg);
+		if (is_all_secret) hdg = simplesection(section_context, false, hdg);
 		
 		return { 
 			secret: is_all_secret,
-			html  : hdg + result };
+			html  : hdg + result,
+			section_context : section_context };
 	}
 
 	addDescendents(depth, top_id, only_revealed) {
@@ -1619,6 +1620,7 @@ class RealmWorksImporter extends Application
 	// Write one RW topic
 	//
 	async formatTopicBody(topic) {
+		let section_context = {};
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
@@ -1628,7 +1630,7 @@ class RealmWorksImporter extends Application
 		// Put PARENT information into the topic (if required)
 		const parent_id = this.parent_map.get(topic_id);
 		if (parent_id) {
-			html += simplesection(this.revealed_topics.has(parent_id), labelledField(this.governing_content_label, this.formatLink(parent_id, null)));
+			html += simplesection(section_context, this.revealed_topics.has(parent_id), labelledField(this.governing_content_label, this.formatLink(parent_id, null)));
 		}
 
 		// Generate the HTML for the sections within the topic
@@ -1644,11 +1646,13 @@ class RealmWorksImporter extends Application
 					alias = `<p style="text-decoration: underline">${hitalic(hlabel("True Name") + node.getAttribute('name'))}</p>`;
 				else
 					alias = `<p>${hitalic(hlabel("Alias") + node.getAttribute('name'))}</p>`;
-				html += simplesection(node.hasAttribute('is_revealed'), alias);
+				html += simplesection(section_context, node.hasAttribute('is_revealed'), alias);
 				break;
 			case 'section':
 				// Always process sections, to properly process revealed status
-				html += (await this.writeSection(topic, node, [++sectionnum])).html;
+				let subsection = await this.writeSection(topic, node, [++sectionnum], section_context);
+				html += subsection.html;
+				section_context = subsection.section_context;
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1701,14 +1705,14 @@ class RealmWorksImporter extends Application
 		
 		// Add the (revealed) CONNECTIONS (prefix/suffix are APPENDED)
 		if (connections.length > 0) {
-			html += simplesection(revealed_connections.length, header(1,'Relationships'));
+			html += simplesection(section_context, revealed_connections.length, header(1,'Relationships'));
 			
 			if (revealed_connections.length > 0) {
 				let content = "";
 				for (const connection of revealed_connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
 					content += '<li>' + connection.text + '</li>';
 				}
-				html += simplesection(true, `<ul>${content}</ul>`);
+				html += simplesection(section_context, true, `<ul>${content}</ul>`);
 			}
 			
 			if (connections.length > revealed_connections.length) {
@@ -1716,7 +1720,7 @@ class RealmWorksImporter extends Application
 				for (const connection of connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
 					content += '<li>' + connection.text + '</li>';
 				}
-				html += simplesection(false, `<ul>${content}</ul>`);
+				html += simplesection(section_context, false, `<ul>${content}</ul>`);
 			}
 		}
 		
@@ -1734,11 +1738,11 @@ class RealmWorksImporter extends Application
 			
 			let result = "";
 			if (revealed_links.length > 0)
-				result += simplesection(true, `<p>${rev_links}</p>`);
+				result += simplesection(section_context, true, `<p>${rev_links}</p>`);
 			if (links.length > revealed_links.length)
-				result += simplesection(false, `<p>${all_links}</p>`);
+				result += simplesection(section_context, false, `<p>${all_links}</p>`);
 
-			return simplesection(revealed_links.length, header(1,`Content Links: ${dir}`)) + result;
+			return simplesection(section_context, revealed_links.length, header(1,`Content Links: ${dir}`)) + result;
 		}
 			
 		if (this.addInboundLinks) {
@@ -1785,11 +1789,11 @@ class RealmWorksImporter extends Application
 
 			let result = "";
 			if (revealed_gov_content.length > 0)
-				result += simplesection(true, revealed_gov_content);
+				result += simplesection(section_context, true, revealed_gov_content);
 			if (hidden_gov_content.length > revealed_gov_content.length)
-				result += simplesection(false, hidden_gov_content);
+				result += simplesection(section_context, false, hidden_gov_content);
 			
-			html += simplesection(revealed_gov_content.length, header(1, 'Governed Content')) + result;
+			html += simplesection(section_context, revealed_gov_content.length, header(1, 'Governed Content')) + result;
 		}
 		return html;
 	}
