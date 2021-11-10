@@ -154,18 +154,18 @@ const RW_editor_options = {
 			wrapper: true
 		},
 		{
-			title: "Style: GM Directions",
-			block: 'section',
-			classes: 'gmDirections',
-			wrapper: true
-		},
-		{
 			title: "Block: GM Directions & Contents",
 			block: 'section',
 			classes: 'gmDirAndContents',
 			wrapper: true,
 			exact:   true   /* Prevent removal of other nested sections */
 		},	
+		{
+			title: "Block: GM Directions",
+			block: 'section',
+			classes: 'gmDirections',
+			wrapper: true
+		},
 	]
 };
 
