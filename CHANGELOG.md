@@ -1,3 +1,20 @@
+## 1.12
+Remove occurrences of secret sections having double the darkness applied to its background.
+
+Put *GM Directions & Contents* above *GM Directions* in the text editor menu, and remove *Block:* from those entry names.
+
+Further reduce the amount of HTML generated for each journal entry (faster world loading!)
+
+Ensure new text block names are less likely to conflict with other modules (internal to the code).
+
+Add a new configuration **Use 'secret' in Unrevealed Topics**, which when ticked will do the normal topic generation, but if unticked then topics 
+which are NOT revealed in RW will NOT have any secret sections in their corresponding Journal Entries. This is so that the journal entry doesn't end up
+with large portions of it using the secret (darker) background.
+
+Add information about new editor blocks in README.md
+
+Improve format of CHANGELOG.md
+
 ## 1.11.1
 Add additional CSS to allow the GM-only formatting to be seen in **Monk's Enhanced Journal**.
 

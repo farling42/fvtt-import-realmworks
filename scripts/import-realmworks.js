@@ -40,6 +40,7 @@ const GS_SCENE_GRID = "sceneGrid";
 const GS_CREATE_ITEMS = "createItems";
 const GS_SCENE_REVEALED_NAVIGATION = "sceneRevealedNavigation";
 const GS_SCENE_TOKEN_VISION = "sceneTokenVision";
+const GS_UNREVEALED_TOPICS_SECRET = "unrevealedTopicsSecret";
 
 const GS_FLAGS_UUID = "uuid";
 const GS_FLAGS_PIN_IS_REVEALED = "pinIsRevealed";
@@ -235,6 +236,14 @@ Hooks.once('init', () => {
 		default: false,
 		config: true,
 	});
+    game.settings.register(GS_MODULE_NAME, GS_UNREVEALED_TOPICS_SECRET, {
+		name: "Use 'secret' in Unrevealed Topics",
+		hint: "Select if topics which are NOT revealed should still have their not-revealed snippets displayed as 'secret'",
+		scope: "world",
+		type:  Boolean,
+		default: true,
+		config: true,
+	});
     game.settings.register(GS_MODULE_NAME, GS_SCENE_REVEALED_NAVIGATION, {
 		name: "Enable navigation on revealed scenes",
 		hint: "Select this if revealed Scenes should have NAVIGATION automatically ticked (Configure Scene: Accessibility: Navigation)",
@@ -387,6 +396,10 @@ function hannot(annotation) {
 	return `; <em>${stripHtml(annotation)}</em>`;
 }
 function startSection(section_context, classes) {
+	// Ignore setting "secret" if the context says to do so
+	// (which would be when the topic is NOT revealed and the user doesn't want it all marked as SECRET
+	if (section_context.ignore_secret && classes.includes('secret'))
+		classes = classes.replace(/[ ]*secret/, '');	// secret will always be last
 	if (section_context.classes === classes) return "";
 	let result = "";
 	if (section_context.classes?.length > 0) result += '</section>';
@@ -620,14 +633,15 @@ class RealmWorksImporter extends Application
 			
 			// Set the correct function to use based on the game system
 			this.actor_type = game.settings.get(GS_MODULE_NAME, GS_ACTOR_TYPE);
-			this.governing_content_label = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
-			this.governed_max_depth = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
-			this.section_numbering = game.settings.get(GS_MODULE_NAME, GS_SECTION_NUMBERING);
-			this.scene_padding  = game.settings.get(GS_MODULE_NAME, GS_SCENE_PADDING);
-			this.scene_grid     = game.settings.get(GS_MODULE_NAME, GS_SCENE_GRID);
+			this.governing_content_label   = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
+			this.governed_max_depth        = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
+			this.section_numbering         = game.settings.get(GS_MODULE_NAME, GS_SECTION_NUMBERING);
+			this.scene_padding             = game.settings.get(GS_MODULE_NAME, GS_SCENE_PADDING);
+			this.scene_grid                = game.settings.get(GS_MODULE_NAME, GS_SCENE_GRID);
 			this.scene_token_vision        = game.settings.get(GS_MODULE_NAME, GS_SCENE_TOKEN_VISION);
 			this.scene_revealed_navigation = game.settings.get(GS_MODULE_NAME, GS_SCENE_REVEALED_NAVIGATION);
-			this.create_items   = game.settings.get(GS_MODULE_NAME, GS_CREATE_ITEMS);
+			this.create_items              = game.settings.get(GS_MODULE_NAME, GS_CREATE_ITEMS);
+			this.unrevealed_topics_secret  = game.settings.get(GS_MODULE_NAME, GS_UNREVEALED_TOPICS_SECRET);
 			if (this.scene_grid < 50) {
 				console.warn(`CONFIGURED SCENE GRID SIZE IS TOO SMALL (${this.scene_grid}), USING 50`);
 				this.scene_grid = 50;
@@ -1641,12 +1655,15 @@ class RealmWorksImporter extends Application
 	// Write one RW topic
 	//
 	async formatTopicBody(topic) {
-		let section_context = {};
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
 		// Start the HTML with the category of the topic
 		let html = labelledField("Category", this.category_of_topic.get(topic_id));
+
+		let section_context = {
+			ignore_secret : !this.unrevealed_topics_secret && !topic.getAttribute('is_revealed')
+		};
 		
 		// Put PARENT information into the topic (if required)
 		const parent_id = this.parent_map.get(topic_id);
@@ -1715,7 +1732,7 @@ class RealmWorksImporter extends Application
 					
 					text += ': ' + this.formatLink(target_id, cname);
 					connections.push({cname, text});
-					if (node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))
+					if (!section_context.ignore_secret && node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))
 						revealed_connections.push({cname, text});
 				}
 				break;
@@ -1755,13 +1772,15 @@ class RealmWorksImporter extends Application
 				return p1.name ? (p2.name ? p1.name.localeCompare(p2.name, undefined, {numeric: true}) : -1) : p2.name ? 1 : 0;
 			}).map(ref => { return functhis.formatLink(ref.topic_id, ref.name); }).join(' ');
 			
-			let result = "";
+			let result = simplesection(section_context, revealed_links.length, header(1,`Content Links: ${dir}`));
+			
 			if (revealed_links.length > 0)
 				result += simplesection(section_context, true, `<p>${rev_links}</p>`);
+			
 			if (links.length > revealed_links.length)
 				result += simplesection(section_context, false, `<p>${all_links}</p>`);
 
-			return simplesection(section_context, revealed_links.length, header(1,`Content Links: ${dir}`)) + result;
+			return result;
 		}
 			
 		if (this.addInboundLinks) {
@@ -1772,7 +1791,7 @@ class RealmWorksImporter extends Application
 				for (const target_id of targets) {
 					if (target_id.startsWith('Plot_')) continue;
 					unique_ids.add(target_id);
-					if (this.revealed_topics.has(target_id))
+					if (!section_context.ignore_secret && this.revealed_topics.has(target_id))
 						revealed_unique_ids.add(target_id);
 				}
 				if (unique_ids.size > 0) html += contentlinks('In',
@@ -1790,7 +1809,7 @@ class RealmWorksImporter extends Application
 					let target_id = link.getAttribute("target_id");
 					if (target_id.startsWith('Plot_')) continue;
 					unique_ids.add(target_id);
-					if (this.revealed_topics.has(target_id) && this.linkIsRevealed(link))
+					if (!section_context.ignore_secret && this.revealed_topics.has(target_id) && this.linkIsRevealed(link))
 						revealed_unique_ids.add(target_id);
 				}
 				if (unique_ids.size > 0) html += contentlinks('Out',
@@ -1806,13 +1825,13 @@ class RealmWorksImporter extends Application
 			let revealed_gov_content = this.addDescendents(this.governed_max_depth, topic_id, true);
 			let hidden_gov_content   = this.addDescendents(this.governed_max_depth, topic_id, false);
 
-			let result = "";
+			let result = simplesection(section_context, revealed_gov_content.length, header(1, 'Governed Content'));
 			if (revealed_gov_content.length > 0)
 				result += simplesection(section_context, true, revealed_gov_content);
 			if (hidden_gov_content.length > revealed_gov_content.length)
 				result += simplesection(section_context, false, hidden_gov_content);
 			
-			html += simplesection(section_context, revealed_gov_content.length, header(1, 'Governed Content')) + result;
+			html += result;
 		}
 		
 		html += endSection(section_context);
