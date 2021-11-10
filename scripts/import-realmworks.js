@@ -387,14 +387,28 @@ function hannot(annotation) {
 	return `; <em>${stripHtml(annotation)}</em>`;
 }
 function startSection(section_context, classes) {
-	return `<section class="${classes}">`;
+	if (section_context.classes === classes) return "";
+	let result = "";
+	if (section_context.classes?.length > 0) result += '</section>';
+	section_context.classes = classes;
+	if (classes.length > 0) result += `<section class="${classes}">`;
+	// Note, no section needed if no classes
+	return result;
 }
+function endSection(section_context) {
+	if (section_context.classes?.length > 0) {
+		section_context.classes = "";
+		return '</section>';
+	}
+	return "";
+}
+function inSection(section_context, name) {
+	// At the moment, we don't need to worry about finding only whole words
+	return section_context.classes && section_context.classes.includes(name);
+}
+
 function simplesection(section_context, revealed, body) {
-	if (revealed)
-		/*return `<section>${body}</section>`;*/
-		return body;
-	else
-		return startSection(section_context, "secret") + body + '</section>';
+	return startSection(section_context, revealed ? "" : "secret") + body;
 }
 function labelledField(label, content, annotation=null) {
 	let body = hlabel(label);
@@ -412,6 +426,20 @@ function stripPara(original) {
 	}
 	return original;
 }
+function hasRevealed(section) {
+	for (const node of section.children) {
+		switch (node.nodeName) {
+		case 'snippet':
+			if (node.hasAttribute('is_revealed')) return true;
+			break;
+		case 'section':
+			if (hasRevealed(node)) return true;
+			break;
+		}
+	}
+	return false;
+}
+
 //
 // Convert Utf8Array to UTF-8 string
 //
@@ -1357,17 +1385,18 @@ class RealmWorksImporter extends Application
 
 		// Write a "contents" element:
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
-		let result = "";
-		let is_all_secret = true;
 		
 		let functhis = this;
+
+		// Put section header in, based on whether any children are revealed
+		// must be done in order, due to section_context getting modified as we go along.
+		let result = simplesection(section_context, hasRevealed(section), header(numbering.length, (this.section_numbering ? (numbering.join('.') + '. ') : "") + section_name));
 		
 		// Process all the snippets and sections in order
 		// Process all child (not descendent) nodes in this section
 		for (const child of section.children) {
 			if (child.nodeName === 'snippet') {
 				const is_revealed = child.hasAttribute('is_revealed');
-				if (is_revealed) is_all_secret = false;
 
 				// Collect all the information from the snippet
 				const sntype     = child.getAttribute('type');
@@ -1380,7 +1409,7 @@ class RealmWorksImporter extends Application
 				let   annotation = this.getChild(child, 'annotation');
 				if (annotation) annotation = this.replaceLinks(annotation.textContent, links);
 				
-				let need_close_section = false;
+				let need_close_section = false;				
 				function sectionHeader(normalheader) {
 					if (normalheader) {
 						let classes=[];
@@ -1388,16 +1417,18 @@ class RealmWorksImporter extends Application
 						if (veracity)     classes.push(`RWveracity-${veracity}`);
 						if (style)        classes.push(`RW${style}`);
 						if (!is_revealed) classes.push("secret");
-						
-						if (classes.length > 0) {
-							result += startSection(section_context, classes.join(' '));
-							need_close_section = true;
-						}
-					}
+						result += startSection(section_context, classes.join(' '));
+						need_close_section = gmdir;
+					} else if (gmdir) result += endSection(section_context);
+					
 					if (gmdir) {
 						// This is always a separate section - since it needs a box to be drawn around it.
 						let gmbody = functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
-						result += `<section class="RWgmDirections secret">${gmbody}</section>`;
+						/* No need for a second secret if we are inside a RWgmDirAndContents (avoids double "secret" background darkening) */
+						if (inSection(section_context, 'secret'))
+							result += `<section class="RWgmDirections">${gmbody}</section>`;
+						else
+							result += `<section class="RWgmDirections secret">${gmbody}</section>`;
 					}
 				}
 				
@@ -1565,35 +1596,25 @@ class RealmWorksImporter extends Application
 				default:
 					console.warn(`Unsupported snippet type: ${sntype}`);
 				} // switch sntype
-				
+
 				if (need_close_section) {
-					result += '</section>';
+					// RWgmDirAndContents always has to be closed immediately
+					result += endSection(section_context);
 				}
 			}
 		} // for children
 		
-		// We can now add any sub-sections. This code has to be HERE so that we can maintain the correct reveal status
-		// for any snippets that are in this section and not one of the sub-sections.
+		// We can now add any sub-sections.		
 		let subsection_count = 0;
 		for (const child of section.children) {
 			if (child.nodeName === 'section') {
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
-				const subsection = await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
-				result += subsection.html;
-				section_context = subsection.section_context;
-				if (!subsection.secret) is_all_secret = false;
+				result += await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
 			}
 		}
 
-		// The section header needs to be hidden if ALL of its children are hidden.
-		let hdg = header(numbering.length, (this.section_numbering ? (numbering.join('.') + '. ') : "") + section_name);
-		if (is_all_secret) hdg = simplesection(section_context, false, hdg);
-		
-		return { 
-			secret: is_all_secret,
-			html  : hdg + result,
-			section_context : section_context };
+		return result;
 	}
 
 	addDescendents(depth, top_id, only_revealed) {
@@ -1650,9 +1671,7 @@ class RealmWorksImporter extends Application
 				break;
 			case 'section':
 				// Always process sections, to properly process revealed status
-				let subsection = await this.writeSection(topic, node, [++sectionnum], section_context);
-				html += subsection.html;
-				section_context = subsection.section_context;
+				html += await this.writeSection(topic, node, [++sectionnum], section_context);
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1795,6 +1814,8 @@ class RealmWorksImporter extends Application
 			
 			html += simplesection(section_context, revealed_gov_content.length, header(1, 'Governed Content')) + result;
 		}
+		
+		html += endSection(section_context);
 		return html;
 	}
 
