@@ -4,7 +4,9 @@ Add additional CSS to allow the GM-only formatting to be seen in **Monk's Enhanc
 # 1.11
 Go back to minimal HTML. Remove most of the CSS styling.
 
-Add Veracity and Style block styles to the text editor.
+Add Veracity (*Lie*, *Partial-Truth*) and Style (*Callout*, *Handout*, *Flavor*, *Read-Aloud*) block styles to the text editor.
+
+Add *GM Directions* and *GM Directions & Contents* block styles for manual addition of GM directions (see #README.md)
 
 Add a picture to the README.md file to show the formatted text.
 
@@ -26,28 +28,28 @@ Only display the "Realm Works Import" button for GMs.
 Fix bug that stopped Actors being created from HL Portfolios
 
 # 1.8
-FEATURE: No longer requires "GM Notes" module for handling revealed topics.
+No longer requires "GM Notes" module for handling revealed topics.
 
-FEATURE: Revealed snippets are identified to the GM in displayed documents by a green bar on the left side.
+Revealed snippets are identified to the GM in displayed documents by a green bar on the left side.
 
-FEATURE: Revealed smart images can have their corresponding scene automatically made navigable (and their vision/fog disabled).
+Revealed smart images can have their corresponding scene automatically made navigable (and their vision/fog disabled).
 
-FEATURE: For GMs, Relationships, Content Links and Governed Content will show REVEALED parts separately from the full list.
+For GMs, Relationships, Content Links and Governed Content will show REVEALED parts separately from the full list.
 
-FEATURE: Lots of CSS have been added to more closely match the Snippet Style in RW.
+Lots of CSS have been added to more closely match the Snippet Style in RW.
 
-FEATURE: Created Scenes, Actors and Tables are only made OBSERVABLE to players if the topic AND the snippet are both revealed.
+Created Scenes, Actors and Tables are only made OBSERVABLE to players if the topic AND the snippet are both revealed.
 
-FEATURE: Snippets with both GM notes and non-GM notes will be grouped together in a box for GMs (in a similar presentation to RW).
+Snippets with both GM notes and non-GM notes will be grouped together in a box for GMs (in a similar presentation to RW).
 
-KNOWN BUG: Revealed state of map pins is ignored - only pins connected to non-revealed topics will be hidden on each scene.
-
-KNOWN BUG: All links are displayed in revealed snippets of revealed topics - even if the linked document is not revealed.
+**KNOWN BUGS:**
+- Revealed state of map pins is ignored - only pins connected to non-revealed topics will be hidden on each scene.
+- All links are displayed in revealed snippets of revealed topics - even if the linked document is not revealed.
 
 # 1.7
-FIX: Content Links in revealed topics should only show links to REVEALED snippets/map_pins.
+Content Links in revealed topics should now only show links to REVEALED snippets/map_pins.
 
-FEATURE: Provide initial parsing of relevant topics to Items rather than Journal - only for PF1 at the moment.
+Provide initial parsing of relevant topics to Items rather than Journal - only for PF1 at the moment.
 
 # 1.6
 Provide module configuration options to specify scene padding and scene grid size.
@@ -60,19 +62,19 @@ The normal journal entry is the player visible version of a revealed topic, and 
 If a topic is NOT revealed to players, then the journal entry will contain the FULL topic.
 
 # 1.4
-FIX: Custom section names should now be decoded properly.
+Custom section names should now be decoded properly.
 
-IMPROVEMENT: bold and italic text now encoded as strong and em text (to match how Foundry VTT does it).
+bold and italic text now encoded as strong and em text (to match how Foundry VTT does it).
 
-FEATURE: Add option to include numbering on section headers, emulating the numbering in Realm Works.
+Add option to include numbering on section headers, emulating the numbering in Realm Works.
 
-CHANGE: Connections and Content Links now use same topic name format as in Realm Works "topicname ( suffix - prefix )", rather than the format used in topic titles and governed content "prefix - topicname (suffix)".
+Connections and Content Links now use same topic name format as in Realm Works "topicname ( suffix - prefix )", rather than the format used in topic titles and governed content "prefix - topicname (suffix)".
 
-FEATURE: Add option to handle REVEALED state of things. If a topic is revealed, then its contents will be only the snippets that are revealed, and actors/tables/playlists will only be created from that topic if
+Add option to handle REVEALED state of things. If a topic is revealed, then its contents will be only the snippets that are revealed, and actors/tables/playlists will only be created from that topic if
 the containing snippets are revealed, and the topic will have its permissions set for players to be OBSERVERS. For topics which are not revealed, the full contents will be created (and the observer will NOT be set).
 
 # 1.3.1
-FIX: some relationships were not being decoded properly.
+Some relationships were not being decoded properly.
 
 # 1.3
 Two new processing options:
@@ -108,7 +110,7 @@ Governed Content and Content Links sections are sorted into correct alphabetical
 Fix an issue where links were misaligned inside/after tables within a snippet.
 
 # 1.0.0
-IMPORTANT: Change to read RWEXPORT files instead of rwoutput files.
+**IMPORTANT: Change to read RWEXPORT files instead of rwoutput files**
 
 This will ensure that links are always created correctly.
 
