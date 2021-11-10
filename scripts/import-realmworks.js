@@ -120,50 +120,50 @@ const RW_editor_options = {
 		{
 			title: "Veracity: Partial Truth",
 			block: 'section',
-			classes: 'veracity-Partial',
+			classes: 'RWveracity-Partial',
 			wrapper: true
 		},
 		{
 			title: "Veracity: Lie",
 			block: 'section',
-			classes: 'veracity-Lie',
+			classes: 'RWveracity-Lie',
 			wrapper: true
 		},
 		{
 			title: "Style: Callout",
 			block: 'section',
-			classes: 'Callout',
+			classes: 'RWCallout',
 			wrapper: true
 		},
 		{
 			title: "Style: Handout",
 			block: 'section',
-			classes: 'Handout',
+			classes: 'RWHandout',
 			wrapper: true
 		},
 		{
 			title: "Style: Flavor",
 			block: 'section',
-			classes: 'Flavor',
+			classes: 'RWFlavor',
 			wrapper: true
 		},
 		{
 			title: "Style: Read Aloud",
 			block: 'section',
-			classes: 'Read_Aloud',
+			classes: 'RWRead_Aloud',
 			wrapper: true
 		},
 		{
-			title: "Block: GM Directions & Contents",
+			title: "GM Directions & Contents",
 			block: 'section',
-			classes: 'gmDirAndContents',
+			classes: 'RWgmDirAndContents',
 			wrapper: true,
 			exact:   true   /* Prevent removal of other nested sections */
 		},	
 		{
-			title: "Block: GM Directions",
+			title: "GM Directions",
 			block: 'section',
-			classes: 'gmDirections',
+			classes: 'RWgmDirections',
 			wrapper: true
 		},
 	]
@@ -380,24 +380,24 @@ function hqualifier(string) {
 function hpara(body) {
 	return `<p>${body}</p>`;
 }
-function hnamedsection(name, revealed, body) {
-	if (revealed)
-		return `<section class="${name}">${body}</section>`;
-	else
-		return `<section class="${name} secret">${body}</section>`;
-}
-function hsection(revealed, body) {
-	if (revealed)
-		/*return `<section>${body}</section>`;*/
-		return body;
-	else
-		return `<section class="secret">${body}</section>`;
-}
 function header(lvl, name) {
 	return `<h${lvl}>${name}</h${lvl}>`;
 }
 function hannot(annotation) {
 	return `; <em>${stripHtml(annotation)}</em>`;
+}
+function namedsection(name, revealed, body) {
+	if (revealed)
+		return `<section class="${name}">${body}</section>`;
+	else
+		return `<section class="${name} secret">${body}</section>`;
+}
+function simplesection(revealed, body) {
+	if (revealed)
+		/*return `<section>${body}</section>`;*/
+		return body;
+	else
+		return `<section class="secret">${body}</section>`;
 }
 function labelledField(label, content, annotation=null) {
 	let body = hlabel(label);
@@ -1386,19 +1386,19 @@ class RealmWorksImporter extends Application
 				let need_close_section = false;
 				function sectionHeader(normalheader) {
 					if (normalheader) {
-						let classes="";
-						if (gmdir)        classes += "gmDirAndContents ";
-						if (!is_revealed) classes += "secret ";
-						if (veracity)     classes += `veracity-${veracity} `;
-						if (style)        classes += style;
+						let classes=[];
+						if (gmdir)        classes.push("RWgmDirAndContents");
+						if (!is_revealed) classes.push("secret");
+						if (veracity)     classes.push(`RWveracity-${veracity}`);
+						if (style)        classes.push(`RW${style}`);
 						
-						if (classes) {
-							result += `<section class="${classes}">`;
+						if (classes.length > 0) {
+							result += `<section class="${classes.join(' ')}">`;
 							need_close_section = true;
 						}
 					}
 					if (gmdir) {
-						result += hnamedsection("gmDirections", false, functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1")));
+						result += namedsection("RWgmDirections", false, functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1")));
 					}
 				}
 				
@@ -1588,7 +1588,7 @@ class RealmWorksImporter extends Application
 
 		// The section header needs to be hidden if ALL of its children are hidden.
 		let hdg = header(numbering.length, (this.section_numbering ? (numbering.join('.') + '. ') : "") + section_name);
-		if (is_all_secret) hdg = hsection(false, hdg);
+		if (is_all_secret) hdg = simplesection(false, hdg);
 		
 		return { 
 			secret: is_all_secret,
@@ -1628,7 +1628,7 @@ class RealmWorksImporter extends Application
 		// Put PARENT information into the topic (if required)
 		const parent_id = this.parent_map.get(topic_id);
 		if (parent_id) {
-			html += hsection(this.revealed_topics.has(parent_id), labelledField(this.governing_content_label, this.formatLink(parent_id, null)));
+			html += simplesection(this.revealed_topics.has(parent_id), labelledField(this.governing_content_label, this.formatLink(parent_id, null)));
 		}
 
 		// Generate the HTML for the sections within the topic
@@ -1644,7 +1644,7 @@ class RealmWorksImporter extends Application
 					alias = `<p style="text-decoration: underline">${hitalic(hlabel("True Name") + node.getAttribute('name'))}</p>`;
 				else
 					alias = `<p>${hitalic(hlabel("Alias") + node.getAttribute('name'))}</p>`;
-				html += hsection(node.hasAttribute('is_revealed'), alias);
+				html += simplesection(node.hasAttribute('is_revealed'), alias);
 				break;
 			case 'section':
 				// Always process sections, to properly process revealed status
@@ -1701,14 +1701,14 @@ class RealmWorksImporter extends Application
 		
 		// Add the (revealed) CONNECTIONS (prefix/suffix are APPENDED)
 		if (connections.length > 0) {
-			html += hsection(revealed_connections.length, header(1,'Relationships'));
+			html += simplesection(revealed_connections.length, header(1,'Relationships'));
 			
 			if (revealed_connections.length > 0) {
 				let content = "";
 				for (const connection of revealed_connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
 					content += '<li>' + connection.text + '</li>';
 				}
-				html += hsection(true, `<ul>${content}</ul>`);
+				html += simplesection(true, `<ul>${content}</ul>`);
 			}
 			
 			if (connections.length > revealed_connections.length) {
@@ -1716,7 +1716,7 @@ class RealmWorksImporter extends Application
 				for (const connection of connections.sort((p1,p2) => p1.cname.localeCompare(p2.cname, undefined, {numeric: true}))) {
 					content += '<li>' + connection.text + '</li>';
 				}
-				html += hsection(false, `<ul>${content}</ul>`);
+				html += simplesection(false, `<ul>${content}</ul>`);
 			}
 		}
 		
@@ -1734,11 +1734,11 @@ class RealmWorksImporter extends Application
 			
 			let result = "";
 			if (revealed_links.length > 0)
-				result += hsection(true, `<p>${rev_links}</p>`);
+				result += simplesection(true, `<p>${rev_links}</p>`);
 			if (links.length > revealed_links.length)
-				result += hsection(false, `<p>${all_links}</p>`);
+				result += simplesection(false, `<p>${all_links}</p>`);
 
-			return hsection(revealed_links.length, header(1,`Content Links: ${dir}`)) + result;
+			return simplesection(revealed_links.length, header(1,`Content Links: ${dir}`)) + result;
 		}
 			
 		if (this.addInboundLinks) {
@@ -1785,11 +1785,11 @@ class RealmWorksImporter extends Application
 
 			let result = "";
 			if (revealed_gov_content.length > 0)
-				result += hsection(true, revealed_gov_content);
+				result += simplesection(true, revealed_gov_content);
 			if (hidden_gov_content.length > revealed_gov_content.length)
-				result += hsection(false, hidden_gov_content);
+				result += simplesection(false, hidden_gov_content);
 			
-			html += hsection(revealed_gov_content.length, header(1, 'Governed Content')) + result;
+			html += simplesection(revealed_gov_content.length, header(1, 'Governed Content')) + result;
 		}
 		return html;
 	}

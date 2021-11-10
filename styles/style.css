@@ -1,42 +1,42 @@
 /* Formmating ONLY for GMs */
-form.editable section.gmDirAndContents {
+form.editable section.RWgmDirAndContents {
 	border:  3px solid #b4b4b4;
 	padding: 3px;
 	margin:  2px 0px;
 }
-form.editable section.veracity-Partial {
+form.editable section.RWveracity-Partial {
 	/* Only seen by the GMs */
 	border: 3px dashed #e4b5e4;
 	margin: 2px 0px;
 }
-form.editable section.veracity-Lie {
+form.editable section.RWveracity-Lie {
 	/* Only seen by the GMs */
 	border: 3px solid #e7c2e8;
 	margin: 2px 0px;
 }
 /* Formatting for ALL users */
-section.Callout, section.Handout, section.Flavor, section.Read_Aloud {
+section.RWCallout, section.RWHandout, section.RWFlavor, section.RWRead_Aloud {
 	padding: 1px;
 	margin: 2px 0px;
 }
-section.Callout {
+section.RWCallout {
 	/* snippet with RW style of "Callout" */
 	background: #bebebe80;
 }
-section.Handout {
+section.RWHandout {
 	/* snippet with RW style of "Handout" */
 	background: #e8e1d980;
 }
-section.Flavor {
+section.RWFlavor {
 	/* snippet with RW style of "Flavor" */
 	background: #efd4d280;
 	font-style: italic;
 }
-section.Read_Aloud {
+section.RWRead_Aloud {
 	/* snippet with RW style of "Read_Aloud" */
 	background: #d1dff280;
 }
-section.gmDirections {
+section.RWgmDirections {
 	/* The GM-Directions part of a snippet */
 	background: #fffbed80;
 	border: 2px solid #d2c5b5;
@@ -45,18 +45,18 @@ section.gmDirections {
 /*
  * Additional settings to work with Monk's Enhanced Journal
  */
-form[editable="true"] section.gmDirAndContents {
+form[editable="true"] section.RWgmDirAndContents {
 	/* Only to be seen by GMs - snippet with both GM-directions and non-GM content */
 	border:  3px solid #b4b4b4;
 	padding: 3px;
 	margin:  2px 0px;
 }
-form[editable="true"] section.veracity-Partial {
+form[editable="true"] section.RWveracity-Partial {
 	/* Only seen by the GMs */
 	border: 3px dashed #e4b5e4;
 	margin: 2px 0px;
 }
-form[editable="true"] section.veracity-Lie {
+form[editable="true"] section.RWveracity-Lie {
 	/* Only seen by the GMs */
 	border: 3px solid #e7c2e8;
 	margin: 2px 0px;
