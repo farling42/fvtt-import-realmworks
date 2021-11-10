@@ -44,6 +44,11 @@ The *Text Editor* has some additional options under the "RW Blocks" which allow 
 
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
 
+There is no preview of the presentation whilst using the editor.
+
+There are also two new blocks for "GM Directions". It is important to note that if some paragraphs are to be grouped with some GM directions, then they must be grouped as a block of "GM Directions & Contents" before then selecting just the paragraphs containing the GM notes and changing to them "GM Directions".
+Doing this in the opposite order will not generate the desired effect.
+
 
 ## Libraries
 This module uses the following libraries from other sources:
