@@ -1,6 +1,6 @@
-/* Formatting ONLY for GMs:
- * 2nd option to see format preview in TinyMCE text editor,
- * 3rd option used for Monk's Enhanced Journal
+/* form.editable         = Formatting ONLY for visible to GMs
+ * .mce-content-body     = Format preview in TinyMCE text editor
+ * form[editable="true"] = Monk's Enhanced Journal
  */
 
 form.editable section.RWgmDirAndContents,

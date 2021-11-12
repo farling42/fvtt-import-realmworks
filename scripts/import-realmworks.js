@@ -115,21 +115,9 @@ function Note_drawTooltip() {
     return text;
 }
 
-const RW_editor_options = {
-	title: "RW Blocks",
+const RW_editor_player_options = {
+	title: "RW Players",
 	items : [
-		{
-			title: "Veracity: Partial Truth",
-			block: 'section',
-			classes: 'RWveracity-Partial',
-			wrapper: true
-		},
-		{
-			title: "Veracity: Lie",
-			block: 'section',
-			classes: 'RWveracity-Lie',
-			wrapper: true
-		},
 		{
 			title: "Style: Callout",
 			block: 'section',
@@ -152,6 +140,23 @@ const RW_editor_options = {
 			title: "Style: Read Aloud",
 			block: 'section',
 			classes: 'RWRead_Aloud',
+			wrapper: true
+		},
+	]
+};
+const RW_editor_gm_options = {
+	title: "RW GM Only",
+	items : [
+		{
+			title: "Veracity: Partial Truth",
+			block: 'section',
+			classes: 'RWveracity-Partial',
+			wrapper: true
+		},
+		{
+			title: "Veracity: Lie",
+			block: 'section',
+			classes: 'RWveracity-Lie',
 			wrapper: true
 		},
 		{
@@ -348,7 +353,8 @@ Hooks.once('init', () => {
 	Note.prototype._drawTooltip = Note_drawTooltip;
 	
 	// New sections for the editor
-	CONFIG.TinyMCE.style_formats.push(RW_editor_options);
+	CONFIG.TinyMCE.style_formats.push(RW_editor_player_options);
+	CONFIG.TinyMCE.style_formats.push(RW_editor_gm_options);
 	CONFIG.TinyMCE.content_css.push('/modules/realm-works-import/styles/style.css');
 	
 	// From World Smiths Toolkit
