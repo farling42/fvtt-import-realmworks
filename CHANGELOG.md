@@ -1,8 +1,10 @@
+## 1.13
+Show the RW styles in the (TinyMCE) text editor.
+
 ## 1.12
 Remove occurrences of secret sections having double the darkness applied to its background.
 
 Fix an issue where section headings were set/not set with 'secret' which did not match that state of its contents.
-
 
 Put *GM Directions & Contents* above *GM Directions* in the text editor menu, and remove *Block:* from those entry names.
 

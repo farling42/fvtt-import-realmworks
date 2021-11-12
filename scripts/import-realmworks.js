@@ -349,6 +349,8 @@ Hooks.once('init', () => {
 	
 	// New sections for the editor
 	CONFIG.TinyMCE.style_formats.push(RW_editor_options);
+	CONFIG.TinyMCE.content_css.push('/modules/realm-works-import/styles/style.css');
+	
 	// From World Smiths Toolkit
 	//CONFIG.TinyMCE.plugins += " searchreplace visualchars visualblocks textpattern preview template";
     //CONFIG.TinyMCE.toolbar += " | searchreplace template";
