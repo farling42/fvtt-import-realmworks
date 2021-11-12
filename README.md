@@ -57,5 +57,9 @@ This module uses the following libraries from other sources:
 - DirectoryPicker to allow assset files to be stored in S3 rather than just the local 'user data' area (MIT license, from https://github.com/MrPrimate/ddb-importer)
 
 ## Support
+The Realm Works campaign/world management tool is available from https://www.wolflair.com/realmworks/
+
+Join in discussions about it's future features on the [LWD Forums](https://forums.wolflair.com/showthread.php?t=65924)
+
 If you like what it does, then all contributions will be gratefully received at [Kofi](https://ko-fi.com/farling) or [Paypal](https://paypal.me/farling)
 or if you're feeling really generous you could set up a regular contribution at [Patreon](https://www.patreon.com/amusingtime) 
