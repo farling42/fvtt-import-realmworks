@@ -1,3 +1,6 @@
+## 1.14
+Separate out the Player visible styles and the GM-only styles in the Text Editor.
+
 ## 1.13
 Show the RW styles in the (TinyMCE) text editor.
 
