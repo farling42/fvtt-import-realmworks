@@ -1,15 +1,26 @@
-/* Formmating ONLY for GMs */
-form.editable section.RWgmDirAndContents {
+/* Formatting ONLY for GMs:
+ * 2nd option to see format preview in TinyMCE text editor,
+ * 3rd option used for Monk's Enhanced Journal
+ */
+
+form.editable section.RWgmDirAndContents,
+.mce-content-body section.RWgmDirAndContents,
+form[editable="true"] section.RWgmDirAndContents {
+	/* Only seen by the GMs */
 	border:  3px solid #b4b4b4;
 	padding: 3px;
 	margin:  2px 0px;
 }
-form.editable section.RWveracity-Partial {
+form.editable section.RWveracity-Partial,
+.mce-content-body section.RWveracity-Partial,
+form[editable="true"] section.RWveracity-Partial {
 	/* Only seen by the GMs */
 	border: 3px dashed #e4b5e4;
 	margin: 2px 0px;
 }
-form.editable section.RWveracity-Lie {
+form.editable section.RWveracity-Lie,
+.mce-content-body section.RWveracity-Lie,
+form[editable="true"] section.RWveracity-Lie {
 	/* Only seen by the GMs */
 	border: 3px solid #e7c2e8;
 	margin: 2px 0px;
@@ -30,7 +41,6 @@ section.RWHandout {
 section.RWFlavor {
 	/* snippet with RW style of "Flavor" */
 	background: #efd4d280;
-	font-style: italic;
 }
 section.RWRead_Aloud {
 	/* snippet with RW style of "Read_Aloud" */
@@ -41,23 +51,4 @@ section.RWgmDirections {
 	background: #fffbed80;
 	border: 2px solid #d2c5b5;
 	padding: 0px 3px;
-}
-/*
- * Additional settings to work with Monk's Enhanced Journal
- */
-form[editable="true"] section.RWgmDirAndContents {
-	/* Only to be seen by GMs - snippet with both GM-directions and non-GM content */
-	border:  3px solid #b4b4b4;
-	padding: 3px;
-	margin:  2px 0px;
-}
-form[editable="true"] section.RWveracity-Partial {
-	/* Only seen by the GMs */
-	border: 3px dashed #e4b5e4;
-	margin: 2px 0px;
-}
-form[editable="true"] section.RWveracity-Lie {
-	/* Only seen by the GMs */
-	border: 3px solid #e7c2e8;
-	margin: 2px 0px;
 }
