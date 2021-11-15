@@ -46,9 +46,9 @@ The "RW Players" allows the Realm Works Style presentation to be set on paragrap
 
 The "RW GM Only" provides Veracity (Partial Truth/Lie) and GM directions whose visual presentation is only shown to GMs.
 
-There are also two new blocks for "GM Directions":
-- "GM Directions & Contents" - this must be applied to the relevant paragraphs first - if GM directions & contents are required to be displayed in a single block.
-- "GM Directions (secret)" - this should be applied to the paragraphs which are to be GM directions (it will automatically make those paragraphs "secret" in Foundry".
+There are also three new blocks for "GM Directions":
+- "GM Directions & Contents" - if wanted for better grouping of GM directions and the text to which it applies, then this must be applied to the relevant paragraphs before choosing the GM Directions.
+- "GM Directions (secret)" - this should be applied to the paragraphs which are to be GM directions (it will automatically make those paragraphs "secret" in Foundry"). This can be used outside of the above, for stand-alone GM directions.
 - "GM Directions" - this should not be used, but is present in case you switch off the "secret" separately in the editor.
 
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
