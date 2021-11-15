@@ -1,5 +1,7 @@
 ## 1.14
 Separate out the Player visible styles and the GM-only styles in the Text Editor.
+Fix issue where you needed to add "GM Directions" and secret separately, and they were not getting merged into a single section.
+Updated README.md with better information about the new styles.
 
 ## 1.13
 Show the RW styles in the (TinyMCE) text editor.

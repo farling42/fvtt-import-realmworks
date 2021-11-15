@@ -40,15 +40,18 @@ Any parent topic in the RWoutput file will have a list of governed content at th
 
 ## Additional Presentation
 
-The *Text Editor* has some additional options under the "RW Blocks" which allow paragraphs to be displayed in the Veracity (Partial Truth/Lie) and/or Style (Callout, Handout, Flavor, Read-Aloud).
+The *Text Editor* has some additional options under the "RW Players" and "RW GM Only".
+
+The "RW Players" allows the Realm Works Style presentation to be set on paragraphs  which allow paragraphs to be displayed in the Veracity and/or Style (Callout, Handout, Flavor, Read-Aloud).
+
+The "RW GM Only" provides Veracity (Partial Truth/Lie) and GM directions whose visual presentation is only shown to GMs.
+
+There are also two new blocks for "GM Directions":
+- "GM Directions & Contents" - this must be applied to the relevant paragraphs first - if GM directions & contents are required to be displayed in a single block.
+- "GM Directions (secret)" - this should be applied to the paragraphs which are to be GM directions (it will automatically make those paragraphs "secret" in Foundry".
+- "GM Directions" - this should not be used, but is present in case you switch off the "secret" separately in the editor.
 
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
-
-There is no preview of the presentation whilst using the editor.
-
-There are also two new blocks for "GM Directions". It is important to note that if some paragraphs are to be grouped with some GM directions, then they must be grouped as a block of "GM Directions & Contents" before then selecting just the paragraphs containing the GM notes and changing to them "GM Directions".
-Doing this in the opposite order will not generate the desired effect.
-
 
 ## Libraries
 This module uses the following libraries from other sources:
