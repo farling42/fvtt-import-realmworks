@@ -169,7 +169,7 @@ const RW_editor_gm_options = {
 		{
 			title: "GM Directions",
 			block: 'section',
-			classes: 'RWgmDirections',
+			classes: 'RWgmDirections secret',
 			wrapper: true
 		},
 	]
