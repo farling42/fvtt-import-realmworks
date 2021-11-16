@@ -49,7 +49,7 @@ The "RW GM Only" provides Veracity (Partial Truth/Lie) and GM directions whose v
 There are also three new blocks for "GM Directions":
 - "GM Directions & Contents" - if wanted for better grouping of GM directions and the text to which it applies, then this must be applied to the relevant paragraphs before choosing the GM Directions.
 - "GM Directions (secret)" - this should be applied to the paragraphs which are to be GM directions (it will automatically make those paragraphs "secret" in Foundry"). This can be used outside of the above, for stand-alone GM directions.
-- "GM Directions" - this should not be used, but is present in case you switch off the "secret" separately in the editor.
+- "GM Directions (not secret)" - this should not be used, but is present in case you switch off the "secret" separately in the editor and need to restore the correct visibility of the GM Directions.
 
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
 

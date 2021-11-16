@@ -1,6 +1,8 @@
 ## 1.14.1
 Add additional warning when a GM Directions is not explicitly marked as secret, the warning "These 'GM Directions' have had 'secret' removed, and so might be visible to players" will appear in the GM view.
 
+The warning can be removed by first changing the paragraph back to normal by deselecting "GM Directions (not secret)", and then selecting the style "GM Directions (secret)".
+
 When importing, GM Directions are always marked secret, even if an enclosing block is also marked secret. (This is necessary in order to get the warning to work properly.)
 
 ## 1.14
