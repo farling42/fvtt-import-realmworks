@@ -173,7 +173,7 @@ const RW_editor_gm_options = {
 			wrapper: true
 		},
 		{
-			title: "GM Directions",
+			title: "GM Directions (not secret)",
 			block: 'section',
 			classes: 'RWgmDirections',
 			wrapper: true
@@ -429,11 +429,6 @@ function endSection(section_context) {
 	}
 	return "";
 }
-function inSection(section_context, name) {
-	// At the moment, we don't need to worry about finding only whole words
-	return section_context.classes && section_context.classes.includes(name);
-}
-
 function simplesection(section_context, revealed, body) {
 	return startSection(section_context, revealed ? "" : "secret") + body;
 }
@@ -1452,11 +1447,8 @@ class RealmWorksImporter extends Application
 					if (gmdir) {
 						// This is always a separate section - since it needs a box to be drawn around it.
 						let gmbody = functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
-						/* No need for a second secret if we are inside a RWgmDirAndContents (avoids double "secret" background darkening) */
-						if (inSection(section_context, 'secret'))
-							result += `<section class="RWgmDirections">${gmbody}</section>`;
-						else
-							result += `<section class="RWgmDirections secret">${gmbody}</section>`;
+						/* Our CSS requires both RWgmDirections and secret to be specified for the same section */
+						result += `<section class="RWgmDirections secret">${gmbody}</section>`;
 					}
 				}
 				

@@ -25,6 +25,14 @@ form[editable="true"] section.RWveracity-Lie {
 	border: 3px solid #e7c2e8;
 	margin: 2px 0px;
 }
+form.editable section.RWgmDirections:not(.secret):before,
+.mce-content-body section.RWgmDirections:not(.secret):before,
+form[editable="true"] section.RWgmDirections:not(.secret):before {
+	content: "These 'GM Directions' have had 'secret' removed, and so might be visible to players";
+	background: #f08080;
+	border: 2px solid #f00000;
+	margin-top: 5 px;
+}
 /* Formatting for ALL users */
 section.RWCallout, section.RWHandout, section.RWFlavor, section.RWRead_Aloud {
 	padding: 1px;
@@ -47,7 +55,8 @@ section.RWRead_Aloud {
 	background: #d1dff280;
 }
 section.RWgmDirections {
-	/* The GM-Directions part of a snippet */
+	/* GM only, but must override any Style colouring */
+	/* The "GM-Directions (secret)" part of a snippet */
 	background: #fffbed80;
 	border: 2px solid #d2c5b5;
 	padding: 0px 3px;
