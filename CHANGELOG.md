@@ -1,7 +1,14 @@
+## 1.14.1
+Add additional warning when a GM Directions is not explicitly marked as secret, the warning "These 'GM Directions' have had 'secret' removed, and so might be visible to players" will appear in the GM view.
+
+When importing, GM Directions are always marked secret, even if an enclosing block is also marked secret. (This is necessary in order to get the warning to work properly.)
+
 ## 1.14
 Separate out the Player visible styles and the GM-only styles in the Text Editor.
+
 Fix issue where you needed to add "GM Directions" and secret separately, and they were not getting merged into a single section.
 Updated README.md with better information about the new styles.
+
 
 ## 1.13
 Show the RW styles in the (TinyMCE) text editor.
