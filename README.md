@@ -51,6 +51,8 @@ There are also three new blocks for "GM Directions":
 - "GM Directions (secret)" - this should be applied to the paragraphs which are to be GM directions (it will automatically make those paragraphs "secret" in Foundry"). This can be used outside of the above, for stand-alone GM directions.
 - "GM Directions (not secret)" - this should not be used, but is present in case you switch off the "secret" separately in the editor and need to restore the correct visibility of the GM Directions.
 
+If "secret" was manually removed from the GM Directions, then a warning is displayed indicating that the GM Directions could be visible to players. The solution is to revert the GM directions by deselecting "GM Directions (not secret)" and then selecting "GM Directions (secret)" for the affected paragraph(s).
+
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
 
 ## Libraries
