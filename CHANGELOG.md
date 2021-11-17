@@ -1,3 +1,6 @@
+## 1.15
+The first Picture (not smart image) in a topic is added as the image of the created journal entry.
+
 ## 1.14.1
 Add additional warning when a GM Directions is not explicitly marked as secret, the warning "These 'GM Directions' have had 'secret' removed, and so might be visible to players" will appear in the GM view.
 

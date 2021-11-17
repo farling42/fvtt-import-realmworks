@@ -1407,6 +1407,7 @@ class RealmWorksImporter extends Application
 	async writeSection(topic, section, numbering, section_context) {
 
 		// Write a "contents" element:
+		let first_img;
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
 		
 		let functhis = this;
@@ -1574,6 +1575,7 @@ class RealmWorksImporter extends Application
 						else if (sntype === "Picture") {
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += hpara(`<img src='${this.imageFilename(bin_filename)}'></img>`);
+							if (!first_img) first_img = this.imageFilename(bin_filename);
 						} else {
 							let format = 'binary/octet-stream';
 							if (fileext === 'pdf') {
@@ -1630,11 +1632,13 @@ class RealmWorksImporter extends Application
 			if (child.nodeName === 'section') {
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
-				result += await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
+				let subsection = await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
+				if (!first_img) first_img = subsection.img;
+				result += subsection.html;
 			}
 		}
 
-		return result;
+		return { html: result, img: first_img };
 	}
 
 	addDescendents(depth, top_id, only_revealed) {
@@ -1661,6 +1665,7 @@ class RealmWorksImporter extends Application
 	// Write one RW topic
 	//
 	async formatTopicBody(topic) {
+		let first_img;
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
@@ -1694,7 +1699,9 @@ class RealmWorksImporter extends Application
 				break;
 			case 'section':
 				// Always process sections, to properly process revealed status
-				html += await this.writeSection(topic, node, [++sectionnum], section_context);
+				let sections = await this.writeSection(topic, node, [++sectionnum], section_context);
+				html += sections.html;
+				if (!first_img) first_img = sections.img;
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1841,7 +1848,7 @@ class RealmWorksImporter extends Application
 		}
 		
 		html += endSection(section_context);
-		return html;
+		return { html, img: first_img };
 	}
 
 	//
@@ -1852,12 +1859,14 @@ class RealmWorksImporter extends Application
 		console.debug(`createTopic('${this.title_of_topic.get(topic_id)}')`);
 
 		let topic_document = this.document_for_topic.get(topic_id);
+		let body = await this.formatTopicBody(topic);
 		let topicdata = {
 			_id:      topic_document.data._id,
 			//name:     this.title_of_topic.get(topic_id),  -- already set correctly during initial creation
 			topic_id: topic_id,
 			uuid:     topic.getAttribute("original_uuid"),
-			content:  await this.formatTopicBody(topic),
+			content:  body.html,
+			img:      body.img,
 			permission: { "default": this.revealed_topics.has(topic_id) ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE }
 		};
 		
