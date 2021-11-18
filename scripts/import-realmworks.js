@@ -1410,7 +1410,7 @@ class RealmWorksImporter extends Application
 		let first_img;
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
 		
-		let functhis = this;
+		let self = this;
 
 		// Put section header in, based on whether any children are revealed
 		// must be done in order, due to section_context getting modified as we go along.
@@ -1447,7 +1447,7 @@ class RealmWorksImporter extends Application
 					
 					if (gmdir) {
 						// This is always a separate section - since it needs a box to be drawn around it.
-						let gmbody = functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
+						let gmbody = self.simplifyPara(self.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
 						/* Our CSS requires both RWgmDirections and secret to be specified for the same section */
 						result += `<section class="RWgmDirections secret">${gmbody}</section>`;
 					}
@@ -1775,15 +1775,15 @@ class RealmWorksImporter extends Application
 		
 		// New we do the CONTENT LINKS (prefix/suffix are APPENDED)
 		// Add the optional INBOUND and/or OUTBOUND links
-		let functhis = this;
+		let self = this;
 		function contentlinks(dir, links, revealed_links) {
 			let all_links = links.sort( (p1,p2) => {
 				return p1.name ? (p2.name ? p1.name.localeCompare(p2.name, undefined, {numeric: true}) : -1) : p2.name ? 1 : 0;
-			}).map(ref => { return functhis.formatLink(ref.topic_id, ref.name); }).join(' ');
+			}).map(ref => { return self.formatLink(ref.topic_id, ref.name); }).join(' ');
 			
 			let rev_links = revealed_links.sort( (p1,p2) => {
 				return p1.name ? (p2.name ? p1.name.localeCompare(p2.name, undefined, {numeric: true}) : -1) : p2.name ? 1 : 0;
-			}).map(ref => { return functhis.formatLink(ref.topic_id, ref.name); }).join(' ');
+			}).map(ref => { return self.formatLink(ref.topic_id, ref.name); }).join(' ');
 			
 			let result = simplesection(section_context, revealed_links.length, header(1,`Content Links: ${dir}`));
 			
