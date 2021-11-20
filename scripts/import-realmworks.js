@@ -196,7 +196,8 @@ Hooks.once('init', () => {
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
 		config: true,
 	});
-	let dtypes = isNewerVersion(game.data.version,"0.9") ? game.system.documentTypes : game.system.entityTypes;
+	// 0.8.9 has game.data.version; 0.9 has game.version
+	let dtypes = game.version ? game.system.documentTypes : game.system.entityTypes;
 	
 	let actors = {};
 	for (const label of dtypes.Actor) {
