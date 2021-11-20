@@ -196,12 +196,14 @@ Hooks.once('init', () => {
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
 		config: true,
 	});
+	let dtypes = isNewerVersion(game.data.version,"0.9") ? game.system.documentTypes : game.system.entityTypes;
+	
 	let actors = {};
-	for (const label of game.system.entityTypes.Actor) {
+	for (const label of dtypes.Actor) {
 		actors[label] = label
 	}
 	let items = {}
-	for (const label of game.system.entityTypes.Item) {
+	for (const label of dtypes.Item) {
 		items[label] = label
 	}
 	
@@ -212,7 +214,7 @@ Hooks.once('init', () => {
 		scope: "world",
 		type:  String,
 		choices: actors,
-		default: game.system.entityTypes.Actor[0],
+		default: dtypes.Actor[0],
 		config: true,
 	});
     game.settings.register(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL, {
