@@ -24,11 +24,11 @@ Press the IMPORT button at the bottom of the window and wait for the contents to
 
 New folders will be created in the Scenes, Actors, Journal, Roll Tables and Playlist sections containing the imported data.
 
-Each *Smart_Image* is converted into a scene, with map pins and scene notes connected to the relevant journal entries.
+Each *Smart_Image* is converted into a scene with Notes connected to the relevant journal entries and whose visibility to players is based on the revealed state from RW.
 
-Each *Topic* will be converted into a separate Journal Entry, placed in a sub-folder based on the Category of the topic.
+Each *Topic* will be converted into a separate Journal Entry, placed in a sub-folder based on the Category of the topic. Links to topics which are not observable to players will be displayed as normal text, not links.
 
-Each *image or embedded file* will be extracted and located in the subdirectory \[data]world/<world-name/realmworksimport  (this default location can be changed in the module settings).
+Each *image or embedded file* will be extracted and located in the subdirectory \[data]world/<world-name/realmworksimport  (this default location can be changed in the module settings). The first image in a topic will be set as the journal entry's image.
 
 Each *Audio* snippet will be extracted and placed into a Playlist named after the topic.
 
@@ -40,11 +40,13 @@ Any parent topic in the RWoutput file will have a list of governed content at th
 
 ## Additional Presentation
 
+Within Journal Entries, if a link is present but links to another thing which is NOT observable by the player, then the player will see it as normal text, not a link (mirroring Realm Works' behaviour).
+
 The *Text Editor* has some additional options under the "RW Players" and "RW GM Only".
 
-The "RW Players" allows the Realm Works Style presentation to be set on paragraphs  which allow paragraphs to be displayed in the Veracity and/or Style (Callout, Handout, Flavor, Read-Aloud).
+"RW Players" allows the Realm Works Style presentation (Callout, Handout, Flavor, Read-Aloud) to be set on paragraphs.
 
-The "RW GM Only" provides Veracity (Partial Truth/Lie) and GM directions whose visual presentation is only shown to GMs.
+"RW GM Only" provides Veracity (Partial Truth/Lie) of paragraphs and GM directions whose visual presentation is only shown to GMs.
 
 There are also three new blocks for "GM Directions":
 - "GM Directions & Contents" - if wanted for better grouping of GM directions and the text to which it applies, then this must be applied to the relevant paragraphs before choosing the GM Directions.
@@ -59,7 +61,7 @@ If "secret" was manually removed from the GM Directions, then a warning is displ
 This module uses the following libraries from other sources:
 - UZIP for decoding HL portfolio files (MIT/GPLv3 license, from https://stuk.github.io/jszip/)
 - JIMP for converting TIF and BMP images to PNG (MIT license, from https://github.com/oliver-moran/jimp)
-- DirectoryPicker to allow assset files to be stored in S3 rather than just the local 'user data' area (MIT license, from https://github.com/MrPrimate/ddb-importer)
+- DirectoryPicker to allow asset files to be stored in S3 rather than just the local 'user data' area (MIT license, from https://github.com/MrPrimate/ddb-importer)
 
 ## Support
 The Realm Works campaign/world management tool is available from https://www.wolflair.com/realmworks/
