@@ -21,6 +21,8 @@
 import "./UZIP.js";
 import "./jimp.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
+import { setNoteVisibility } from "./hide-unreachable-notes.mjs";
+import { setNoteGMtext } from "./notes-gmtext.mjs";
 
 const GS_MODULE_NAME = "realm-works-import";
 
@@ -43,77 +45,6 @@ const GS_SCENE_TOKEN_VISION = "sceneTokenVision";
 const GS_UNREVEALED_TOPICS_SECRET = "unrevealedTopicsSecret";
 
 const GS_FLAGS_UUID = "uuid";
-const GS_FLAGS_PIN_IS_REVEALED = "pinIsRevealed";
-const GS_FLAGS_PIN_GM_NOTE = "pinGmNote";
-
-//
-// Handle correct visibility of Notes on a Scene
-//
-
-let original_Note_refresh;
-function Note_refresh() {
-	original_Note_refresh.call(this);
-	// Don't do anything if it isn't one of OUR notes
-	const flags = this.document.data.flags[GS_MODULE_NAME];
-	if (!flags) {
-		console.debug(`Note_refresh: no flags`);
-		return this;
-	}
-	// Hide the Note if the RW revealed flag is set to false
-	if (!game.user.isGM && this.visible) {
-		const value = flags[GS_FLAGS_PIN_IS_REVEALED];
-		if (value !== undefined && !value) this.visible = false;
-	}
-	return this;
-}
-
-// Ideally we'd override only Note#text to return GM-notes for Note tooltip, 
-// but since that isn't possible we have to override Note#_drawTooltip instead :-(
-
-let original_Note_drawTooltip;
-function Note_drawTooltip() {	
-	let newtext = this.text;
-	if (game.user.isGM)
-	{
-		const flags = this.document.data.flags[GS_MODULE_NAME];
-		if (flags) {
-			const value = flags[GS_FLAGS_PIN_GM_NOTE];
-			if (value) newtext = value;
-		}
-	}
-
-	// The following is a copy of Note#_drawTooltip() except
-    // Create the Text object
-    const textStyle = this._getTextStyle();
-    const text = new PreciseText(/*this.text*/ newtext, textStyle);
-    text.visible = false;
-    const halfPad = (0.5 * this.size) + 12;
-
-    // Configure Text position
-    switch ( this.data.textAnchor ) {
-      case CONST.TEXT_ANCHOR_POINTS.CENTER:
-        text.anchor.set(0.5, 0.5);
-        text.position.set(0, 0);
-        break;
-      case CONST.TEXT_ANCHOR_POINTS.BOTTOM:
-        text.anchor.set(0.5, 0);
-        text.position.set(0, halfPad);
-        break;
-      case CONST.TEXT_ANCHOR_POINTS.TOP:
-        text.anchor.set(0.5, 1);
-        text.position.set(0, -halfPad);
-        break;
-      case CONST.TEXT_ANCHOR_POINTS.LEFT:
-        text.anchor.set(1, 0.5);
-        text.position.set(-halfPad, 0);
-        break;
-      case CONST.TEXT_ANCHOR_POINTS.RIGHT:
-        text.anchor.set(0, 0.5);
-        text.position.set(halfPad, 0);
-        break;
-    }
-    return text;
-}
 
 const RW_editor_player_options = {
 	title: "RW Players",
@@ -355,12 +286,6 @@ Hooks.once('init', () => {
 		config: false,
 	});
 
-	original_Note_refresh = Note.prototype.refresh;
-	Note.prototype.refresh = Note_refresh;
-	
-	original_Note_drawTooltip = Note.prototype._drawTooltip;
-	Note.prototype._drawTooltip = Note_drawTooltip;
-	
 	// New sections for the editor
 	CONFIG.TinyMCE.style_formats.push(RW_editor_player_options);
 	CONFIG.TinyMCE.style_formats.push(RW_editor_gm_options);
@@ -1071,10 +996,10 @@ class RealmWorksImporter extends Application
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
 				scene: scene.id,
-				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_PIN_IS_REVEALED] : pin_is_revealed }}			
 				//permission: { "default": pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 			};
-			if (gmdir) notedata.flags[GS_MODULE_NAME][GS_FLAGS_PIN_GM_NOTE] = (desc ? notedata.text : `**${pinname}**`) + '\nGMDIR: ' + gmdir;
+			setNoteVisibility(notedata, pin_is_revealed);
+			if (gmdir) setNoteGMtext(notedata, (desc ? notedata.text : `**${pinname}**`) + '\nGMDIR: ' + gmdir)
 			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
 		}

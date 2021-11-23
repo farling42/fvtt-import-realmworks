@@ -10,6 +10,8 @@
 	"esmodules": [
 		"scripts/import-realmworks.js",
 		"scripts/hide-unreachable-links.js",
+		"scripts/hide-unreachable-notes.mjs",
+		"scripts/notes-gmtext.mjs",
 		"scripts/actor-pf1.js",
 		"scripts/actor-dnd5e.js",
 		"scripts/actor-swade.js",

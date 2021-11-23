@@ -32,7 +32,7 @@ async function _checkRenderLinks(sheet, html, data) {
 			return false;
 		}
 		const item = game[entity].get(a.getAttribute("data-id"));
-		return !item || !item.testUserPermission(game.user, "OBSERVER");
+		return !item || !item.testUserPermission(game.user, "LIMITED");
 	}).replaceWith ( (index,a) => {
 		const pos = a.indexOf("</i> ");
 		return (pos<0) ? a : a.slice(pos+5);
