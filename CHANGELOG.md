@@ -5,7 +5,7 @@ Simplify the check to detect when running on V9.
 
 Further improvements to the README.
 
-Hiding of unreachable links now shows the link if the linked item has LIMITED permission, rather than requiring OBSERVER permission.
+Hiding of unreachable links now shows the link if the linked item has **LIMITED** permission, rather than requiring OBSERVER permission.
 
 Move "Revealed Notes" and "Hide Unreachable Links" into separate files, since they could become separate modules in the future.
 
