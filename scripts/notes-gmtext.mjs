@@ -14,22 +14,23 @@ function Note_drawTooltip() {
 	const newtext = this.document.getFlag(MODULE_NAME, PIN_GM_TEXT);
 	if (!newtext) return original_Note_drawTooltip.call(this);
 	
-/*
 	// Set a different label to be used while we call the original Note.prototype._drawTooltip
 	//
-	// This "perfect" solution generates the error: "Cannot set property text of #<Note> which has only a getter"
+	// Note#text          = get text()  { return this.document.label; }
+	// NoteDocument#label = get label() { return this.data.text || this.entry?.name || "Unknown"; }
+	// but NoteDocument#data.text can be modified :-)
 	//
-	let saved_text = this.text;
-	this.text = newtext;
+	let saved_text = this.document.data.text;
+	this.document.data.text = newtext;
 	let result = original_Note_drawTooltip.call(this);
-	this.text = saved_text;
+	this.document.data.text = saved_text;
 	return result;
-*/
+
 	// The following is a copy of Note#_drawTooltip() except for first parameter to PreciseText
-	
+/*	
     // Create the Text object
     const textStyle = this._getTextStyle();
-    const text = new PreciseText(/*this.text*/ newtext, textStyle);
+    const text = new PreciseText(newtext, textStyle);		// newtext instead of this.text
     text.visible = false;
     const halfPad = (0.5 * this.size) + 12;
 
@@ -57,7 +58,7 @@ function Note_drawTooltip() {
         break;
     }
     return text;
-
+*/
 }
 
 function setNoteGMtext(notedata,text) {
