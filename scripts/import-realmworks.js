@@ -43,6 +43,8 @@ const GS_CREATE_ITEMS = "createItems";
 const GS_SCENE_REVEALED_NAVIGATION = "sceneRevealedNavigation";
 const GS_SCENE_TOKEN_VISION = "sceneTokenVision";
 const GS_UNREVEALED_TOPICS_SECRET = "unrevealedTopicsSecret";
+const GS_NOTE_LINE_LENGTH = "noteLineLength";
+const GS_NOTE_TEXT_SIZE = "noteTextSize";
 
 const GS_FLAGS_UUID = "uuid";
 
@@ -224,6 +226,22 @@ Hooks.once('init', () => {
 		scope: "world",
 		type:  Number,
 		default: 100,
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_NOTE_LINE_LENGTH, {
+		name: "Max line length for Notes",
+		hint: "Any line defined for a smart image pin which is longer than this will be split across multiple lines (breaking on spaces)",
+		scope: "world",
+		type:  Number,
+		default: 60,
+		config: true,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_NOTE_TEXT_SIZE, {
+		name: "Font Size for scene Notes",
+		hint: "The font size to use for scene Notes",
+		scope: "world",
+		type:  Number,
+		default: 24,
 		config: true,
 	});
 /*	
@@ -579,6 +597,8 @@ class RealmWorksImporter extends Application
 			this.scene_revealed_navigation = game.settings.get(GS_MODULE_NAME, GS_SCENE_REVEALED_NAVIGATION);
 			this.create_items              = game.settings.get(GS_MODULE_NAME, GS_CREATE_ITEMS);
 			this.unrevealed_topics_secret  = game.settings.get(GS_MODULE_NAME, GS_UNREVEALED_TOPICS_SECRET);
+			this.note_line_length          = game.settings.get(GS_MODULE_NAME, GS_NOTE_LINE_LENGTH);
+			this.note_text_size            = game.settings.get(GS_MODULE_NAME, GS_NOTE_TEXT_SIZE);
 			if (this.scene_grid < 50) {
 				console.warn(`CONFIGURED SCENE GRID SIZE IS TOO SMALL (${this.scene_grid}), USING 50`);
 				this.scene_grid = 50;
@@ -901,6 +921,31 @@ class RealmWorksImporter extends Application
 		await this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
+	// Insert line breaks so that no line is longer than "max"
+	breakLines(string) {
+		const max = this.note_line_length;
+		if (string.length < max) return string;
+		let pos = 0;
+		let result = "";
+		while (pos < string.length) {
+			// Firstly check for an existing line break.
+			let limit = pos+max;
+			let brk = (limit < string.length) ? string.lastIndexOf('\n', limit) : string.length;
+			if (brk < pos) {	// no line break, so check for white space
+				brk = string.lastIndexOf(' ', limit);
+				if (brk < pos) {	// No space found in the line, so look for first space beyond ideal point.
+					brk = string.indexOf(' ', limit);
+					if (brk === -1) brk = string.length;
+				}
+			}
+			// Add to result
+			if (result.length > 0) result += '\n';
+			result += string.slice(pos, brk);	// exclude the white space
+			pos = brk+1; // skip that white space character
+		}
+		return result;
+	}
+	
 	// Convert a Smart_Image into a scene
 	async createScene(topic, smart_image, is_revealed) {
 		//<snippet facet_name="Map" type="Smart_Image" search_text="">
@@ -980,8 +1025,11 @@ class RealmWorksImporter extends Application
 			
 			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
 			let entryid = this.document_for_topic.get(pin_topic_id)?.data._id;
-			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent?.replace('&#xd;\n','\n');
-			let gmdir   = pin.getElementsByTagName('gm_directions')?.[0]?.textContent?.replace('&#xd;\n','\n');
+			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent?.replaceAll('&#xd;\n','\n');
+			let gmdir   = pin.getElementsByTagName('gm_directions')?.[0]?.textContent?.replaceAll('&#xd;\n','\n');
+			
+			if (desc)  desc  = this.breakLines(desc);
+			if (gmdir) gmdir = this.breakLines(gmdir);
 			
 			let notedata = {
 				name: pinname,
@@ -991,15 +1039,15 @@ class RealmWorksImporter extends Application
 				icon:     pin_is_revealed ? 'icons/svg/circle.svg' : 'icons/svg/blind.svg',
 				iconSize: 32,		// minimum size 32
 				iconTint: entryid ? '#7CFC00' : '#c000c0',
-				text: desc ? `**${pinname}**\n` + desc : pinname,
-				fontSize: 24,
+				text: desc ? `>> ${pinname} <<\n` + desc : pinname,
+				fontSize: this.note_text_size,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
 				scene: scene.id,
 				//permission: { "default": pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 			};
 			setNoteVisibility(notedata, pin_is_revealed);
-			if (gmdir) setNoteGMtext(notedata, (desc ? notedata.text : `**${pinname}**`) + '\nGMDIR: ' + gmdir)
+			if (gmdir) setNoteGMtext(notedata, (desc ? notedata.text : `>> ${pinname} <<`) + '\n\u2193\u2193 --- GMDIR --- \u2193\u2193\n' + gmdir)
 			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
 		}
