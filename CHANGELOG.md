@@ -1,7 +1,7 @@
 ## 1.16
 Updates for scene Notes:
 - The title of a map pin is now displayed within ">> title <<" instead of the previous "\*\*title\*\*".
-- The text is broken across multiple lines (default max line length set to 60 in module settings).
+- The text is broken across multiple lines (default max line length set to 60 in module settings) - this does not affect the note title/linked journal name.
 - Multiple occurrences of "&#xd;" in the map pin descriptions are replaced by just a newline.
 - The "GMDIR:" indicator has been put on it's own line with down arrows to indicate which text is the GM directions.
 - The font size is now configurable in the module settings.
