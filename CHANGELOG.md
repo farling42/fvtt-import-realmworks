@@ -1,4 +1,7 @@
 ## 1.17
+Change the presentation of annotations for relationships since they can be multi-line (whereas annotations on other snippets are single line only). The annotation of
+a relationship now appears in emphasis (italics) immediately below the relationship details (still part of the same bullet).
+
 Use libWrapper for the run-time aspects of Note display (GM notes + revealed status), and only enable the relevant module depending on whether GM or player.
 
 For users hosting on Forge, additional metadata has been added to the module information.

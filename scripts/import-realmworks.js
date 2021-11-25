@@ -337,7 +337,7 @@ Hooks.on("renderSidebarTab", async (app, html) => {
 function hstrong(string) {
 	return `<strong>${string}</strong>`;
 }
-function hitalic(string) {
+function hemphasis(string) {
 	return `<em>${string}</em>`;
 }
 function hlabel(string) {
@@ -351,9 +351,6 @@ function hpara(body) {
 }
 function header(lvl, name) {
 	return `<h${lvl}>${name}</h${lvl}>`;
-}
-function hannot(annotation) {
-	return `; <em>${stripHtml(annotation)}</em>`;
 }
 function startSection(section_context, classes) {
 	// Ignore setting "secret" if the context says to do so
@@ -381,7 +378,7 @@ function simplesection(section_context, revealed, body) {
 function labelledField(label, content, annotation=null) {
 	let body = hlabel(label);
 	if (content) body += content;
-	if (annotation) body += hannot(annotation);
+	if (annotation) body += hemphasis('; ' + stripHtml(annotation));
 	return hpara(body);
 }	
 // Strip all HTML from the string.
@@ -1671,9 +1668,9 @@ class RealmWorksImporter extends Application
 				// These come first
 				let alias;
 				if (node.getAttribute('is_true_name') === 'true')
-					alias = `<p style="text-decoration: underline">${hitalic(hlabel("True Name") + node.getAttribute('name'))}</p>`;
+					alias = `<p style="text-decoration: underline">${hemphasis(hlabel("True Name") + node.getAttribute('name'))}</p>`;
 				else
-					alias = `<p>${hitalic(hlabel("Alias") + node.getAttribute('name'))}</p>`;
+					alias = `<p>${hemphasis(hlabel("Alias") + node.getAttribute('name'))}</p>`;
 				html += simplesection(section_context, node.hasAttribute('is_revealed'), alias);
 				break;
 			case 'section':
@@ -1719,10 +1716,14 @@ class RealmWorksImporter extends Application
 						text += hqualifier(attitude);
 					else if (rating)  // rating is a number, attitude is the string for the rating
 						text += hqualifier(rating);
-					// No links possible in the annotation of a relationship.
-					if (annot.length > 0) text += hannot(annot[0].textContent);
 					
 					text += ': ' + this.formatLink(target_id, cname);
+					
+					// No links possible in the annotation of a relationship, but can be multi-line.
+					// Multi-line annotation merely has &#xd; and a newline not HTML markup for line breaks.
+					// This is specific to connections; not annotations on other snippet types.
+					if (annot.length > 0) text += '<br\>' + hemphasis(annot[0].textContent.replaceAll('&#xd;\n','<br\>'));
+					
 					connections.push({cname, text});
 					if (!section_context.ignore_secret && node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))
 						revealed_connections.push({cname, text});
