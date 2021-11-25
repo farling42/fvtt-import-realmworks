@@ -352,6 +352,10 @@ function hpara(body) {
 function header(lvl, name) {
 	return `<h${lvl}>${name}</h${lvl}>`;
 }
+// stripHtml: Strip all HTML from the string.
+function stripHtml(original) {
+	return original.replace(/<[^>]+>/g, '');
+}
 function startSection(section_context, classes) {
 	// Ignore setting "secret" if the context says to do so
 	// (which would be when the topic is NOT revealed and the user doesn't want it all marked as SECRET
@@ -381,10 +385,6 @@ function labelledField(label, content, annotation=null) {
 	if (annotation) body += hemphasis('; ' + stripHtml(annotation));
 	return hpara(body);
 }	
-// Strip all HTML from the string.
-function stripHtml(original) {
-	return original.replace(/<[^>]+>/g, '');
-}
 function stripPara(original) {
 	if (original.startsWith('<p>') && original.endsWith('</p>')) {
 		return original.slice(3,-4);
@@ -404,7 +404,17 @@ function hasRevealed(section) {
 	}
 	return false;
 }
-
+// getChild: Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
+function getChild(node,name) {
+	if (node) {
+		// children   = only element children
+		// childNodes = all child nodes
+		for (const child of node.children) {
+			if (child.nodeName === name) return child;
+		}
+	}
+	return undefined;
+}
 //
 // Convert Utf8Array to UTF-8 string
 //
@@ -801,7 +811,7 @@ class RealmWorksImporter extends Application
 					const block = buffer.slice(topic_start, topic_end+8);
 					try {
 						// parseFromString returns a #Document node as the top node.
-						const topicnode = this.getChild(this.parser.parseFromString(block, "text/xml"), 'topic');
+						const topicnode = getChild(this.parser.parseFromString(block, "text/xml"), 'topic');
 						if (topicnode) {
 							topic_nodes.push(topicnode);
 							// Replace extracted topic with a marker to correctly identify child topics.
@@ -959,8 +969,8 @@ class RealmWorksImporter extends Application
 		//const scenename = smart_image.parentElement?.getAttribute('facet_name');
 		const scene_topic_id = topic.getAttribute("topic_id");
 		const uuid     = topic.getAttribute("original_uuid");
-		const asset    = this.getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-		const contents = this.getChild(asset, 'contents'); // <contents>
+		const asset    = getChild(smart_image, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+		const contents = getChild(asset, 'contents'); // <contents>
 		const filename = asset?.getAttribute('filename');
 		if (!asset)    throw('<smart_image> is missing <asset>');
 		if (!contents) throw('<smart_image> is missing <contents>');
@@ -1025,8 +1035,8 @@ class RealmWorksImporter extends Application
 			
 			const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
 			let entryid = this.document_for_topic.get(pin_topic_id)?.data._id;
-			let desc    = pin.getElementsByTagName('description')?.[0]?.textContent?.replaceAll('&#xd;\n','\n');
-			let gmdir   = pin.getElementsByTagName('gm_directions')?.[0]?.textContent?.replaceAll('&#xd;\n','\n');
+			let desc    = getChild(pin, 'description')?.textContent?.replaceAll('&#xd;\n','\n');
+			let gmdir   = getChild(pin, 'gm_directions')?.textContent?.replaceAll('&#xd;\n','\n');
 			
 			if (desc)  desc  = this.breakLines(desc);
 			if (gmdir) gmdir = this.breakLines(gmdir);
@@ -1071,18 +1081,6 @@ class RealmWorksImporter extends Application
 		return scene.id;
 	}
 		
-	// Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
-	getChild(node,name) {
-		if (node) {
-			// children   = only element children
-			// childNodes = all child nodes
-			for (const child of node.children) {
-				if (child.nodeName === name) return child;
-			}
-		}
-		return undefined;
-	}
-
 	// base64 is the base64 string containing the .por file
 	// format is one of the character formats in the .por file: 'html', 'text', 'xml' (need to do Utf8ArrayToStr to get to string)
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
@@ -1109,7 +1107,7 @@ class RealmWorksImporter extends Application
 				console.warn(`No 'name' tag in character portfolio: fields = ${character.getAttributeNames()}`);
 				continue;
 			}
-			for (const statblock of this.getChild(character,'statblocks').children) {
+			for (const statblock of getChild(character,'statblocks').children) {
 				if (statblock.nodeName === 'statblock') {
 					const format = statblock.getAttribute('format');
 					const folder = statblock.getAttribute('folder');
@@ -1117,7 +1115,7 @@ class RealmWorksImporter extends Application
 					actordata[format] = files[folder + '/' + filename];
 				}
 			}
-			const img  = this.getChild(this.getChild(character,'images'),'image');
+			const img  = getChild(getChild(character,'images'),'image');
 			if (img) {
 				const folder   = img.getAttribute('folder');
 				const filename = img.getAttribute('filename');
@@ -1401,12 +1399,12 @@ class RealmWorksImporter extends Application
 				// Collect all the information from the snippet
 				const sntype     = child.getAttribute('type');
 				const style      = child.getAttribute('style');
-				const contents   = this.getChild(child, 'contents');
-				const gmdir      = this.getChild(child, 'gm_directions');
+				const contents   = getChild(child, 'contents');
+				const gmdir      = getChild(child, 'gm_directions');
 				const links      = child.getElementsByTagName('link');
 				const label      = child.getAttribute('label') ?? this.structure.facets.get(child.getAttribute('facet_id'));
 				const veracity   = child.getAttribute('veracity');
-				let   annotation = this.getChild(child, 'annotation');
+				let   annotation = getChild(child, 'annotation');
 				if (annotation) annotation = this.replaceLinks(annotation.textContent, links);
 				
 				let need_close_section = false;				
@@ -1492,14 +1490,14 @@ class RealmWorksImporter extends Application
 					break;
 					
 				case "Date_Game":
-					let dategame = this.getChild(child, 'game_date');
+					let dategame = getChild(child, 'game_date');
 					sectionHeader(dategame);
 					if (dategame) {
 						result += labelledField(label, dategame.getAttribute("gregorian"), annotation);
 					}
 					break;
 				case "Date_Range":
-					let daterange = this.getChild(child, 'date_range');
+					let daterange = getChild(child, 'date_range');
 					sectionHeader(daterange);
 					if (daterange) {
 						result += labelledField(label, `${daterange.getAttribute("gregorian_start")} to ${daterange.getAttribute("gregorian_end")}`, annotation);
@@ -1509,8 +1507,8 @@ class RealmWorksImporter extends Application
 					// <ext_object ...>
 					// <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					// <contents>
-					let portasset = this.getChild(this.getChild(child, 'ext_object'), 'asset');
-					const portfolio = this.getChild(portasset, 'contents');    // <contents>
+					let portasset = getChild(getChild(child, 'ext_object'), 'asset');
+					const portfolio = getChild(portasset, 'contents');    // <contents>
 					sectionHeader(portfolio);
 					if (portfolio) {
 						// for test purposes, extract all .por files!
@@ -1538,9 +1536,9 @@ class RealmWorksImporter extends Application
 					// <ext_object name="Portrait" type="Picture">
 					// <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 					// <contents>
-					const bin_ext_object = this.getChild(child,          'ext_object');  
-					const bin_asset      = this.getChild(bin_ext_object, 'asset');       
-					const bin_contents   = this.getChild(bin_asset,      'contents');    
+					const bin_ext_object = getChild(child,          'ext_object');  
+					const bin_asset      = getChild(bin_ext_object, 'asset');       
+					const bin_contents   = getChild(bin_asset,      'contents');    
 					sectionHeader(bin_contents);
 					if (bin_contents) {
 						result += header(numbering.length+1, bin_ext_object.getAttribute('name'));
@@ -1571,9 +1569,9 @@ class RealmWorksImporter extends Application
 					//		<description>Nieklsdia (Zhodani)</description> -- could be empty
 					
 					// These need to be created as Scenes (and linked from the original topic?)
-					const smart_image  = this.getChild(child,       'smart_image');
-					const map_asset    = this.getChild(smart_image, 'asset'); 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
-					const map_contents = this.getChild(map_asset,   'contents');  	// <contents>
+					const smart_image  = getChild(child,       'smart_image');
+					const map_asset    = getChild(smart_image, 'asset'); 	    // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+					const map_contents = getChild(map_asset,   'contents');  	// <contents>
 					const map_filename = map_asset?.getAttribute('filename');
 					const map_format   = map_filename?.split('.').pop();	// extra suffix from asset filename
 					sectionHeader(map_format && map_contents);
@@ -1697,7 +1695,7 @@ class RealmWorksImporter extends Application
 					let qualifier = node.getAttribute('qualifier');
 					let attitude  = node.getAttribute('attitude')
 					let rating    = node.getAttribute('rating');
-					let annot     = node.getElementsByTagName('annotation');
+					let annotation = getChild(node, 'annotation');
 
 					let text = RealmWorksImporter.ConnectionName[nature];
 					
@@ -1722,7 +1720,7 @@ class RealmWorksImporter extends Application
 					// No links possible in the annotation of a relationship, but can be multi-line.
 					// Multi-line annotation merely has &#xd; and a newline not HTML markup for line breaks.
 					// This is specific to connections; not annotations on other snippet types.
-					if (annot.length > 0) text += '<br\>' + hemphasis(annot[0].textContent.replaceAll('&#xd;\n','<br\>'));
+					if (annotation) text += '<br\>' + hemphasis(annotation.textContent.replaceAll('&#xd;\n','<br\>'));
 					
 					connections.push({cname, text});
 					if (!section_context.ignore_secret && node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))
@@ -1942,17 +1940,17 @@ class RealmWorksImporter extends Application
 
 			const sntype = snippet.getAttribute('type');
 			const is_revealed = topic_is_revealed && snippet.hasAttribute('is_revealed');
-			const ext_object = this.getChild(snippet, 'ext_object'); // <ext_object name="Portrait" type="Picture">
+			const ext_object = getChild(snippet, 'ext_object'); // <ext_object name="Portrait" type="Picture">
 			if (!ext_object) {
 				console.warn(`formatActors for '${topicname}':\n no <ext_object> for ${sntype} - Skipping`);
 				continue;
 			}
-			const asset = this.getChild(ext_object, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
+			const asset = getChild(ext_object, 'asset'); // <asset filename="10422561_10153053819388385_8373621707661700909_n.jpg">
 			if (!asset) {
 				console.warn(`formatActors for '${topicname}':\n no <asset> for ${sntype} with ${ext_object.getAttribute('type')} of ${ext_object.getAttribute('name')} - Skipping`);
 				continue;
 			}
-			const contents = this.getChild(asset, 'contents'); // <contents>
+			const contents = getChild(asset, 'contents'); // <contents>
 			if (!contents) {
 				console.warn(`formatActors for '${topicname}':\n no <contents> for ${sntype} with ${ext_object.getAttribute('type')} of ${ext_object.getAttribute('name')} - Skipping`);
 				continue;
@@ -2036,7 +2034,7 @@ class RealmWorksImporter extends Application
 			} else {
 				// No portfolio file available for decoding, so simply store the STATBLOCK in the relevant location on the Actor
 				let name = ext_object.getAttribute('name');
-				const annotation = this.getChild(snippet, 'annotation');
+				const annotation = getChild(snippet, 'annotation');
 				if (annotation) name += ':' + stripHtml(annotation.textContent);
 				let actor = {
 					name: name,
@@ -2108,10 +2106,10 @@ class RealmWorksImporter extends Application
 			
 			// Sound file has already been uploaded
 			for (const snippet of snippets) {
-				const ext_object = this.getChild(snippet,    'ext_object'); 
-				const asset      = this.getChild(ext_object, 'asset');
+				const ext_object = getChild(snippet,    'ext_object'); 
+				const asset      = getChild(ext_object, 'asset');
 				const filename = asset?.getAttribute('filename');
-				if (!this.getChild(asset, 'contents')) continue;		// No contents means no file!
+				if (!getChild(asset, 'contents')) continue;		// No contents means no file!
 				// ext_object.getAttribute('type') === 'Audio'
 				
 				let name = ext_object.getAttribute('name');
@@ -2132,7 +2130,7 @@ class RealmWorksImporter extends Application
 					//	"flags": {},
 				};
 				
-				const annotation = this.getChild(snippet, 'annotation');
+				const annotation = getChild(snippet, 'annotation');
 				if (annotation) sound.description = stripHtml(annotation.textContent);
 				
 				playlist.sounds.push(sound);
