@@ -119,16 +119,6 @@ const RW_editor_gm_options = {
 //
 Hooks.once('init', () => {
 
-	// See API documentation "ClientSettings"
-	game.settings.register(GS_MODULE_NAME, GS_ASSETS_LOCATION, {
-		name: "Location of Extracted Assets",
-		hint: "Folder within [User Data] area where assets (e.g. sounds, PDFs, videos) embedded in the RWexport file will be placed.",
-		scope: "world",
-		type:  DirectoryPicker.Directory,
-		default: `[data] worlds/${game.world.data.name}/realmworksimport`,
-		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
-		config: true,
-	});
 	// 0.8.9 has game.system.entityTypes; 0.9 has game.system.documentTypes
 	let dtypes = game.system.documentTypes || game.system.entityTypes;
 	
@@ -141,6 +131,16 @@ Hooks.once('init', () => {
 		items[label] = label
 	}
 	
+	// See API documentation "ClientSettings"
+	game.settings.register(GS_MODULE_NAME, GS_ASSETS_LOCATION, {
+		name: "Location of Extracted Assets",
+		hint: "Folder within [User Data] area where assets (e.g. sounds, PDFs, videos) embedded in the RWexport file will be placed.",
+		scope: "world",
+		type:  DirectoryPicker.Directory,
+		default: `[data] worlds/${game.world.data.name}/realmworksimport`,
+		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
+		config: true,
+	});
 	// Get the list of Actor choices Actor.types[] system/template.json
     game.settings.register(GS_MODULE_NAME, GS_ACTOR_TYPE, {
 		name: "Default Actor Type",
