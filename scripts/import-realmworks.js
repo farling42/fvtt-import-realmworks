@@ -356,6 +356,17 @@ function header(lvl, name) {
 function stripHtml(original) {
 	return original.replace(/<[^>]+>/g, '');
 }
+function escapeHTML(s) {
+	const lookup = {
+		'&': "&amp;",
+		'"': "&quot;",
+		'\'': "&apos;",
+		'<': "&lt;",
+		'>': "&gt;"
+	};
+	return s.replace( /[&"'<>]/g, c => lookup[c] );
+}
+
 function startSection(section_context, classes) {
 	// Ignore setting "secret" if the context says to do so
 	// (which would be when the topic is NOT revealed and the user doesn't want it all marked as SECRET
@@ -382,7 +393,7 @@ function simplesection(section_context, revealed, body) {
 function labelledField(label, content, annotation=null) {
 	let body = hlabel(label);
 	if (content) body += content;
-	if (annotation) body += hemphasis('; ' + stripHtml(annotation));
+	if (annotation) body += hemphasis('; ' + stripHtml(annotation));	// single line in RW file
 	return hpara(body);
 }	
 function stripPara(original) {
@@ -391,6 +402,32 @@ function stripPara(original) {
 	}
 	return original;
 }
+// Remove the default class information from the RW formatting to reduce the size of the final HTML.
+function simplifyPara(original) { // UNUSED - is it worth keeping?
+	// Too much effort to remove <span> and </span> tags, so just simplify.
+	// Replace <span class="RWSnippet">...</span> with just the ...
+	// Replace <span>...</span> with just the ...
+	// Replace <p class="RWBullet"> sequence with <ul><li>text</li></ul>
+	// Replace <p class="RWEnumated"> sequence with <ol><li>text</li><ol>
+	return original.
+		replaceAll(/<span class="RWSnippet">/g,'<span>').
+		replaceAll(/<span>([^<]*)<\/span>/g,'$1').
+		replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
+		replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<strong>$1</strong>').
+		replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<em>$1</em>').
+		replaceAll(/<span class="RWSnippet" /g,'<span ').
+		replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
+		replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
+		replaceAll(/<p class="RWDefault">/g,'<p>').
+		replaceAll(/<p class="RWDefault" /g,'<p ').
+		replaceAll(/<p class="RWSnippet">/g,'<p>').
+		replaceAll(/<p class="RWSnippet" /g,'<p ').
+		replaceAll(/<p class="RWBullet">(.*?)<\/p>/g, '<ul><li>$1</li></ul>').
+		replaceAll(/<p class="RWEnumerated">(.*?)<\/p>/g, '<ol><li>$1</li></ol>').
+		replaceAll(/<\/ul><ul>/g,'').		// Two consecutive RWBullet, so merge into a single ul list
+		replaceAll(/<\/ol><ol>/g,'');		// Two consecutive RWEnumberated, so merge into a single ol list
+}
+	
 function hasRevealed(section) {
 	for (const node of section.children) {
 		switch (node.nodeName) {
@@ -748,17 +785,6 @@ class RealmWorksImporter extends Application
 
 			if (!this.parser) this.parser = new DOMParser();
 			
-			function escapeHTML(s) {
-				let lookup = {
-					'&': "&amp;",
-					'"': "&quot;",
-					'\'': "&apos;",
-					'<': "&lt;",
-					'>': "&gt;"
-				};
-				return s.replace( /[&"'<>]/g, c => lookup[c] );
-			}
-
 			// Indicate we have no structure yet
 			this.structure = undefined;
 			
@@ -773,10 +799,10 @@ class RealmWorksImporter extends Application
 				// Read another chunk onto the end of the buffer.
 				const blob = await file.slice(start, start+chunkSize);
 				if (blob.size === 0) break;
-				start += blob.size;
-				buffer += await blob.text();
-				
+				start  += blob.size;
+				buffer += await blob.text();	// convert assuming UTF-8
 				console.debug(`Read ${blob.size} bytes from file (buffer size now ${buffer.length})`);
+				
 				if (!this.structure) {
 					const struct_end = buffer.indexOf('</structure>');
 					if (struct_end < 0) continue;
@@ -861,7 +887,7 @@ class RealmWorksImporter extends Application
 	async getFolder(folderName, type, parentid=null) {
 		const found = game.folders.find(e => e.data.type === type && e.data.name === folderName && e.data.parent === parentid);
 		if (found) return found;
-		return await Folder.create({name: folderName, type: type, parent: parentid, sorting: "m"});
+		return Folder.create({name: folderName, type: type, parent: parentid, sorting: "m"});
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
@@ -928,7 +954,7 @@ class RealmWorksImporter extends Application
 
 	// Convert a string in base64 format into binary and upload to this.asset_directory,
 	async uploadFile(filename, base64) {
-		await this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
+		return this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
 	// Insert line breaks so that no line is longer than "max"
@@ -1018,7 +1044,7 @@ class RealmWorksImporter extends Application
 			scene = await Scene.create(scenedata).catch(e => console.warn(`Failed to create new scene ${scenename} due to ${e}`));
 		}
 		//if (scene) console.debug(`Successfully created scene for ${scenename} in folder ${scene.folder}`);
-		if (!scene) return;
+		if (!scene) throw(`Failed to create scene for '${scenedata.name}'`);
 		
 		// Add some notes
 		let notes = [];
@@ -1192,35 +1218,6 @@ class RealmWorksImporter extends Application
 			let linktext = result.slice(link.start, link.finish);
 			result = result.slice(0,link.start) + this.formatLink(link.target_id, linktext) + result.slice(link.finish);
 		}
-		return result;
-	}
-		
-	// Remove the default class information from the RW formatting to reduce the size of the final HTML.
-	simplifyPara(original) { // UNUSED - is it worth keeping?
-		// Too much effort to remove <span> and </span> tags, so just simplify.
-		// Replace <span class="RWSnippet">...</span> with just the ...
-		// Replace <span>...</span> with just the ...
-		let result = original.
-			replaceAll(/<span class="RWSnippet">/g,'<span>').
-			replaceAll(/<span>([^<]*)<\/span>/g,'$1').
-			replaceAll(/<span>([^<]*)<\/span>/g,'$1').		// sometimes we have nested simple spans
-			replaceAll(/<span class="RWSnippet" style="font-weight:bold">([^<]*)<\/span>/g,'<strong>$1</strong>').
-			replaceAll(/<span class="RWSnippet" style="font-style:italic">([^<]*)<\/span>/g,'<em>$1</em>').
-			replaceAll(/<span class="RWSnippet" /g,'<span ').
-			replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
-			replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
-			replaceAll(/<p class="RWDefault">/g,'<p>').
-			replaceAll(/<p class="RWDefault" /g,'<p ').
-			replaceAll(/<p class="RWSnippet">/g,'<p>').
-			replaceAll(/<p class="RWSnippet" /g,'<p ').
-			replaceAll(/<p class="RWBullet">(.*?)<\/p>/g, '<ul><li>$1</li></ul>').
-			replaceAll(/<p class="RWEnumerated">(.*?)<\/p>/g, '<ol><li>$1</li></ol>').
-			replaceAll(/<\/ul><ul>/g,'').		// Two consecutive RWBullet, so merge into a single ul list
-			replaceAll(/<\/ol><ol>/g,'');		// Two consecutive RWEnumberated, so merge into a single ol list
-
-		// Replace <p class="RWBullet"> sequence with <ul><li>text</li></ul>
-		// Replace <p class="RWEnumated"> sequence with <ol><li>text</li><ol>
-		
 		return result;
 	}
 		
@@ -1421,7 +1418,7 @@ class RealmWorksImporter extends Application
 					
 					if (gmdir) {
 						// This is always a separate section - since it needs a box to be drawn around it.
-						let gmbody = functhis.simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
+						let gmbody = simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
 						/* Our CSS requires both RWgmDirections and secret to be specified for the same section */
 						result += `<section class="RWgmDirections secret">${gmbody}</section>`;
 					}
@@ -1432,7 +1429,7 @@ class RealmWorksImporter extends Application
 					sectionHeader(contents);
 					if (contents) {
 						let text = this.replaceLinks(contents.textContent, links);
-						result += this.simplifyPara(text);
+						result += simplifyPara(text);
 						// Create a RollTable for each relevant HTML table, and append journal links to the HTML output.
 						result += await this.createTable(topic, section_name, text, topic.getAttribute('is_revealed') && is_revealed);
 					}
@@ -1441,7 +1438,7 @@ class RealmWorksImporter extends Application
 					sectionHeader(contents);
 					if (contents) {
 						// contents child (it will already be in encoded-HTML)
-						result += labelledField(label, stripPara(this.simplifyPara(this.replaceLinks(contents.textContent, links))), annotation);
+						result += labelledField(label, stripPara(simplifyPara(this.replaceLinks(contents.textContent, links))), annotation);
 					}
 					break;
 				case "Numeric":
@@ -1866,7 +1863,7 @@ class RealmWorksImporter extends Application
 		let topic_document = this.document_for_topic.get(topic_id);
 		if (!topic_document) {
 			console.error(`document_for_topic does not have ${topic_id} for '${this.title_of_topic.get(topic_id)}'`);
-			return;
+			throw(`document_for_topic does not have ${topic_id}`);
 		}
 		
 		let content  = await this.formatTopicBody(topic);
@@ -1876,8 +1873,8 @@ class RealmWorksImporter extends Application
 			permission: { "default": this.revealed_topics.has(topic_id) ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 		}
 
-		await topic_document.update(itemdata)
-			.catch(e => console.warn(`Failed to create item ${topic_name}`));
+		// Return the promise from the update, so we don't need an await here
+		return topic_document.update(itemdata);
 	}
 	
 	// Examine each topic within topics to see if it should be converted into an actor:
@@ -2000,7 +1997,8 @@ class RealmWorksImporter extends Application
 									// Cater for MINIONS
 									let port = portfolio.get(actor.name);
 									actor.token = {
-										disposition: actor.relationship === 'ally' ? 1 : actor.relationship === 'enemy' ? -1 : 0
+										disposition: actor.relationship === 'ally'  ? CONST.TOKEN_DISPOSITIONS.FRIENDLY : 
+													 actor.relationship === 'enemy' ? CONST.TOKEN_DISPOSITIONS.HOSTILE  : CONST.TOKEN_DISPOSITIONS.NEUTRAL
 									};
 									let extradata = await this.actor_data_func(Utf8ArrayToStr(port[this.por_html]));
 									actor.data = foundry.utils.mergeObject(actor.data, extradata);
@@ -2195,7 +2193,8 @@ class RealmWorksImporter extends Application
 						// Store the raw statblock (but don't overwrite the rest of data)
 						actordata.data = foundry.utils.mergeObject(actordata.data, await this.actor_data_func(Utf8ArrayToStr(port[this.por_html])));
 						actordata.token = {
-							disposition: actordata.relationship === 'ally' ? 1 : actordata.relationship === 'enemy' ? -1 : 0
+							disposition: actordata.relationship === 'ally'  ? CONST.TOKEN_DISPOSITIONS.FRIENDLY : 
+										 actordata.relationship === 'enemy' ? CONST.TOKEN_DISPOSITIONS.HOSTILE  : CONST.TOKEN_DISPOSITIONS.NEUTRAL
 						};
 						actordata.folder = actor_folder_id;
 						if (port.imgfilename) {
