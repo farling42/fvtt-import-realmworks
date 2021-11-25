@@ -1,3 +1,8 @@
+## 1.17
+Use libWrapper for the run-time aspects of Note display (GM notes + revealed status), and only enable the relevant module depending on whether GM or player.
+
+For users hosting on Forge, additional metadata has been added to the module information.
+
 ## 1.16
 Updates for scene Notes:
 - The title of a map pin is now displayed within ">> title <<" instead of the previous "\*\*title\*\*".

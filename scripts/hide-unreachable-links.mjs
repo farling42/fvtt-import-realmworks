@@ -9,10 +9,9 @@ const _EntityMap = {
 };
 
 async function _checkRenderLinks(sheet, html, data) {	
-	// app  = ActorSheet
-	// html = jQuery
-	// data = object
-	if (game.user.isGM) return;
+	// sheet = ActorSheet
+	// html  = jQuery
+	// data  = object
 	
 	// Original link:
 	//     <a class="entity-link" draggable="true" [ data-entity="JournalEntry" | data-pack="packname" ] data-id=".....">
@@ -39,5 +38,10 @@ async function _checkRenderLinks(sheet, html, data) {
 	});
 }
 
-Hooks.on("renderJournalSheet", _checkRenderLinks);
-Hooks.on("renderActorSheet",   _checkRenderLinks);
+Hooks.once('ready', () => {
+	// Only check for link visibility if NOT a gm
+	if (!game.user.isGM) {
+		Hooks.on("renderJournalSheet", _checkRenderLinks);
+		Hooks.on("renderActorSheet",   _checkRenderLinks);
+	}
+})
