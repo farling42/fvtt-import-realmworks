@@ -572,6 +572,7 @@ class RealmWorksImporter extends Application
 		//html.find('[name=folder-name]')?.val(game.settings.get(GS_MODULE_NAME, 
 		
 		html.find(".import-file").click(async ev => {
+			// Retrieve settings from the window
 			this.folderName = html.find('[name=folder-name]').val();
 			this.ui_message = html.find('[name=message-area]');
 			this.addInboundLinks = html.find('[name=inboundLinks]').is(':checked');
@@ -586,7 +587,7 @@ class RealmWorksImporter extends Application
 				return;
 			}
 			
-			// Set the correct function to use based on the game system
+			// Retrieve settings from the module settings
 			this.actor_type = game.settings.get(GS_MODULE_NAME, GS_ACTOR_TYPE);
 			this.governing_content_label   = game.settings.get(GS_MODULE_NAME, GS_GOVERNING_CONTENT_LABEL);
 			this.governed_max_depth        = game.settings.get(GS_MODULE_NAME, GS_GOVERNED_MAX_DEPTH);
@@ -604,6 +605,8 @@ class RealmWorksImporter extends Application
 				this.scene_grid = 50;
 			}
 			this.por_html = "html";
+
+			// Set the correct functions to use based on the game system
 
 			// This will be moved into conditional area later
 			this.item_data_func = function(structure,topic,itemtype,content,category) { return { description: { value: content }} };
@@ -696,7 +699,7 @@ class RealmWorksImporter extends Application
 				break;
 			} // switch (game.system.id)
 			
-			// Save the selections.
+			// Save the window settings for next time
 			game.settings.set(GS_MODULE_NAME, GS_CREATE_INBOUND_LINKS,  this.addInboundLinks);
 			game.settings.set(GS_MODULE_NAME, GS_CREATE_OUTBOUND_LINKS, this.addOutboundLinks);
 			game.settings.set(GS_MODULE_NAME, GS_FOLDER_NAME,           this.folderName);
