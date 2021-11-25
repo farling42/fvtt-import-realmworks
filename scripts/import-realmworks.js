@@ -21,7 +21,7 @@
 import "./UZIP.js";
 import "./jimp.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
-import { setNoteVisibility } from "./hide-unreachable-notes.mjs";
+import { setNoteRevealed } from "./hide-unreachable-notes.mjs";
 import { setNoteGMtext } from "./notes-gmtext.mjs";
 
 const GS_MODULE_NAME = "realm-works-import";
@@ -1046,7 +1046,7 @@ class RealmWorksImporter extends Application
 				scene: scene.id,
 				//permission: { "default": pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 			};
-			setNoteVisibility(notedata, pin_is_revealed);
+			setNoteRevealed(notedata, pin_is_revealed);
 			if (gmdir) setNoteGMtext(notedata, (desc ? notedata.text : `>> ${pinname} <<`) + '\n\u2193\u2193 --- GMDIR --- \u2193\u2193\n' + gmdir)
 			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
