@@ -8,6 +8,13 @@ const _EntityMap = {
 	"Scene"        : "scenes",
 };
 
+/**
+ * For any link in the text which points to a document which is not visible to the current player
+ * it will be replaced by the non-link text (so the player will be NOT aware that a link exists)
+ * @param {ActorSheet} [sheet] Sheet for renderJournalSheet and renderActorSheet hooks
+ * @param {jQuery}     [html]  HTML for renderJournalSheet and renderActorSheet hooks
+ * @param {Object}     [data]  Data for renderJournalSheet and renderActorSheet hooks
+ */
 async function _checkRenderLinks(sheet, html, data) {	
 	// sheet = ActorSheet
 	// html  = jQuery

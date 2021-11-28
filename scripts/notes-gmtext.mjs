@@ -7,6 +7,11 @@ const MODULE_NAME = "realm-works-import";
 const PIN_GM_TEXT = "pinGmNote";
 const NOTE_FLAG = `flags.${MODULE_NAME}.${PIN_GM_TEXT}`;
 
+/**
+ * If the Note has a GM-NOTE on it, then display that as the tooltip instead of the normal text
+ * @param {function} [wrapped] The wrapped function provided by libWrapper
+ * @param {object}   [args]    The normal arguments to Note#drawTooltip
+ */
 function Note_drawTooltip(wrapped, ...args) {
 	// Only override default if flag(MODULE_NAME,PIN_GM_TEXT) is set
 	const newtext = this.document.getFlag(MODULE_NAME, PIN_GM_TEXT);
@@ -25,6 +30,12 @@ function Note_drawTooltip(wrapped, ...args) {
 	return result;
 }
 
+/**
+ * Adds a GM-only string to be displayed on the Note *instead of* the normal note text for the GM,
+ * players will see the normal non-GM text.
+ * @param {NoteData} [notedata]  The NoteData to which GM-only text is to be added
+ * @param {String}   [text]      The text to be stored as the GM-only text for this note
+ */
 export function setNoteGMtext(notedata,text) {
 	// notedata might not exist as a Note, so setFlag is not available
 	setProperty(notedata, NOTE_FLAG, text);
