@@ -1074,7 +1074,6 @@ class RealmWorksImporter extends Application
 				y: y_pad + +pin.getAttribute('y'),
 				icon:     pin_is_revealed ? 'icons/svg/circle.svg' : 'icons/svg/blind.svg',
 				iconSize: 32,		// minimum size 32
-				iconTint: entryid ? '#7CFC00' : '#c000c0',
 				text: desc ? `>> ${pinname} <<\n` + desc : pinname,
 				fontSize: this.note_text_size,
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
