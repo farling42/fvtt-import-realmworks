@@ -15,10 +15,10 @@ const NOTE_FLAG = `flags.${MODULE_NAME}.${PIN_IS_REVEALED}`;
  */
 function Note_refresh(wrapped, ...args) {
 	let result = wrapped(...args);
+	const value = result.document.getFlag(MODULE_NAME, PIN_IS_REVEALED);
 	// Hide the Note if the RW revealed flag is set to false
-	if (result.visible) {
-		const value = result.document.getFlag(MODULE_NAME, PIN_IS_REVEALED);
-		if (value !== undefined && !value) result.visible = false;
+	if (value != undefined) {
+		result.visible = value;
 	}
 	return result;
 }
@@ -36,7 +36,7 @@ export function setNoteRevealed(notedata,visible) {
 
 // TODO: Add option to Note editor window
 
-Hooks.once('ready', () => {
+Hooks.once('canvasInit', () => {
 	// This is only required for Players, not GMs (game.user accessible from 'ready' event but not 'init' event)
 	if (!game.user.isGM) {
 		libWrapper.register(MODULE_NAME, 'Note.prototype.refresh', Note_refresh, libWrapper.WRAPPER);

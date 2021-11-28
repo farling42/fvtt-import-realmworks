@@ -43,7 +43,7 @@ export function setNoteGMtext(notedata,text) {
 
 // TODO: Add option to Note editor window
 
-Hooks.once('ready', () => {
+Hooks.once('canvasInit', () => {
 	// This module is only required for GMs (game.user accessible from 'ready' event but not 'init' event)
 	if (game.user.isGM) {
 		libWrapper.register(MODULE_NAME, 'Note.prototype._drawTooltip', Note_drawTooltip, libWrapper.WRAPPER);
