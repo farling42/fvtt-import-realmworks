@@ -40,7 +40,6 @@ function Note_drawControlIcon(wrapped, ...args) {
 	const value = this.document.getFlag(MODULE_NAME, PIN_IS_REVEALED);
 	if (value != undefined) {
 		this.data.iconTint = this.entry?.testUserPermission(game.user, "LIMITED") ? PIN_COLOUR_LINKED : PIN_COLOUR_NOT_LINKED;
-		console.warn(`Note_drawControlIcon: iconTint = ${this.data.iconTint}`);
 	}
 	return wrapped(...args);
 }
