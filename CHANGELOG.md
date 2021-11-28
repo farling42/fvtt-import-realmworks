@@ -2,11 +2,13 @@
 Change the presentation of annotations for relationships since they can be multi-line (whereas annotations on other snippets are single line only). The annotation of
 a relationship now appears in emphasis (italics) immediately below the relationship details (still part of the same bullet).
 
-Add a soft dependency on libWrapper, just in case any other modules want to interact with notes and/or journal links.
+Add a soft (optional) dependency on libWrapper, just in case any other modules want to interact with notes and/or journal links.
 
-Only enable the relevant notes/links/gmtext sub-modules depending on whether GM or player.
+Only enable the relevant notes/links/gmtext sub-modules depending on whether logged in as GM or player.
 
-Revealed map pins will always be displayed to players even if the linked journal entry is not visible to the player.
+Revealed map pins will always have the scene Notes be displayed to players even if the linked journal entry is not visible to the player.
+If the linked journal entry is NOT visible to the user then the Note will be displayed to the non-GM player as if it was a not-connected note.
+The tint colour of the icon will be set correctly based on whether or not the player can see the linked journal entry.
 
 For users hosting on Forge, additional metadata has been added to the module information.
 
