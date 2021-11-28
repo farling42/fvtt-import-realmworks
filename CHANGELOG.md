@@ -1,3 +1,6 @@
+## 1.17.1
+Remove a debug line that was being put into the console as a warning.
+
 ## 1.17
 Change the presentation of annotations for relationships since they can be multi-line (whereas annotations on other snippets are single line only). The annotation of
 a relationship now appears in emphasis (italics) immediately below the relationship details (still part of the same bullet).
