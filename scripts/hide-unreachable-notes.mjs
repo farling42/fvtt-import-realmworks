@@ -99,6 +99,17 @@ Hooks.on("renderNoteConfig", async function (app, html, data) {
 	html.find("select[name='entryId']").parent().parent().after(mode_control);
 })
 
+Hooks.on("renderSettingsConfig", (app, html, data) => {
+	// Add colour pickers to the Configure Game Settings: Module Settings menu
+	let name,colour;
+	name   = `${MODULE_NAME}.${CONFIG_TINT_REACHABLE_LINK}`;
+	colour = game.settings.get(MODULE_NAME, CONFIG_TINT_REACHABLE_LINK);
+	$('<input>').attr('type', 'color').attr('data-edit', name).val(colour).insertAfter($(`input[name="${name}"]`, html).addClass('color'));
+	
+	name   = `${MODULE_NAME}.${CONFIG_TINT_UNREACHABLE_LINK}`;
+	colour = game.settings.get(MODULE_NAME, CONFIG_TINT_UNREACHABLE_LINK);
+	$('<input>').attr('type', 'color').attr('data-edit', name).val(colour).insertAfter($(`input[name="${name}"]`, html).addClass('color'));
+})
 
 Hooks.once('init', () => {
     game.settings.register(MODULE_NAME, CONFIG_TINT_REACHABLE_LINK, {
