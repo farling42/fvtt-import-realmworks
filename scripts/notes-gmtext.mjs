@@ -15,7 +15,7 @@ const NOTE_FLAG = `flags.${MODULE_NAME}.${PIN_GM_TEXT}`;
 function Note_drawTooltip(wrapped, ...args) {
 	// Only override default if flag(MODULE_NAME,PIN_GM_TEXT) is set
 	const newtext = this.document.getFlag(MODULE_NAME, PIN_GM_TEXT);
-	if (!newtext) return wrapped(...args);
+	if (!newtext || newtext.length===0) return wrapped(...args);
 	
 	// Set a different label to be used while we call the original Note.prototype._drawTooltip
 	//
@@ -49,3 +49,33 @@ Hooks.once('canvasInit', () => {
 		libWrapper.register(MODULE_NAME, 'Note.prototype._drawTooltip', Note_drawTooltip, libWrapper.WRAPPER);
 	}
 })
+
+/**
+ * Update Note config window with a text box to allow entry of GM-text.
+ * Also replace single-line of "Text Label" with a textarea to allow multi-line text.
+ * @param {NoteConfig} app    The Application instance being rendered (NoteConfig)
+ * @param {jQuery} html       The inner HTML of the document that will be displayed and may be modified
+ * @param {object] data       The object of data used when rendering the application (from NoteConfig#getData)
+ */
+async function render_note_config(app, html, data) {
+	// Input for GM Label
+	let gmtext = data.document.getFlag(MODULE_NAME, PIN_GM_TEXT);
+	if (!gmtext) gmtext = "";
+	let gm_text = $(`<div class='form-group'><label>GM Label</label><div class='form-fields'><textarea name='${NOTE_FLAG}'>${gmtext}</textarea></div></div>`)
+	html.find("input[name='text']").parent().parent().after(gm_text);
+	
+	// Multiline input for Text Label
+	let initial_text = data.data.text ?? data.entry.name;
+	let label = $(`<div class='form-group'><label>Player Label</label><div class='form-fields'><textarea name='text' placeholder='${data.entry.name}'>${initial_text}</textarea></div></div>`)
+	html.find("input[name='text']").parent().parent().after(label);
+	
+	// Hide the old text label input field
+	html.find("input[name='text']").parent().parent().remove();
+	
+	//let reveal_icon = $(`<div class='form-group'><label>Icon follows Reveal</label><div class='form-fields'><input type='checkbox' name='useRevealIcon'></div></div>`)
+	//html.find("select[name='icon']").parent().parent().after(reveal_icon);
+	
+	// Do we hook onto  html.find("button[name='submit']") or is there a better way?
+}
+
+Hooks.on("renderNoteConfig", render_note_config);
