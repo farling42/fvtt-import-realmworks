@@ -90,13 +90,22 @@ Hooks.once('canvasInit', () => {
  * @param {object] data       The object of data used when rendering the application (from NoteConfig#getData)
  */
 Hooks.on("renderNoteConfig", async function (app, html, data) {
-	// Check box for REVEALED state
+	// Check box to control use of REVEALED state
 	let checked = (data.document.getFlag(MODULE_NAME, PIN_IS_REVEALED) ?? true) ? "checked" : "";
 	let revealed_control = $(`<div class='form-group'><label>Revealed to Players</label><div class='form-fields'><input type='checkbox' name='${FLAG_IS_REVEALED}' ${checked}></div></div>`)
 	html.find("select[name='entryId']").parent().parent().after(revealed_control);
+	
+	// Check box for REVEALED state
 	let use_reveal = (data.document.getFlag(MODULE_NAME, USE_PIN_REVEALED) ?? false) ? "checked" : "";
 	let mode_control = $(`<div class='form-group'><label>Use Reveal State</label><div class='form-fields'><input type='checkbox' name='${FLAG_USE_REVEALED}' ${use_reveal}></div></div>`)
 	html.find("select[name='entryId']").parent().parent().after(mode_control);
+	
+	// Force a recalculation of the height
+	if (!app._minimized) {
+		let pos = app.position;
+		pos.height = 'auto'
+		app.setPosition(pos);
+	}
 })
 
 Hooks.on("renderSettingsConfig", (app, html, data) => {

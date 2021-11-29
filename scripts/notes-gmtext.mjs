@@ -74,8 +74,13 @@ async function render_note_config(app, html, data) {
 	
 	//let reveal_icon = $(`<div class='form-group'><label>Icon follows Reveal</label><div class='form-fields'><input type='checkbox' name='useRevealIcon'></div></div>`)
 	//html.find("select[name='icon']").parent().parent().after(reveal_icon);
-	
-	// Do we hook onto  html.find("button[name='submit']") or is there a better way?
+
+	// Force a recalculation of the height
+	if (!app._minimized) {
+		let pos = app.position;
+		pos.height = 'auto'
+		app.setPosition(pos);
+	}
 }
 
 Hooks.on("renderNoteConfig", render_note_config);
