@@ -120,6 +120,14 @@ Hooks.on("renderSettingsConfig", (app, html, data) => {
 	$('<input>').attr('type', 'color').attr('data-edit', name).val(colour).insertAfter($(`input[name="${name}"]`, html).addClass('color'));
 })
 
+function refresh () {
+	if (canvas?.ready) {
+		console.warn('NOTES:refresh called');
+		canvas.notes.placeables.forEach(note => note.draw());
+		//for (let note of canvas.notes.objects) note.draw();
+	}
+}
+
 Hooks.once('init', () => {
     game.settings.register(MODULE_NAME, CONFIG_TINT_REACHABLE_LINK, {
 		name: "Note Tint Colour when linked",
@@ -128,6 +136,7 @@ Hooks.once('init', () => {
 		type:  String,
 		default: '#7CFC00',
 		config: true,
+		onChange: () => refresh()
 	});
     game.settings.register(MODULE_NAME, CONFIG_TINT_UNREACHABLE_LINK, {
 		name: "Note Tint Colour when not linked",
@@ -136,5 +145,6 @@ Hooks.once('init', () => {
 		type:  String,
 		default: '#c000c0',
 		config: true,
+		onChange: () => refresh()
 	});
 })
