@@ -48,6 +48,9 @@ const GS_NOTE_TEXT_SIZE = "noteTextSize";
 
 const GS_FLAGS_UUID = "uuid";
 
+const PIN_ICON_REVEALED = 'icons/svg/circle.svg';
+const PIN_ICON_NOT_REVEALED = 'icons/svg/blind.svg';
+
 const RW_editor_player_options = {
 	title: "RW Players",
 	items : [
@@ -303,7 +306,11 @@ Hooks.once('init', () => {
 		default: false,
 		config: false,
 	});
-
+	
+	// Add additional Note icons/svg/blind
+	CONFIG.JournalEntry.noteIcons["Boxed Circle"] = PIN_ICON_REVEALED;
+	CONFIG.JournalEntry.noteIcons["Crossed Eye"]  = PIN_ICON_NOT_REVEALED;
+	
 	// New sections for the editor
 	CONFIG.TinyMCE.style_formats.push(RW_editor_player_options);
 	CONFIG.TinyMCE.style_formats.push(RW_editor_gm_options);
@@ -1072,7 +1079,7 @@ class RealmWorksImporter extends Application
 				entryId: entryid,
 				x: x_pad + +pin.getAttribute('x'),
 				y: y_pad + +pin.getAttribute('y'),
-				icon:     pin_is_revealed ? 'icons/svg/circle.svg' : 'icons/svg/blind.svg',
+				icon:     pin_is_revealed ? PIN_ICON_REVEALED : PIN_ICON_NOT_REVEALED,
 				iconSize: 32,		// minimum size 32
 				text: desc ? `>> ${pinname} <<\n` + desc : pinname,
 				fontSize: this.note_text_size,
