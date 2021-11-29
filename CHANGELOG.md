@@ -1,9 +1,9 @@
 ## 1.18
-Update Note Config window to provide a multi-line text entry area for Note Label and GM Notes.
+Update Note Config window to provide multi-line text entry areas for Note Label and GM Notes.
 
 Update Note Config window to allow revealed state of scene Notes to be changed.
 
-Add two new icon types (Boxed Circle and Crossed Eye) to the list of available icons for scene Notes.
+Add two new icon types (Boxed Circle and Crossed Eye) to the list of available icons for scene Notes (since these are used to identify imported map pins).
 
 Add module options to set the icon tint colours to be used when displaying notes to players to indicate if they are linked to an accessible journal entry.
 
