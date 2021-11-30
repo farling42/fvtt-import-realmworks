@@ -10,9 +10,6 @@
 	"esmodules": [
 		"scripts/libwrapper-shim.js",
 		"scripts/import-realmworks.js",
-		"scripts/hide-unreachable-links.mjs",
-		"scripts/hide-unreachable-notes.mjs",
-		"scripts/notes-gmtext.mjs",
 		"scripts/actor-pf1.js",
 		"scripts/actor-dnd5e.js",
 		"scripts/actor-swade.js",
@@ -26,7 +23,20 @@
     "download": "https://github.com/farling42/fvtt-import-realmworks/releases/download/1.15/module.zip",
 	"dependencies": [
 		{
-			"name": "lib-wrapper"
+			"name": "lib-wrapper",
+			"manifest": "https://github.com/ruipin/fvtt-lib-wrapper/releases/latest/download/module.json"
+		},
+		{
+			"name": "revealed-notes-manager",
+			"manifest": "https://github.com/farling42/fvtt-revealed-notes-manager/releases/latest/download/module.json"
+		},
+		{
+			"name": "gmtext-in-notes",
+			"manifest": "https://github.com/farling42/fvtt-gmtext-in-notes/releases/latest/download/module.json"
+		},
+		{
+			"name": "disguise-unreachable-links",
+			"manifest": "https://github.com/farling42/fvtt-disguise-unreachable-links/releases/latest/download/module.json"
 		}
 	],
 	

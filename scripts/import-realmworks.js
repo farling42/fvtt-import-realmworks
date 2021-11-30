@@ -21,8 +21,6 @@
 import "./UZIP.js";
 import "./jimp.js";
 import { DirectoryPicker } from "./DirectoryPicker.js";
-import { setNoteRevealed } from "./hide-unreachable-notes.mjs";
-import { setNoteGMtext } from "./notes-gmtext.mjs";
 
 const GS_MODULE_NAME = "realm-works-import";
 
@@ -622,6 +620,9 @@ class RealmWorksImporter extends Application
 		html.find('[name=importOnlyNew]')?.prop('checked',     game.settings.get(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW));
 		//html.find('[name=folder-name]')?.val(game.settings.get(GS_MODULE_NAME, 
 		
+		// See if we can work with the 'revealed-notes-manager' module
+		this.setNoteRevealed = globalThis.setNoteRevealed;
+
 		html.find(".import-file").click(async ev => {
 			// Retrieve settings from the window
 			this.folderName = html.find('[name=folder-name]').val();
@@ -1088,8 +1089,8 @@ class RealmWorksImporter extends Application
 				scene: scene.id,
 				//permission: { "default": pin.getAttribute('is_revealed') ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 			};
-			setNoteRevealed(notedata, pin_is_revealed);
-			if (gmdir) setNoteGMtext(notedata, (desc ? notedata.text : `>> ${pinname} <<`) + '\n\u2193\u2193 --- GMDIR --- \u2193\u2193\n' + gmdir)
+			if (globalThis.setNoteRevealed) globalThis.setNoteRevealed(notedata, pin_is_revealed);
+			if (gmdir && globalThis.setNoteGMtext) globalThis.setNoteGMtext(notedata, (desc ? notedata.text : `>> ${pinname} <<`) + '\n\u2193\u2193 --- GMDIR --- \u2193\u2193\n' + gmdir)
 			notes.push(notedata);
 			//if (note) console.debug(`Created map pin ${notedata.name}`);
 		}
