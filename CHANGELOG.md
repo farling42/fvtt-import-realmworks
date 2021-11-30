@@ -1,3 +1,9 @@
+##1.19
+Separate out the non-core functionality into 3 stand-alone modules:
+- gmtext-in-notes
+- disguise-unreachable-links
+- revealed-notes-manager
+
 ## 1.18
 Update Note Config window to provide multi-line text entry areas for Note Label and GM Notes.
 
