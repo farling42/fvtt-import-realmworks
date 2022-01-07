@@ -1,3 +1,4 @@
+![](https://img.shields.io/badge/Foundry-v9-informational)
 ![Latest Release Download Count](https://img.shields.io/github/downloads/farling42/fvtt-import-realmworks/latest/module.zip)
 
 # Realm-Works-Import
