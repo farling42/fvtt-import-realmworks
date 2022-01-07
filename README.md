@@ -1,3 +1,5 @@
+![Latest Release Download Count](https://img.shields.io/github/downloads/farling42/fvtt-import-realmworks/latest/module.zip)
+
 # Realm-Works-Import
 A module to import information from a user's RWoutput from the Realm Works® campaign management tool created by LWD, available from https://www.wolflair.com/realmworks/
 
