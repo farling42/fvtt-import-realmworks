@@ -1,3 +1,10 @@
+[![ko-fi](https://img.shields.io/badge/Ko--Fi-farling-success)](https://ko-fi.com/farling)
+[![patreon](https://img.shields.io/badge/Patreon-amusingtime-success)](https://patreon.com/amusingtime)
+[![paypal](https://img.shields.io/badge/Paypal-farling-success)](https://paypal.me/farling)
+![GitHub License](https://img.shields.io/github/license/farling42/fvtt-import-realmworks)
+![](https://img.shields.io/badge/Foundry-v9-informational)
+![Latest Release Download Count](https://img.shields.io/github/downloads/farling42/fvtt-import-realmworks/latest/module.zip)
+
 # Realm-Works-Import
 A module to import information from a user's RWoutput from the Realm Works® campaign management tool created by LWD, available from https://www.wolflair.com/realmworks/
 
