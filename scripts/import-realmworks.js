@@ -30,6 +30,7 @@ const GS_FOLDER_NAME = "folderName";
 const GS_DELETE_OLD_FOLDERS = "deleteOldFolders";
 const GS_OVERWRITE_EXISTING = "overwriteExisting";
 const GS_IMPORT_ONLY_NEW = "importOnlyNew";
+const GS_ALL_IMAGES_WEBP = "allImagesWebp";
 const GS_ASSETS_LOCATION = "assetsLocation";
 const GS_ACTOR_TYPE = "actorType";
 const GS_GOVERNING_CONTENT_LABEL = "governingContentLabel";
@@ -299,6 +300,14 @@ Hooks.once('init', () => {
     game.settings.register(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW, {
 		name: "Import only NEW entries",
 		hint: "When not deleting old folders, only import topics/articles not already in the world",
+		scope: "world",
+		type:  Boolean,
+		default: false,
+		config: false,
+	});
+    game.settings.register(GS_MODULE_NAME, GS_ALL_IMAGES_WEBP, {
+		name: "Convert all images to WEBP format",
+		hint: "Since WEBP images are smaller, this option will convert ALL images to WEBP format",
 		scope: "world",
 		type:  Boolean,
 		default: false,
@@ -618,6 +627,7 @@ class RealmWorksImporter extends Application
 		html.find('[name=deleteOldFolders]')?.prop('checked', game.settings.get(GS_MODULE_NAME, GS_DELETE_OLD_FOLDERS));
 		html.find('[name=overwriteExisting]')?.prop('checked', game.settings.get(GS_MODULE_NAME, GS_OVERWRITE_EXISTING));
 		html.find('[name=importOnlyNew]')?.prop('checked',     game.settings.get(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW));
+		html.find('[name=allImagesWep]')?.prop('checked',      game.settings.get(GS_MODULE_NAME, GS_ALL_IMAGES_WEBP));
 		//html.find('[name=folder-name]')?.val(game.settings.get(GS_MODULE_NAME, 
 		
 		// See if we can work with the 'revealed-notes-manager' module
@@ -632,6 +642,7 @@ class RealmWorksImporter extends Application
 			this.deleteOldFolders = html.find('[name=deleteOldFolders]').is(':checked');
 			this.overwriteExisting = html.find('[name=overwriteExisting]').is(':checked');
 			this.importOnlyNew = html.find('[name=importOnlyNew]').is(':checked');
+			this.allImagesWebp = html.find('[name=allImagesWebp]').is(':checked');
 
 			// Ensure folder name is present.
 			if (this.folderName.length === 0) {
@@ -758,6 +769,7 @@ class RealmWorksImporter extends Application
 			game.settings.set(GS_MODULE_NAME, GS_DELETE_OLD_FOLDERS,    this.deleteOldFolders);
 			game.settings.set(GS_MODULE_NAME, GS_OVERWRITE_EXISTING,    this.overwriteExisting);
 			game.settings.set(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW,       this.importOnlyNew);
+			game.settings.set(GS_MODULE_NAME, GS_ALL_IMAGES_WEBP,       this.allImagesWebp);
 			
 			// Where image files should be stored...
 			this.asset_directory = game.settings.get(GS_MODULE_NAME, GS_ASSETS_LOCATION);		// no trailing "/"
@@ -934,12 +946,19 @@ class RealmWorksImporter extends Application
 	
 	// Some image files are changed to .png (from .bmp .gif .tif .tiff)
 	validfilename(filename) {
+		if (this.allImagesWebp &&
+			(filename.endsWith('.gif') || filename.endsWith('.png') || filename.endsWith('.jpg') ||  filename.endsWith('.jpeg') ||
+			 filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.tiff')))
+		{
+			let pos = filename.lastIndexOf('.');
+			if (pos > 0)
+				return filename.slice(0,pos) + '.webp';
+		}
 		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.gif'))
 			return filename.slice(0,-4) + '.png';
-		else if (filename.endsWith('.tiff'))
+		if (filename.endsWith('.tiff'))
 			return filename.slice(0,-5) + '.png';
-		else
-			return filename;
+		return filename;
 	}
 	
 	imageFilename(filename) {
@@ -949,15 +968,50 @@ class RealmWorksImporter extends Application
 	// Upload the specified binary data to a file in this.asset_directory
 	async uploadBinaryFile(filename, srcdata) {
 		let data = srcdata;
+		// The "allImagesWebp" conversion doesn't support BMP, TIF or GIF formats.
 		if (filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.gif') || filename.endsWith('.tiff'))
 		{
+			// Buffer.from(array)
 			data = await Jimp.read(Buffer.from(srcdata)).then(image => image.getBufferAsync('image/png'));
 		}
-		// data = base64 string
-		const file = new File([data], this.validfilename(filename));
-		await DirectoryPicker.uploadToPath(this.asset_directory, file)
-			//.then(console.debug(`Uploaded file ${filename}`))
-			.catch(e => console.warn(`Failed to upload ${filename}: ${e}`));
+
+		if (this.allImagesWebp &&
+			(filename.endsWith('.gif') || filename.endsWith('.png') || filename.endsWith('.jpg') ||  filename.endsWith('.jpeg') ||
+			 filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.tiff')))
+		{
+			const image = new Image();
+			let functhis = this;
+			image.onload = function() {
+				console.warn(`image.onload triggered`);
+				const canvas = document.createElement('canvas');
+			  	canvas.width = image.naturalWidth;
+			  	canvas.height = image.naturalHeight;
+			  	canvas.getContext('2d').drawImage(image, 0, 0);
+			  	canvas.toBlob( async function(blob) {
+					// Now we have a `blob` containing webp data
+					// Use the file rename trick to turn it back into a file
+					//data = blob;
+
+					// We have to create the file here, since image.onload is triggered MUCH later
+					let file = new File([blob], functhis.validfilename(filename));
+
+					await DirectoryPicker.uploadToPath(functhis.asset_directory, file)
+						.then(console.debug(`Uploaded WEBP file ${filename}`))
+						.catch(e => console.warn(`Failed to upload ${filename}: ${e}`));
+							  }, 'image/webp');
+			};
+			const blob = new Blob([data]);
+			image.src = URL.createObjectURL(blob);		// takes a Blob
+		}
+		else
+		{
+			// data = base64 string
+			let file = new File([data], this.validfilename(filename));
+
+			await DirectoryPicker.uploadToPath(this.asset_directory, file)
+				//.then(console.debug(`Uploaded file ${filename}`))
+				.catch(e => console.warn(`Failed to upload ${filename}: ${e}`));
+		}
 	}
 
 	// Convert a string in base64 format into binary and upload to this.asset_directory,
@@ -2173,7 +2227,7 @@ class RealmWorksImporter extends Application
 				await folder.delete({
 					deleteSubfolders: true,
 					deleteContents: true
-				});
+				}).catch(`Failed to delete Actor folder ${this.folderName}`);
 			}
 		}
 
@@ -2282,7 +2336,7 @@ class RealmWorksImporter extends Application
 				await folder.delete({
 					deleteSubfolders: true,
 					deleteContents: true
-				});
+				}).catch(`Failed to delete folder ${this.folderName}`);
 			}
 		}
 
