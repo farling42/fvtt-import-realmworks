@@ -1,4 +1,7 @@
-##1.19
+## 1.20
+Add an option to convert all images to WEBP format (from gif, png, jpg, jpeg, bmp, tif, tiff)
+
+## 1.19
 Separate out the non-core functionality into 3 stand-alone modules:
 - gmtext-in-notes
 - disguise-unreachable-links

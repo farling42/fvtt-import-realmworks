@@ -503,6 +503,21 @@ function Utf8ArrayToStr(array) {
 }
 
 
+const convertToWebp = src => new Promise((resolve, reject) =>
+	{
+		const image = new Image();
+		image.onload = () => {
+			const canvas = document.createElement('canvas');
+			canvas.width = image.naturalWidth;
+			canvas.height = image.naturalHeight;
+			canvas.getContext('2d').drawImage(image, 0, 0);
+			canvas.toBlob( blob => resolve(blob), 'image/webp');
+		};
+		image.onerror = reject;
+		image.src = src;
+	});
+
+
 class RealmWorksImporter extends Application
 {
 	// document_for_topic is a map: key = topic_id, value = JournalEntry
@@ -627,7 +642,7 @@ class RealmWorksImporter extends Application
 		html.find('[name=deleteOldFolders]')?.prop('checked', game.settings.get(GS_MODULE_NAME, GS_DELETE_OLD_FOLDERS));
 		html.find('[name=overwriteExisting]')?.prop('checked', game.settings.get(GS_MODULE_NAME, GS_OVERWRITE_EXISTING));
 		html.find('[name=importOnlyNew]')?.prop('checked',     game.settings.get(GS_MODULE_NAME, GS_IMPORT_ONLY_NEW));
-		html.find('[name=allImagesWep]')?.prop('checked',      game.settings.get(GS_MODULE_NAME, GS_ALL_IMAGES_WEBP));
+		html.find('[name=allImagesWebp]')?.prop('checked',     game.settings.get(GS_MODULE_NAME, GS_ALL_IMAGES_WEBP));
 		//html.find('[name=folder-name]')?.val(game.settings.get(GS_MODULE_NAME, 
 		
 		// See if we can work with the 'revealed-notes-manager' module
@@ -979,37 +994,16 @@ class RealmWorksImporter extends Application
 			(filename.endsWith('.gif') || filename.endsWith('.png') || filename.endsWith('.jpg') ||  filename.endsWith('.jpeg') ||
 			 filename.endsWith('.bmp') || filename.endsWith('.tif') || filename.endsWith('.tiff')))
 		{
-			const image = new Image();
-			let functhis = this;
-			image.onload = function() {
-				console.warn(`image.onload triggered`);
-				const canvas = document.createElement('canvas');
-			  	canvas.width = image.naturalWidth;
-			  	canvas.height = image.naturalHeight;
-			  	canvas.getContext('2d').drawImage(image, 0, 0);
-			  	canvas.toBlob( async function(blob) {
-					// Now we have a `blob` containing webp data
-					// Use the file rename trick to turn it back into a file
-					//data = blob;
-
-					// We have to create the file here, since image.onload is triggered MUCH later
-					let file = new File([blob], functhis.validfilename(filename));
-
-					await DirectoryPicker.uploadToPath(functhis.asset_directory, file)
-						.then(console.debug(`Uploaded WEBP file ${filename}`))
-						.catch(e => console.warn(`Failed to upload ${filename}: ${e}`));
-							  }, 'image/webp');
-			};
 			const blob = new Blob([data]);
-			image.src = URL.createObjectURL(blob);		// takes a Blob
+			data = await convertToWebp(URL.createObjectURL(blob)).catch(err => { console.warn(`Failed to convert ${filename} to webp: ${err}`); return undefined; });
 		}
-		else
+
+		if (data)
 		{
-			// data = base64 string
 			let file = new File([data], this.validfilename(filename));
 
 			await DirectoryPicker.uploadToPath(this.asset_directory, file)
-				//.then(console.debug(`Uploaded file ${filename}`))
+				.then(console.debug(`Uploaded file ${filename}`))
 				.catch(e => console.warn(`Failed to upload ${filename}: ${e}`));
 		}
 	}
