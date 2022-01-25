@@ -1234,7 +1234,7 @@ export default class RWPF1Actor {
 				value : content,
 			}
 		}
-		console.debug(`****PF1.ITEM: ${topic.getAttribute('public_name')}`);
+		console.debug(`PF1.createItemData: '${topic.getAttribute('public_name')}'`);
 		
 		if (itemtype==='feat') item.featType='feat';
 		
@@ -1246,7 +1246,7 @@ export default class RWPF1Actor {
 			const tag_id = tag.getAttribute('tag_id');
 			const tag_name = structure.tags.get(tag.getAttribute('tag_id'));
 			if (!tag_name) continue;
-			console.debug(`    Checking tag '${tag_name}'`);
+			//console.debug(`    Checking tag '${tag_name}'`);
 			
 			switch (tag_name) {
 			case 'Archetype':

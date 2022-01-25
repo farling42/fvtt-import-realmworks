@@ -1003,14 +1003,14 @@ class RealmWorksImporter extends Application
 			let file = new File([data], this.validfilename(filename));
 
 			await DirectoryPicker.uploadToPath(this.asset_directory, file)
-				.then(console.debug(`Uploaded file ${filename}`))
-				.catch(e => console.warn(`Failed to upload ${filename}: ${e}`));
+				.then(console.debug(`Uploaded file '${filename}'`))
+				.catch(e => console.warn(`Failed to upload '${filename}': ${e}`));
 		}
 	}
 
 	// Convert a string in base64 format into binary and upload to this.asset_directory,
 	async uploadFile(filename, base64) {
-		return this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
+		return await this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
 	// Insert line breaks so that no line is longer than "max"
@@ -1060,7 +1060,7 @@ class RealmWorksImporter extends Application
 		
 		// Name comes from topic name + facet_name
 		const scenename = this.title_of_topic.get(scene_topic_id) + ':' + smart_image.getAttribute('name');
-		//console.debug(`createScene: scene name = '${scenename}' from topic_id ${scene_topic_id}`);
+		console.debug(`Creating scene '${scenename}' from topic_id ${scene_topic_id}`);
 	
 		// The file was uploaded when the TOPIC was processed, so can simply read it here.
 		const imagename = this.imageFilename(filename);
@@ -2038,7 +2038,7 @@ class RealmWorksImporter extends Application
 					console.warn(`formatActors for '${topicname}':\n Statblock file '${filename}' does not end with .htm or .html or .rtf or .txt - Skipping`);
 					continue;
 				}
-				console.debug(`formatActors for '${topicname}': reading statblock from ${filename}`);
+				//console.debug(`formatActors for '${topicname}': reading statblock from ${filename}`);
 				statblock = atob(contents.textContent);
 			}
 			
