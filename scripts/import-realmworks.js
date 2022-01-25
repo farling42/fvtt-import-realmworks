@@ -1924,7 +1924,8 @@ class RealmWorksImporter extends Application
 		let content  = await this.formatTopicBody(topic);
 		let itemdata = {
 			_id:  topic_document.data._id,
-			data: await this.item_data_func(this.structure, topic, topic_document.type, content, category),
+			data: await this.item_data_func(this.structure, topic, topic_document.type, content.html, category),
+			img:  content.img,
 			permission: { "default": this.revealed_topics.has(topic_id) ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE },
 		}
 

@@ -1,3 +1,8 @@
+## 1.21
+Ensure description is set properly when creating Items.
+
+Add image to Items if available in the realm works input file.
+
 ## 1.20
 Add an option to convert all images to WEBP format (from gif, png, jpg, jpeg, bmp, tif, tiff)
 
