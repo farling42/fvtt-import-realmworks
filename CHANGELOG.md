@@ -3,6 +3,8 @@ Ensure description is set properly when creating Items.
 
 Add image to Items if available in the realm works input file.
 
+Table ranges which end with just zeros (like 56-00) will have the upper limit calculated as it is is preceded with a 1, (e.g. 56-100).
+
 ## 1.20
 Add an option to convert all images to WEBP format (from gif, png, jpg, jpeg, bmp, tif, tiff)
 

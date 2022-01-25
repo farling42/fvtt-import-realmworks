@@ -1295,6 +1295,13 @@ class RealmWorksImporter extends Application
 				if (!min || value<min) min = value;
 				if (!max || value>max) max = value;
 			}
+			function parseInt00(value) {
+				// Handle "00" or "000" as the final value in a range, which needs to "100" or "1000"
+				if (value.match(/0[0]+/))
+					return parseInt('1' + value);
+				else
+					return parseInt(value);
+			}
 
 			// If the second column of the table is totally blank, use the third column if available
 			let datacolumn = 1;
@@ -1354,14 +1361,14 @@ class RealmWorksImporter extends Application
 						rolltable.push({range: [num, num], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details});
 					} else if ((pos = cell1.indexOf('-')) > 0) {
 						const low = parseInt(cell1.slice(0,pos));
-						const high= parseInt(cell1.slice(pos+1));
+						const high= parseInt00(cell1.slice(pos+1));
 						setLimit(low);
 						setLimit(high);
 						rolltable.push({range: [low, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details});
 						// valid
 					} else if ((pos = cell1.indexOf(',')) > 0) {
 						const low = parseInt(cell1.slice(0,pos));
-						const high= parseInt(cell1.slice(pos+1));
+						const high= parseInt00(cell1.slice(pos+1));
 						setLimit(low);
 						setLimit(high);
 						if (low+1 == high)
