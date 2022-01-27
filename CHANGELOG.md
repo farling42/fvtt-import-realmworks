@@ -1,3 +1,7 @@
+# 1.23
+Improvements in PF1 actor generation:
+- natural armor bonus of items is removed from the base naturalAC of the actor read from the portfolio file
+
 ## 1.22
 Improvements in PF1 actor generation for stuff in the "Pathfinder 1e content" module:
 - PF-Traits and PF-Racial-Traits are now processed for Traits.

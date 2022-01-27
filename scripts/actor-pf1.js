@@ -537,6 +537,7 @@ export default class RWPF1Actor {
 		
 		for (const armor of toArray(character.defenses.armor)) {
 			if (armor.natural && armor.useradded === "no" && armor.equipped && armor.natural === "yes") {
+				// We need to somehow work out if this is actually from an ITEM, rather than being a racial bonus
 				actor.data.attributes.naturalAC = +armor.ac;
 			}
 		}
@@ -751,6 +752,15 @@ export default class RWPF1Actor {
 					if (masterwork || enh || item.name.endsWith(')')) {
 						itemdata.name = item.name;
 						itemdata.data.identifiedName = item.name;
+					}
+					// See if need to remove the naturalAC that was added from the defenses section.
+					if (actor.data.attributes.naturalAC > 0 && itemdata.data.changes) {
+						for (const effect of itemdata.data.changes) {
+							if (effect.target === 'ac' && effect.subTarget === 'nac') {
+								console.log(`Removing item's Natural AC from actor's natural AC ${effect.formula}`)
+								actor.data.attributes.naturalAC = actor.data.attributes.naturalAC - (+effect.formula);
+							}
+						}
 					}
 					actor.items.push(itemdata);
 				} else {
