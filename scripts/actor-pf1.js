@@ -1,5 +1,29 @@
 //import { PF1 } from "../../../systems/pf1/pf1.js";
 
+
+async function collectPacks(namelist) {
+	let packs = [];
+	for (const packname of namelist) {
+		const pack = await game.packs.find(p => p.metadata.name === packname);
+		if (pack) packs.push(pack);
+	}
+	return packs;
+}
+
+/**
+ * 
+ * @param {*} packs An array of packs to check
+ * @param {*} test  A function to check the name supplied as the only parameter
+ * @returns {*} A copy of the data from the pack, or null
+ */
+async function searchPacks(packs, test) {
+	for (const pack of packs) {
+		const entry = pack.index.find(e => test (e.name));
+		if (entry) return duplicate((await pack.getDocument(entry._id)).data);
+	}
+	return null;
+}
+
 export default class RWPF1Actor {
 
 	// Do we need the translated name for these categories?
@@ -316,8 +340,10 @@ export default class RWPF1Actor {
 		const race_pack = await game.packs.find(p => p.metadata.name === 'races');
 		const lowerrace = character.race.name.toLowerCase();
 		const race = await race_pack.index.find(e => e.name.toLowerCase() === lowerrace);
+		let racedata;  // needed for attribute processing
 		if (race) {
-			actor.items.push((await race_pack.getDocument(race._id)).data.toObject());
+			racedata = (await race_pack.getDocument(race._id)).data.toObject();
+			actor.items.push(racedata);
 		} else if (character.types.type?.name == 'Humanoid') {
 			// Only do manual entry for humanoids, since monstrous races
 			// have "classes" of the monster/animal levels
@@ -362,11 +388,25 @@ export default class RWPF1Actor {
 		//
 		// ATTRIBUTES tab
 		//
-		// attrvalue.base is unmodified by magical items
+		// attrvalue.base is unmodified by magical items, but INCLUDES racial bonus!
 		// attrvalue.modified includes bonuses
 		for (const attr of character.attributes.attribute) {
 			actor.data.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
 				value: +attr.attrvalue.base,
+			}
+		}
+		// Remove racial bonuses (if any)
+		// race.data.changes []
+		//    modifier = "racial"
+		//    formula  = "2" or "-2"
+		//    target   = "ability"
+		//    subTarget = "dex" | "int" | "con"
+		if (racedata) {
+			for (const change of racedata.data.changes) {
+				if (change.modifier == 'racial' && change.target == 'ability' && change.operator == 'add') {
+					console.log(`Removing racial ability modifier: ${change.subTarget} = ${change.formula} `);
+					actor.data.abilities[change.subTarget].value = actor.data.abilities[change.subTarget].value - (+change.formula);
+				}
 			}
 		}
 
@@ -657,20 +697,9 @@ export default class RWPF1Actor {
 		
 		if (items.length > 0) {
 			// Core System compendiums
-			const item_pack   = await game.packs.find(p => p.metadata.name === 'items');
-			const armor_pack  = await game.packs.find(p => p.metadata.name === 'armors-and-shields');
-			const weapon_pack = await game.packs.find(p => p.metadata.name === 'weapons-and-ammo');
-			let packs = [ item_pack,armor_pack,weapon_pack ];
-			// PF1 Content compendiums
-			const pg_magic_pack = await game.packs.find(p => p.metadata.name === 'pf-magic');
-			if (pg_magic_pack) packs.push(pg_magic_pack);
-			const pg_items_pack = await game.packs.find(p => p.metadata.name === 'pf-items');
-			if (pg_items_pack) packs.push(pg_items_pack);
-			const wondrous_pack = await game.packs.find(p => p.metadata.name === 'pf-wondrous');
-			if (wondrous_pack) packs.push(wondrous_pack);
-			const goods_services_pack = await game.packs.find(p => p.metadata.name === 'pf-goods-services');
-			if (goods_services_pack) packs.push(goods_services_pack);
-			
+			let packs = await collectPacks(
+				[ 'items', 'armors-and-shields', 'weapons-and-ammo',				// Base PF1 system
+				  'pf-magicitems', 'pf-items', 'pf-wondrous', 'pf-goods-services'])	// "PF1 Compendiums" module			
 			
 			for (const item of items) {
 				// Get all forms of item's name once, since we search each pack.
@@ -687,7 +716,8 @@ export default class RWPF1Actor {
 					if (!isNaN(enh)) lower = lower.slice(3);
 				}
 				// Remove container "(x @ y lbs)"
-				if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)')))
+				//if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)') || lower.endsWith('/day)')))
+				if (lower.endsWith(')'))
 					lower = lower.slice(0,lower.lastIndexOf(' ('));
 				// Remove plurals
 				if (lower.endsWith('s')) singular = lower.slice(0,-1);
@@ -703,19 +733,12 @@ export default class RWPF1Actor {
 				// Finally, some name changes aren't simple re-mappings
 				if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
 				
-				for (const p of packs) {
-					entry = p.index.find(e => {	
-						const elc = e.name.toLowerCase(); 
-						return elc === lower || (singular && elc === singular) || (reversed && elc === reversed) || (noparen && elc === noparen)
-					});
-					if (entry) {
-						pack = p;
-						break;
-					}
-				}
+				let itemdata = await searchPacks(packs, name => {	
+					const elc = name.toLowerCase(); 
+					return elc === lower || (singular && elc === singular) || (reversed && elc === reversed) || (noparen && elc === noparen)
+				})
 				
-				if (entry) {
-					let itemdata = (await pack.getDocument(entry._id)).data.toObject();
+				if (itemdata) {
 					itemdata.data.quantity = +item.quantity;
 					if (masterwork) itemdata.data.masterwork = true;
 					if (enh) {
@@ -724,7 +747,8 @@ export default class RWPF1Actor {
 						else
 							itemdata.data.enh = enh;
 					}
-					if (masterwork || enh) {
+					// Restore original POR name if there is information in brackets at the end of the name
+					if (masterwork || enh || item.name.endsWith(')')) {
 						itemdata.name = item.name;
 						itemdata.data.identifiedName = item.name;
 					}
@@ -797,7 +821,8 @@ export default class RWPF1Actor {
 		
 		// data.items (includes feats) - must be done AFTER skills
 		if (character.feats?.feat) {
-			const feat_pack = await game.packs.find(p => p.metadata.name === 'feats');
+			let packs = await collectPacks([ 'feats', 'pf-feats' ]);
+
 			for (const feat of toArray(character.feats.feat)) {
 				// since that indicates a class or race-based feature.
 				let featname = feat.name;
@@ -814,17 +839,20 @@ export default class RWPF1Actor {
 					// But don't add it if a copy has already been added when processing classes.
 					let acopy = false;
 					for (const item of actor.items) {
-						if (item.name == featname) {
+						if (item.name == realname) {
 							acopy = true;
 							break;
 						}
 					}
 					if (acopy) continue;
 				}
+				let lowername = featname.toLowerCase()
+				let shortname;
+				if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf('('));
 				
-				const entry = feat_pack.index.find(e => e.name === featname);
-				if (entry) {
-					let itemdata = duplicate((await feat_pack.getDocument(entry._id)).data);
+				let itemdata = await searchPacks(packs, name => name.toLowerCase() === lowername || (shortname && name.toLowerCase() == shortname));
+
+				if (itemdata) {
 					itemdata.name = realname;	// TODO: in case we removed parentheses
 
 					if (feat.useradded == 'no') {
@@ -910,25 +938,31 @@ export default class RWPF1Actor {
 					}
 					actor.items.push(itemdata);
 				}
-			}
+			} /* for feat in pack */
 		}
 		
 		// Traits (on FEATURES tab)
 		// <trait name="Dangerously Curious" categorytext="Magic">
 		if (character.traits?.trait) {
-			const trait_pack = await game.packs.find(p => p.metadata.name === 'feats');
+			let packs = await collectPacks(['pf-traits', 'pf-racial-traits'])
+
 			for (const trait of toArray(character.traits.trait)) {
-				const subtype = trait.categorytext;		// Magic, Racial, Social
-				const itemdata = {
-					name: trait.name,
-					type: 'feat',
-					data: {
-						featType: (subtype == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-						description: {
-							value: addParas(trait.description['#text'])
+
+				let itemdata = await searchPacks(packs, name => name == trait.name);
+				// Some traits in the PF sources has the name of the module from which it is derived.
+				if (!itemdata) itemdata = await searchPacks(packs, name => name.startsWith(trait.name));
+				if (!itemdata) {
+					itemdata = {
+						name: trait.name,
+						type: 'feat',
+						data: {
+							featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+							description: {
+								value: addParas(trait.description['#text'])
+							}
 						}
 					}
-				};
+				}
 				actor.items.push(itemdata);
 			}
 		}
@@ -1074,8 +1108,9 @@ export default class RWPF1Actor {
 			}
 		}
 		if (await addSpells(character.spellbook.spell, spellbooks[0], memorized)) spellbooks.shift();
-		//if (await addSpells(character.spellsmemorized.spell, spellbooks[0])) spellbooks.shift();
-		if (await addSpells(character.spellsknown.spell, spellbooks[0])) spellbooks.shift();
+		if (await addSpells(character.spellsknown.spell, spellbooks[0]))
+			spellbooks.shift();
+		else if (await addSpells(character.spellsmemorized.spell, spellbooks[0])) spellbooks.shift();
 		
 		// <special name="Disguise Self (humanoid form only, At will)" shortname="Disguise Self">
 		// <special name="Blur (1/day)" shortname="Blur">

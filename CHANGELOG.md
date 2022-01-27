@@ -1,3 +1,14 @@
+## 1.22
+Improvements in PF1 actor generation for stuff in the "Pathfinder 1e content" module:
+- PF-Traits and PF-Racial-Traits are now processed for Traits.
+- PF-Feats are now also checked for Feats.
+- PF-Magic Items are now processed properly again for magic items.
+- "Spells Memorized" will be added if there are no "Spells Known" in the Portfolio file.
+- Try to support trait names in the "Pathfinder 1e content" where the trait name has the book source appended to it.
+- Remove racial attribute bonuses from base attribute values (if race is found in a compendium).
+- KNOWN BUG: weapons and armour with special qualities are not detected (they are listed in the "Miscellaneous" section of the Inventory).
+- KNOWN BUG: Natural Armor AC is always copied into the "Natural Armor AC" of the Combat tab, even if it comes from a magic item.
+
 ## 1.21
 Ensure description is set properly when creating Items.
 
