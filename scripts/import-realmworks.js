@@ -2085,7 +2085,7 @@ class RealmWorksImporter extends Application
 							data: await this.actor_data_func(Utf8ArrayToStr(character[this.por_html])),
 							flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid } },
 						};
-						if (actor.data.items) actordata.items = actor.data.items;
+						if (actor.data.items) actor.items = actor.data.items;
 						if (character.imgfilename)
 							actor.img = this.imageFilename(character.imgfilename)
 						actor.permission = { "default": is_revealed ? CONST.ENTITY_PERMISSIONS.OBSERVER : CONST.ENTITY_PERMISSIONS.NONE };
