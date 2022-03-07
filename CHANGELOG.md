@@ -1,5 +1,6 @@
 # 1.23
-Fix error reported when decoding actors that don't have special decoders (e.g. Call of Cthulhu)
+Fix error reported when decoding actors.
+Fix an error in decoding Skills for CoC7.
 Improvements in PF1 actor generation:
 - natural armor bonus of items is removed from the base naturalAC of the actor read from the portfolio file
 
