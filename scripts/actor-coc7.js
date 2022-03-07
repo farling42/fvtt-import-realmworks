@@ -158,7 +158,7 @@ export default class RWCoC7Actor {
 				}
 			}
 			
-			if (!skill) {
+			if (!skill || !skill.data) {
 				console.debug(`Creating custom skill '${skillname}'`);
 				skill = {
 					type: "skill",
@@ -186,7 +186,7 @@ export default class RWCoC7Actor {
 					skill.data.properties.special = true;
 				}
 			} else {				
-				//console.log(`Using existing skill '${skill.name}' for '${skillname}'`);
+				console.log(`Using existing skill '${skill.name}' for '${skillname}'`);
 				skill = duplicate(skill);
 				// Reduce LONG name of specialization skills in compendium to short name expected in Actor
 				if (part>0) skill.name = specname;
