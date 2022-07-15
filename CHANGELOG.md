@@ -1,4 +1,7 @@
-# 1.23
+## 2.0
+Initial version for Foundry version 10 that works for Call of Cthulhu (coc7) game system.
+
+## 1.23
 Fix error reported when decoding actors.
 Fix an error in decoding Skills for CoC7.
 Improvements in PF1 actor generation:
