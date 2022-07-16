@@ -115,6 +115,7 @@ const RW_editor_gm_options = {
 		},
 	]
 };
+const SUPPORTED_VIDEO_FORMATS = [ "webm", "mp4", "m4v" ];
 
 //
 // Register game settings
@@ -1633,17 +1634,14 @@ class RealmWorksImporter extends Application
 							});
 						} else {
 							// Add <a> reference to the external object
-							let format = 'binary/octet-stream';
-							if (child.nodeName === 'PDF') {
-								format = 'application/pdf';
-							}
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
 
-							if (child.nodeName === 'PDF' || child.nodeName === "Video") {
-								// No place to put annotation
+							if (sntype === 'PDF' || (sntype === 'Video' && CONST.VIDEO_FILE_EXTENSIONS[fileext])) {
+								// No place to put annotation.
+								// For video, supported formats are .webm, .mp4, and .m4v
 								pages.push({
-									type: child.nodeName.toLower(),
+									type: sntype.toLowerCase(),
 									name: bin_ext_object.getAttribute('name'),
 									src: this.imageFilename(bin_filename)
 								})
@@ -1672,9 +1670,9 @@ class RealmWorksImporter extends Application
 						result += hpara(`<img src='${this.imageFilename(map_filename)}'></img>`);
 
 						// Create the scene now
-						await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
-							.then(sceneid => result += hpara(`@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
-							.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
+			//			await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
+			//				.then(sceneid => result += hpara(`@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
+			//				.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
 					}
 					break;
 				case "tag_assign":
