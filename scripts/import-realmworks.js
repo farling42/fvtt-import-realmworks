@@ -508,6 +508,15 @@ function getOwnership(revealed) {
 	return { "default": revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE };
 }
 
+function firstImage(pages) {
+	if (Array.isArray(pages)) {
+		for (let page of pages) {
+			if (page.type === 'image') return page.src;
+		}
+	}
+	return undefined;
+}
+
 
 const convertToWebp = src => new Promise((resolve, reject) =>
 	{
@@ -1446,7 +1455,7 @@ class RealmWorksImporter extends Application
 	async writeSection(topic, section, numbering, section_context) {
 
 		// Write a "contents" element:
-		let pictures=[];
+		let pages=[];
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
 		
 		let functhis = this;
@@ -1609,22 +1618,36 @@ class RealmWorksImporter extends Application
 						result += header(numbering.length+1, bin_ext_object.getAttribute('name'));
 						const bin_filename = bin_asset.getAttribute('filename');
 						const fileext = bin_filename.split('.').pop();	// extra suffix from asset filename
-						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf")
+						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf") {
+							// Put the HTML/RTF inline
 							result += atob(bin_contents.textContent);
-						else if (sntype === "Picture") {
+						} else if (sntype === "Picture") {
+							// Add <img> tag for the picture
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += hpara(`<img src='${this.imageFilename(bin_filename)}'></img>`);
-							pictures.push({
-								image: this.imageFilename(bin_filename),
-								caption: annotation ? stripHtml(annotation) : undefined
+							pages.push({
+								type: "image",
+								name: bin_ext_object.getAttribute('name'),
+								src: this.imageFilename(bin_filename),
+								image: { caption: annotation ? stripHtml(annotation) : undefined }
 							});
 						} else {
+							// Add <a> reference to the external object
 							let format = 'binary/octet-stream';
-							if (fileext === 'pdf') {
+							if (child.nodeName === 'PDF') {
 								format = 'application/pdf';
 							}
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
+
+							if (child.nodeName === 'PDF' || child.nodeName === "Video") {
+								// No place to put annotation
+								pages.push({
+									type: child.nodeName.toLower(),
+									name: bin_ext_object.getAttribute('name'),
+									src: this.imageFilename(bin_filename)
+								})
+							}
 						}
 					}
 					break;
@@ -1675,12 +1698,12 @@ class RealmWorksImporter extends Application
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
 				let subsection = await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
-				pictures.push(...subsection.pictures);
+				pages.push(...subsection.pages);
 				result += subsection.html;
 			}
 		}
 
-		return { html: result, pictures: pictures };
+		return { html: result, pages: pages };
 	}
 
 	addDescendents(depth, top_id, only_revealed) {
@@ -1708,7 +1731,7 @@ class RealmWorksImporter extends Application
 	// @return {html,img}
 	//
 	async formatTopicBody(topic) {
-		let pictures=[];
+		let pages=[];
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
@@ -1744,7 +1767,7 @@ class RealmWorksImporter extends Application
 				// Always process sections, to properly process revealed status
 				let sections = await this.writeSection(topic, node, [++sectionnum], section_context);
 				html += sections.html;
-				pictures.push(...sections.pictures);
+				pages.push(...sections.pages);
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1895,7 +1918,7 @@ class RealmWorksImporter extends Application
 		}
 		
 		html += endSection(section_context);
-		return { html, pictures };
+		return { html, pages };
 	}
 
 	//
@@ -1912,31 +1935,26 @@ class RealmWorksImporter extends Application
 			//name:     this.title_of_topic.get(topic_id),  -- already set correctly during initial creation
 			topic_id: topic_id,
 			uuid:     topic.getAttribute("original_uuid"),
-			pages: [],
+			pages:    body.pages,
 			ownership: getOwnership(this.revealed_topics.has(topic_id))
 		};
-		let sort=300000;
 		if (body.html) {
-			topicdata.pages.push({
-				name : topic_document.name,
-				type : "text",
-				sort : sort,
-				text : {
+			// First page is the main topic's content
+			topicdata.pages.unshift({
+				name: topic_document.name,
+				type: "text",
+				text: {
 					format  : 1,
 					content : body.html
 				},
 			});
 		}
-		for (const picture of body.pictures) {
-			let name = picture.caption || topic_document.name;
-			topicdata.pages.push({
-				name : name,   // snippet comment for the image
-				type : "image",
-				sort : sort,
-				text : { format  : 1 },
-				//image: { caption : name },  // annotation used for journal PAGE name
-				src  : picture.image,
-			})
+		// Ensure pages remain in the correct order
+		let sort=0;
+		const SIZE_MOD=100000;
+		for (let i = 0; i<body.pages.length; i++) {
+			body.pages[i].sort = sort;
+			sort += SIZE_MOD;
 		}
 	
 		// Finally send the update to Foundry
@@ -1964,7 +1982,7 @@ class RealmWorksImporter extends Application
 		let itemdata = {
 			_id:  topic_document._id,
 			system: await this.item_data_func(this.structure, topic, topic_document.type, content.html, category),
-			img:  (Array.isArray(content.pictures) && content.pictures.length > 0) ? content.pictures[0].image : undefined,
+			img: firstImage(content.pages),
 			ownership: getOwnership(this.revealed_topics.has(topic_id)),
 		}
 
