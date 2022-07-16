@@ -364,7 +364,9 @@ function hpara(body) {
 	return `<p>${body}</p>`;
 }
 function header(lvl, name) {
-	return `<h${lvl}>${name}</h${lvl}>`;
+	// <h1> is reserved for the title of each page (HTML guidance)
+	// Foundry VTT doesn't include H1 in the navigation pane of a journal entry.
+	return `<h${lvl+1}>${name}</h${lvl}>`;
 }
 // stripHtml: Strip all HTML from the string.
 function stripHtml(original) {
