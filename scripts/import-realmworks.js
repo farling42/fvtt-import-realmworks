@@ -1171,6 +1171,7 @@ class RealmWorksImporter extends Application
 		
 		// Create thumbnail - do this AFTER creating notes so that we get a scene.update
 		// call to write all the notes to scenes.db
+		// createThumbnail and update are async, but we don't need the results elsewhere
 		scene.createThumbnail().then(data => scene.update({thumb: data.thumb}));
 		
 		this.ui_message.val(`Created scene '${scenename}' with ${notes.length} notes`);
@@ -1670,9 +1671,9 @@ class RealmWorksImporter extends Application
 						result += hpara(`<img src='${this.imageFilename(map_filename)}'></img>`);
 
 						// Create the scene now
-			//			await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
-			//				.then(sceneid => result += hpara(`@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
-			//				.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
+						await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
+							.then(sceneid => result += hpara(`@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
+							.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
 					}
 					break;
 				case "tag_assign":
