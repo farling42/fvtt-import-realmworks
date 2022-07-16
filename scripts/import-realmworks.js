@@ -504,10 +504,6 @@ function Utf8ArrayToStr(array) {
 	return out;
 }
 
-function firstImage(images) {
-	return (Array.isArray(images) && images.length > 0) ? images[0] : undefined;
-}
-
 function getOwnership(revealed) {
 	return { "default": revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE };
 }
@@ -1450,7 +1446,7 @@ class RealmWorksImporter extends Application
 	async writeSection(topic, section, numbering, section_context) {
 
 		// Write a "contents" element:
-		let images=[];
+		let pictures=[];
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
 		
 		let functhis = this;
@@ -1618,7 +1614,10 @@ class RealmWorksImporter extends Application
 						else if (sntype === "Picture") {
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += hpara(`<img src='${this.imageFilename(bin_filename)}'></img>`);
-							images.push(this.imageFilename(bin_filename));
+							pictures.push({
+								image: this.imageFilename(bin_filename),
+								caption: annotation ? stripHtml(annotation) : undefined
+							});
 						} else {
 							let format = 'binary/octet-stream';
 							if (fileext === 'pdf') {
@@ -1676,12 +1675,12 @@ class RealmWorksImporter extends Application
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
 				let subsection = await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
-				images.push(...subsection.images);
+				pictures.push(...subsection.pictures);
 				result += subsection.html;
 			}
 		}
 
-		return { html: result, images };
+		return { html: result, pictures: pictures };
 	}
 
 	addDescendents(depth, top_id, only_revealed) {
@@ -1709,7 +1708,7 @@ class RealmWorksImporter extends Application
 	// @return {html,img}
 	//
 	async formatTopicBody(topic) {
-		let images=[];
+		let pictures=[];
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
@@ -1745,7 +1744,7 @@ class RealmWorksImporter extends Application
 				// Always process sections, to properly process revealed status
 				let sections = await this.writeSection(topic, node, [++sectionnum], section_context);
 				html += sections.html;
-				images.push(...sections.images);
+				pictures.push(...sections.pictures);
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1896,7 +1895,7 @@ class RealmWorksImporter extends Application
 		}
 		
 		html += endSection(section_context);
-		return { html, images };
+		return { html, pictures };
 	}
 
 	//
@@ -1928,14 +1927,15 @@ class RealmWorksImporter extends Application
 				},
 			});
 		}
-		for (const image of body.images) {
+		for (const picture of body.pictures) {
+			let name = picture.caption || topic_document.name;
 			topicdata.pages.push({
-				name : topic_document.name,   // snippet comment for the image
+				name : name,   // snippet comment for the image
 				type : "image",
 				sort : sort,
 				text : { format  : 1 },
-				image: { captain : topic_document.name },  // snippet comment for the image
-				src  : image,
+				//image: { caption : name },  // annotation used for journal PAGE name
+				src  : picture.image,
 			})
 		}
 	
@@ -1964,7 +1964,7 @@ class RealmWorksImporter extends Application
 		let itemdata = {
 			_id:  topic_document._id,
 			system: await this.item_data_func(this.structure, topic, topic_document.type, content.html, category),
-			img:  firstImage(content.images),
+			img:  (Array.isArray(content.pictures) && content.pictures.length > 0) ? content.pictures[0].image : undefined,
 			ownership: getOwnership(this.revealed_topics.has(topic_id)),
 		}
 
