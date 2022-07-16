@@ -502,6 +502,14 @@ function Utf8ArrayToStr(array) {
 	return out;
 }
 
+function firstImage(images) {
+	return (Array.isArray(images) && images.length > 0) ? images[0] : undefined;
+}
+
+function getOwnership(revealed) {
+	return { "default": revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE };
+}
+
 
 const convertToWebp = src => new Promise((resolve, reject) =>
 	{
@@ -1079,7 +1087,7 @@ class RealmWorksImporter extends Application
 			journal: this.document_for_topic.get(scene_topic_id)?._id,
 			tokenVision:    this.scene_token_vision,
 			fogExploration: this.scene_token_vision,
-			ownership: { "default": is_revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE },
+			ownership: getOwnership(is_revealed),
 			flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
 		};
 		
@@ -1135,7 +1143,7 @@ class RealmWorksImporter extends Application
 				//textAnchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
 				//textColor: "#00FFFF",
 				scene: scene.id,
-				//ownership: { "default": pin.getAttribute('is_revealed') ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE },
+				//ownership: getOwnership(pin.getAttribute('is_revealed')),
 			};
 			if (globalThis.setNoteRevealed) globalThis.setNoteRevealed(notedata, pin_is_revealed);
 			if (gmdir && globalThis.setNoteGMtext) globalThis.setNoteGMtext(notedata, (desc ? notedata.text : `>> ${pinname} <<`) + '\n\u2193\u2193 --- GMDIR --- \u2193\u2193\n' + gmdir)
@@ -1410,7 +1418,7 @@ class RealmWorksImporter extends Application
 				displayRoll: true,
 				folder:      this.rolltable_folder?.id,
 				//sort: number,
-				ownership: { "default": is_revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE },
+				ownership: getOwnership(is_revealed),
 				flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
 			};
 				
@@ -1440,7 +1448,7 @@ class RealmWorksImporter extends Application
 	async writeSection(topic, section, numbering, section_context) {
 
 		// Write a "contents" element:
-		let first_img;
+		let images=[];
 		const section_name = section.getAttribute('name') ?? this.structure.partitions.get(section.getAttribute('partition_id'));
 		
 		let functhis = this;
@@ -1608,7 +1616,7 @@ class RealmWorksImporter extends Application
 						else if (sntype === "Picture") {
 							await this.uploadFile(bin_filename, bin_contents.textContent);
 							result += hpara(`<img src='${this.imageFilename(bin_filename)}'></img>`);
-							if (!first_img) first_img = this.imageFilename(bin_filename);
+							images.push(this.imageFilename(bin_filename));
 						} else {
 							let format = 'binary/octet-stream';
 							if (fileext === 'pdf') {
@@ -1666,12 +1674,12 @@ class RealmWorksImporter extends Application
 				// Subsections increase the HEADING number,
 				// but need to be buffered and put into the output AFTER the rest of the contents for this section.
 				let subsection = await this.writeSection(topic, child, numbering.concat(++subsection_count), section_context);
-				if (!first_img) first_img = subsection.img;
+				images.push(...subsection.images);
 				result += subsection.html;
 			}
 		}
 
-		return { html: result, img: first_img };
+		return { html: result, images };
 	}
 
 	addDescendents(depth, top_id, only_revealed) {
@@ -1696,9 +1704,10 @@ class RealmWorksImporter extends Application
 	
 	//
 	// Write one RW topic
+	// @return {html,img}
 	//
 	async formatTopicBody(topic) {
-		let first_img;
+		let images=[];
 		const topic_id = topic.getAttribute('topic_id');
 		console.debug(`formatTopicBody('${this.title_of_topic.get(topic_id)}')`);
 
@@ -1734,7 +1743,7 @@ class RealmWorksImporter extends Application
 				// Always process sections, to properly process revealed status
 				let sections = await this.writeSection(topic, node, [++sectionnum], section_context);
 				html += sections.html;
-				if (!first_img) first_img = sections.img;
+				images.push(...sections.images);
 				break;
 			case 'topicchild':
 			case 'topic':
@@ -1885,7 +1894,7 @@ class RealmWorksImporter extends Application
 		}
 		
 		html += endSection(section_context);
-		return { html, img: first_img };
+		return { html, images };
 	}
 
 	//
@@ -1903,7 +1912,7 @@ class RealmWorksImporter extends Application
 			topic_id: topic_id,
 			uuid:     topic.getAttribute("original_uuid"),
 			pages: [],
-			ownership: { "default": this.revealed_topics.has(topic_id) ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE }
+			ownership: getOwnership(this.revealed_topics.has(topic_id))
 		};
 		let sort=300000;
 		if (body.html) {
@@ -1917,14 +1926,14 @@ class RealmWorksImporter extends Application
 				},
 			});
 		}
-		if (body.img) {
+		for (const image of body.images) {
 			topicdata.pages.push({
-				name : topic_document.name,
+				name : topic_document.name,   // snippet comment for the image
 				type : "image",
 				sort : sort,
 				text : { format  : 1 },
-				image: { captain : topic_document.name },
-				src  : body.img,
+				image: { captain : topic_document.name },  // snippet comment for the image
+				src  : image,
 			})
 		}
 	
@@ -1953,8 +1962,8 @@ class RealmWorksImporter extends Application
 		let itemdata = {
 			_id:  topic_document._id,
 			system: await this.item_data_func(this.structure, topic, topic_document.type, content.html, category),
-			img:  content.img,
-			ownership: { "default": this.revealed_topics.has(topic_id) ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE },
+			img:  firstImage(content.images),
+			ownership: getOwnership(this.revealed_topics.has(topic_id)),
 		}
 
 		// Return the promise from the update, so we don't need an await here
@@ -1975,7 +1984,7 @@ class RealmWorksImporter extends Application
 				// Don't check nested topics
 				let result = this.getActorSnippets(child);
 				if (result.length > 0) {
-					snippets = snippets.concat(result);
+					snippets.push(...result);
 					if (onlyone) break;
 				}
 			}
@@ -2086,10 +2095,10 @@ class RealmWorksImporter extends Application
 									};
 									let extradata = await this.actor_data_func(Utf8ArrayToStr(port[this.por_html]));
 									actor.system = foundry.utils.mergeObject(actor.system, extradata);
-									if (extradata.items) actor.items = actor.items.concat(extradata.items);
+									if (extradata.items) actor.items.push(...extradata.items);
 									if (port?.imgfilename)
 										actor.img = this.imageFilename(port.imgfilename);
-									actor.ownership = { "default": is_revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE };
+									actor.ownership = getOwnership(is_revealed);
 									actor.flags = { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid } };
 									result.push(actor);
 								}
@@ -2105,11 +2114,11 @@ class RealmWorksImporter extends Application
 							type: this.actor_type,
 							system: await this.actor_data_func(Utf8ArrayToStr(character[this.por_html])),
 							flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid } },
+							ownership: getOwnership(is_revealed),
 						};
 						if (actor.system.items) actor.items = actor.system.items;
 						if (character.imgfilename)
 							actor.img = this.imageFilename(character.imgfilename)
-						actor.ownership = { "default": is_revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE };
 						result.push(actor);
 					}
 				}
@@ -2123,7 +2132,7 @@ class RealmWorksImporter extends Application
 					type: this.actor_type,
 					system: await this.actor_data_func(statblock),
 					flags: { [GS_MODULE_NAME]: { [GS_FLAGS_UUID] : uuid }},
-					ownership: { "default": is_revealed ? CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER : CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE },
+					ownership: getOwnership(is_revealed),
 				};
 				if (actor.system.items) actor.items = actor.system.items;
 				result.push(actor);
@@ -2158,7 +2167,7 @@ class RealmWorksImporter extends Application
 					snippets.push(child);
 				} else if (child.nodeName !== 'topic' && child.nodeName !== 'topicchild' && child.children.length > 0) {
 					// Don't check nested topics
-					snippets = snippets.concat(getSoundSnippets(child));
+					snippets.push(...getSoundSnippets(child));
 				}
 			}
 			return snippets;
