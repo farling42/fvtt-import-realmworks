@@ -4,6 +4,10 @@ Fix an error in decoding Skills for CoC7.
 Improvements in PF1 actor generation:
 - natural armor bonus of items is removed from the base naturalAC of the actor read from the portfolio file
 
+## 1.22.1
+Ensure that the Realm Works Importer button is displayed at the bottom of the Compendium tab if it is not possible to display it at the top of the compendium tab
+(this will get the button visible in games based on the 3.5 SRD game system).
+
 ## 1.22
 Improvements in PF1 actor generation for stuff in the "Pathfinder 1e content" module:
 - PF-Traits and PF-Racial-Traits are now processed for Traits.
