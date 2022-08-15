@@ -19,7 +19,7 @@ async function collectPacks(namelist) {
 async function searchPacks(packs, test) {
 	for (const pack of packs) {
 		const entry = pack.index.find(e => test (e.name));
-		if (entry) return duplicate((await pack.getDocument(entry._id)).data);
+		if (entry) return duplicate((await pack.getDocument(entry._id)));
 	}
 	return null;
 }
@@ -179,7 +179,7 @@ export default class RWPF1Actor {
 			name: character.name,
 			type: (character.challengerating === undefined) ? 'character' : 'npc',		// 'npc' or 'character'
 			relationship : character.relationship,
-			data: {
+			system: {
 				abilities: {},
 				attributes: {},
 				details: {},
@@ -195,7 +195,7 @@ export default class RWPF1Actor {
 
 		// data.attributes.hp.value/base/max/temp/nonlethal
 		//let hp = +character.health.hitpoints;
-		actor.data.attributes.hp = {
+		actor.system.attributes.hp = {
 			value: +character.health.currenthp,
 			//base:  +character.health.hitpoints,		// This screws up PF1E if automatic HP calculation is enabled
 			min:   0,
@@ -208,22 +208,22 @@ export default class RWPF1Actor {
 		// data.details.cr.base/total
 		if (character.challengerating === undefined) {
 			// data.details.xp.value/min/max
-			actor.data.details.xp = {
+			actor.system.details.xp = {
 				value: +character.xp.total,
 				min  : 0,
 				max  : +character.xp.total
 			};
 		} else {
 			let cr = +character.challengerating.value;
-			actor.data.details.cr = { base: cr, total: cr };
-			actor.data.details.xp = { value : +character.xpaward.value };
+			actor.system.details.cr = { base: cr, total: cr };
+			actor.system.details.xp = { value : +character.xpaward.value };
 		};
 		// data.details.height/weight/gender/deity/age
-		actor.data.details.height = character.personal.charheight.text;
-		actor.data.details.weight = character.personal.charweight.text;
-		actor.data.details.gender = character.personal.gender;
-		actor.data.details.deity = character?.deity?.name;
-		actor.data.details.age = character.personal.age;
+		actor.system.details.height = character.personal.charheight.text;
+		actor.system.details.weight = character.personal.charweight.text;
+		actor.system.details.gender = character.personal.gender;
+		actor.system.details.deity = character?.deity?.name;
+		actor.system.details.age = character.personal.age;
 
 		const hitpoints = +character.health.hitpoints;
 		// Ignore any possible "12 HD;" prefix, putting just the second half into justdice
@@ -284,7 +284,7 @@ export default class RWPF1Actor {
 				// Strip trailing (...)  from class.name
 				const entry = class_pack.index.find(e => e.name === name);
 				if (entry) {
-					let classdata = (await class_pack.getDocument(entry._id)).data.toObject();
+					let classdata = (await class_pack.getDocument(entry._id)).toObject();
 					//console.debug(`Class ${entry.name} at level ${cclass.levels}`);
 
 					// class.hp needs setting to the amount of HP gained from levelling in this class.
@@ -293,19 +293,19 @@ export default class RWPF1Actor {
 					if (favclasses.includes(cclass.name) || character.role === 'npc') {
 						// This is NOT a favoured class, so cancel any favoured class bonuses.
 						console.debug(`Setting favoured class for ${cclass.name}`);
-						classdata.data.fc.hp.value = levels;
-						classdata.data.fc.skill.value = 0;
-						classdata.data.fc.alt.value = 0;
+						classdata.system.fc.hp.value = levels;
+						classdata.system.fc.skill.value = 0;
+						classdata.system.fc.alt.value = 0;
 					}
 					
 					// Start by adding the class item with the correct number of levels & HP
-					classdata.data.level = levels;
-					classdata.data.hp = class_hp;		// how do we work this out?
+					classdata.system.level = levels;
+					classdata.system.hp = class_hp;		// how do we work this out?
 					actor.items.push(classdata);
 					
 					// Now add all the class features up to the level of the class.
 					// See PF1._onLevelChange (triggered by updateItem and createItem, but not create()
-					const classAssociations = (classdata.data.links.classAssociations || []).filter((o, index) => {
+					const classAssociations = (classdata.system.links.classAssociations || []).filter((o, index) => {
 						o.__index = index;
 						return o.level <= levels;
 					});
@@ -314,7 +314,7 @@ export default class RWPF1Actor {
 						const collection = co.id.split(".").slice(0, 2).join(".");
 						const itemId = co.id.split(".")[2];
 						const pack = game.packs.get(collection);
-						const itemData = duplicate((await pack.getDocument(itemId)).data);
+						const itemData = duplicate((await pack.getDocument(itemId)));
 						
 						// No record on each classFeature as to which class and level added it.
 						//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
@@ -325,11 +325,11 @@ export default class RWPF1Actor {
 					const itemdata = {
 						name: cclass.name,
 						type: 'race',
-						data: { 
+						system: { 
 							level : levels,
 							hp    : class_hp,
 						},
-						//data: { description : { value : addParas(feat.description['#text']) }}
+						//system: { description : { value : addParas(feat.description['#text']) }}
 					};
 					actor.items.push(itemdata);
 				}
@@ -342,7 +342,7 @@ export default class RWPF1Actor {
 		const race = await race_pack.index.find(e => e.name.toLowerCase() === lowerrace);
 		let racedata;  // needed for attribute processing
 		if (race) {
-			racedata = (await race_pack.getDocument(race._id)).data.toObject();
+			racedata = (await race_pack.getDocument(race._id)).toObject();
 			actor.items.push(racedata);
 		} else if (character.types.type?.name == 'Humanoid') {
 			// Only do manual entry for humanoids, since monstrous races
@@ -352,7 +352,7 @@ export default class RWPF1Actor {
 				name: character.race.name,
 				type: 'race',
 				creatureType: character.types?.type?.name,
-				//data: { description : { value : addParas(character.race.name['#text']) }}
+				//system: { description : { value : addParas(character.race.name['#text']) }}
 			};
 			actor.items.push(itemdata);
 		}
@@ -363,14 +363,14 @@ export default class RWPF1Actor {
 			const racehdlower = character.types.type.name.toLowerCase();
 			const racialhd = await racialhd_pack.index.find(e => e.name.toLowerCase() === racehdlower);
 			if (racialhd) {
-				let item = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
-				item.data.level = races_hd;
-				item.data.hp = races_hp;
+				let item = (await racialhd_pack.getDocument(racialhd._id)).toObject();
+				item.system.level = races_hd;
+				item.system.hp = races_hp;
 				if (races_hd == 0) {
-					item.data.skillsPerLevel = 0;
-					item.data.savingThrows.fort.value = "Low";
-					item.data.savingThrows.ref.value = "Low";
-					item.data.savingThrows.will.value = "Low";
+					item.system.skillsPerLevel = 0;
+					item.system.savingThrows.fort.value = "Low";
+					item.system.savingThrows.ref.value = "Low";
+					item.system.savingThrows.will.value = "Low";
 				}					
 				actor.items.push(item);
 			} else {
@@ -380,7 +380,7 @@ export default class RWPF1Actor {
 					type: 'class',
 					classType: 'racial',
 					hp : races_hp,
-					//data: { description : { value : addParas(character.racialhd.name['#text']) }}
+					//system: { description : { value : addParas(character.racialhd.name['#text']) }}
 				};
 				actor.items.push(itemdata);
 			}
@@ -391,42 +391,42 @@ export default class RWPF1Actor {
 		// attrvalue.base is unmodified by magical items, but INCLUDES racial bonus!
 		// attrvalue.modified includes bonuses
 		for (const attr of character.attributes.attribute) {
-			actor.data.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
+			actor.system.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
 				value: +attr.attrvalue.base,
 			}
 		}
 		// Remove racial bonuses (if any)
-		// race.data.changes []
+		// race.system.changes []
 		//    modifier = "racial"
 		//    formula  = "2" or "-2"
 		//    target   = "ability"
 		//    subTarget = "dex" | "int" | "con"
 		if (racedata) {
-			for (const change of racedata.data.changes) {
+			for (const change of racedata.system.changes) {
 				if (change.modifier == 'racial' && change.target == 'ability' && change.operator == 'add') {
 					console.log(`Removing racial ability modifier: ${change.subTarget} = ${change.formula} `);
-					actor.data.abilities[change.subTarget].value = actor.data.abilities[change.subTarget].value - (+change.formula);
+					actor.system.abilities[change.subTarget].value = actor.system.abilities[change.subTarget].value - (+change.formula);
 				}
 			}
 		}
 
 		// Saving Throws are calculated automatically
-/*		actor.data.attributes.savingThrows = {};
+/*		actor.system.attributes.savingThrows = {};
 		for (const child of character.saves.save) {
 			if (child.abbr == "Fort") {
-				actor.data.attributes.savingThrows.fort = {
+				actor.system.attributes.savingThrows.fort = {
 					base:  +child.fromresist, //+child.base,
 					//total: +child.save - +child.fromattr,
 					ability: "con"
 				};
 			} else if (child.abbr == "Ref") {
-				actor.data.attributes.savingThrows.ref = {
+				actor.system.attributes.savingThrows.ref = {
 					base:  +child.fromresist,
 					//total: +child.save - +child.fromattr,
 					ability: "dex"
 				};
 			} else if (child.abbr == "Will") {
-				actor.data.attributes.savingThrows.will = {
+				actor.system.attributes.savingThrows.will = {
 					base:  +child.fromresist,
 					//total: +child.save - +child.fromattr,
 					ability: "wis"
@@ -436,7 +436,7 @@ export default class RWPF1Actor {
 */
 
 		// data.attributes.vision.lowLight/darkvision
-		actor.data.attributes.vision = {
+		actor.system.attributes.vision = {
 			lowLight   : character.senses?.special?.name && character.senses.special.name.includes("Low-Light Vision"),
 			darkvision : 0,
 		}
@@ -459,7 +459,7 @@ export default class RWPF1Actor {
 
 		// data.attributes.prof
 		// data.attributes.speed.land/climb/swim/burrow/fly (base/total + for fly, .maneuverability)
-		actor.data.attributes.speed = {
+		actor.system.attributes.speed = {
 			land: {
 				base:  +character.movement.speed.value,
 				total: +character.movement.speed.value
@@ -472,11 +472,11 @@ export default class RWPF1Actor {
 		// data.details.mythicTier
 		// data.details.bonusFeatFormula
 		// data.details.alignment: 'tn'
-		actor.data.details.alignment = character.alignment;
+		actor.system.details.alignment = character.alignment;
 		// data.details.biography.value/public
 		let bio = character.personal.description['#text'];
 		if (bio) {
-			actor.data.details.biography = {
+			actor.system.details.biography = {
 				value: addParas(bio)	  // Each paragraph is on a single line
 			};
 		}
@@ -490,30 +490,30 @@ export default class RWPF1Actor {
 		
 		// data.attributes.init.value/bonus/total/ability
 		const initvalue = +character.initiative.misctext; //+character.initiative.total - +character.initiative.attrtext;
-		actor.data.attributes.init = {
+		actor.system.attributes.init = {
 			value: initvalue,
 			bonus: initvalue,
 			total: initvalue,
 			ability: RWPF1Actor.ability_names[character.initiative.attrname]
 		};
 
-		actor.data.attributes.bab = {
+		actor.system.attributes.bab = {
 			value: +character.attack.baseattack,
 			total: +character.attack.baseattack
 		};
-		actor.data.attributes.cmd = {
+		actor.system.attributes.cmd = {
 			value: +character.maneuvers.cmd,
 			total: +character.maneuvers.cmd,
 			flatFootedTotal: +character.maneuvers.cmdflatfooted
 		}
-		actor.data.attributes.cmb = {
+		actor.system.attributes.cmb = {
 			value: +character.maneuvers.cmb,
 			total: +character.maneuvers.cmb,
 		}
 
 		// AC will be calculated automatically
-/*		actor.data.attributes.naturalAC = +character.armorclass.fromnatural;
-		actor.data.attributes.ac = {
+/*		actor.system.attributes.naturalAC = +character.armorclass.fromnatural;
+		actor.system.attributes.ac = {
 			normal: {
 				value: +character.armorclass.ac,
 				total: +character.armorclass.ac
@@ -538,7 +538,7 @@ export default class RWPF1Actor {
 		for (const armor of toArray(character.defenses.armor)) {
 			if (armor.natural && armor.useradded === "no" && armor.equipped && armor.natural === "yes") {
 				// We need to somehow work out if this is actually from an ITEM, rather than being a racial bonus
-				actor.data.attributes.naturalAC = +armor.ac;
+				actor.system.attributes.naturalAC = +armor.ac;
 			}
 		}
 		for (const attack of toArray(character.melee.weapon).concat(toArray(character.ranged.weapon))) {
@@ -554,7 +554,7 @@ export default class RWPF1Actor {
 					// item
 					name: attack.name,
 					type: "attack",
-					data: {
+					system: {
 						// TEMPLATE: itemDescription
 						description: { value: attack.description["#text"], chat: "", unidentified: "" },
 						//tags: [],
@@ -631,7 +631,7 @@ export default class RWPF1Actor {
 				}
 
 				if (attack.rangedattack) {
-					atkdata.data.range = { 
+					atkdata.system.range = { 
 						value: attack.rangedattack.rangeinctext,
 						units: "ft",
 						maxIncrements: 1,
@@ -639,7 +639,7 @@ export default class RWPF1Actor {
 						//minUnits: "",
 					};
 				} else {
-					atkdata.data.range = { 
+					atkdata.system.range = { 
 						//value: null,
 						units: "melee",
 						//maxIncrements: 1,
@@ -669,7 +669,7 @@ export default class RWPF1Actor {
 		//
 		
 		// data.currency.pp/gp/sp/cp
-		actor.data.currency = {
+		actor.system.currency = {
 			pp: +character.money.pp,
 			gp: +character.money.gp,
 			sp: +character.money.sp,
@@ -679,7 +679,7 @@ export default class RWPF1Actor {
 
 		// data.attributes.encumbrance.level/levels/carriedWeight
 		const enc = character.encumbrance;
-		actor.data.attributes.encumbrance = {
+		actor.system.attributes.encumbrance = {
 			level: (enc.level == 'Light Load') ? 0 : 1, // 0 = light load TBD
 			levels: {
 				light:  +enc.light,
@@ -740,25 +740,25 @@ export default class RWPF1Actor {
 				})
 				
 				if (itemdata) {
-					itemdata.data.quantity = +item.quantity;
-					if (masterwork) itemdata.data.masterwork = true;
+					itemdata.system.quantity = +item.quantity;
+					if (masterwork) itemdata.system.masterwork = true;
 					if (enh) {
-						if (itemdata.data.armor)
-							itemdata.data.armor.enh = enh;
+						if (itemdata.system.armor)
+							itemdata.system.armor.enh = enh;
 						else
-							itemdata.data.enh = enh;
+							itemdata.system.enh = enh;
 					}
 					// Restore original POR name if there is information in brackets at the end of the name
 					if (masterwork || enh || item.name.endsWith(')')) {
 						itemdata.name = item.name;
-						itemdata.data.identifiedName = item.name;
+						itemdata.system.identifiedName = item.name;
 					}
 					// See if need to remove the naturalAC that was added from the defenses section.
-					if (actor.data.attributes.naturalAC > 0 && itemdata.data.changes) {
-						for (const effect of itemdata.data.changes) {
+					if (actor.system.attributes.naturalAC > 0 && itemdata.system.changes) {
+						for (const effect of itemdata.system.changes) {
 							if (effect.target === 'ac' && effect.subTarget === 'nac') {
 								console.log(`Removing item's Natural AC from actor's natural AC ${effect.formula}`)
-								actor.data.attributes.naturalAC = actor.data.attributes.naturalAC - (+effect.formula);
+								actor.system.attributes.naturalAC = actor.system.attributes.naturalAC - (+effect.formula);
 							}
 						}
 					}
@@ -768,7 +768,7 @@ export default class RWPF1Actor {
 					const itemdata = {
 						name: item.name,
 						type: 'loot',
-						data: {
+						system: {
 							quantity: +item.quantity,
 							weight:   +item.weight.value,
 							price:    +item.cost.value,
@@ -807,19 +807,19 @@ export default class RWPF1Actor {
 			}
 			let baseskill = this.skill_mapping.get(skill.name);
 			if (baseskill) {
-				actor.data.skills[baseskill] = value;
+				actor.system.skills[baseskill] = value;
 			} else {
 				let paren = skill.name.indexOf(' (');
 				baseskill = paren ? this.skill_mapping.get(skill.name.slice(0,paren)) : undefined;
 				if (baseskill) {
 					value.name = skill.name;
-					if (!actor.data.skills[baseskill]) actor.data.skills[baseskill] = {subSkills : {}};
-					else if (!actor.data.skills[baseskill].subSkills) actor.data.skills[baseskill].subSkills = {};
-					actor.data.skills[baseskill].subSkills[`${baseskill}${++numsub[baseskill]}`] = value;
+					if (!actor.system.skills[baseskill]) actor.system.skills[baseskill] = {subSkills : {}};
+					else if (!actor.system.skills[baseskill].subSkills) actor.system.skills[baseskill].subSkills = {};
+					actor.system.skills[baseskill].subSkills[`${baseskill}${++numsub[baseskill]}`] = value;
 				} else {
 					console.debug(`PF1 custom skill ${skill.name}`);
 					value.name = skill.name;
-					actor.data.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
+					actor.system.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
 				}
 			}
 		}
@@ -867,7 +867,7 @@ export default class RWPF1Actor {
 
 					if (feat.useradded == 'no') {
 						// We are going to add it as a manual class feature.
-						itemdata.data.featType = 'classFeat';
+						itemdata.system.featType = 'classFeat';
 					}
 					
 					// Special additions:
@@ -877,20 +877,20 @@ export default class RWPF1Actor {
 						let p1 = feat.name.indexOf(' (');
 						let p2 = feat.name.lastIndexOf(')');
 						let skillname = feat.name.slice(p1+2,p2).replace('[','(').replace(']',')');
-						// Find any descendent of actor.data.skills with a .name that matches the skill
+						// Find any descendent of actor.system.skills with a .name that matches the skill
 						let skill;
 						let baseskill = this.skill_mapping.get(skillname);
 						if (baseskill) {
-							ranks = actor.data.skills[baseskill].rank;
+							ranks = actor.system.skills[baseskill].rank;
 							skill = 'skill.' + baseskill;
 						} else {
 							// Check for a subskill
 							let paren = skillname.indexOf(' (');
 							skill = paren ? this.skill_mapping.get(skillname.slice(0,paren)) : undefined;
 							if (skill) {
-								for (const skl2 of Object.keys(actor.data.skills[skill].subSkills)) {
-									if (actor.data.skills[skill].subSkills[skl2].name == skillname) {
-										ranks = actor.data.skills[skill].subSkills[skl2].rank;
+								for (const skl2 of Object.keys(actor.system.skills[skill].subSkills)) {
+									if (actor.system.skills[skill].subSkills[skl2].name == skillname) {
+										ranks = actor.system.skills[skill].subSkills[skl2].rank;
 										skill = 'skill.' + skill + ".subSkills." + skl2;
 										break;
 									}
@@ -898,14 +898,14 @@ export default class RWPF1Actor {
 							}
 							if (!skill) { 
 								// Check custom skills
-								// actor.data.skills.skill
-								// actor.data.skills.skill2
+								// actor.system.skills.skill
+								// actor.system.skills.skill2
 								let i=0;
 								while (true) {
 									let name = (i==0) ? 'skill' : `skill${i}`;
-									if (!(name in actor.data.skills)) break;
-									if (actor.data.skills[name].name == skill.name) {
-										ranks = actor.data.skills[name].rank;
+									if (!(name in actor.system.skills)) break;
+									if (actor.system.skills[name].name == skill.name) {
+										ranks = actor.system.skills[name].rank;
 										skill = 'skill.' + name;
 										break;
 									}
@@ -914,7 +914,7 @@ export default class RWPF1Actor {
 						}
 						if (skill) {
 							let bonus = (ranks >= 10) ? "6" : "3";
-							itemdata.data.changes = [
+							itemdata.system.changes = [
 							{
 								formula:   bonus,
 								operator:  "add",
@@ -923,7 +923,7 @@ export default class RWPF1Actor {
 								priority:  0,
 								value:     bonus,
 							}];
-							//console.debug(`Skill Focus: ${itemdata.data.changes[0].formula} to ${itemdata.data.changes[0].subTarget}`);
+							//console.debug(`Skill Focus: ${itemdata.system.changes[0].formula} to ${itemdata.system.changes[0].subTarget}`);
 						}
 					}
 					actor.items.push(itemdata);
@@ -932,19 +932,19 @@ export default class RWPF1Actor {
 					const itemdata = {
 						name: feat.name,
 						type: 'feat',
-						data: {
+						system: {
 							description: {
 								value: addParas(feat.description['#text'])
 							}
 						}
 					};
 					if (feat.useradded == 'no') {
-						itemdata.data.featType = 'classFeat';
+						itemdata.system.featType = 'classFeat';
 					}					
 					if (feat.featcategory) {
 						let cats = [[feat.featcategory['#text']]];
-						//itemdata.data.tags = new Map();
-						//itemdata.data.tags.insert( cats );
+						//itemdata.system.tags = new Map();
+						//itemdata.system.tags.insert( cats );
 					}
 					actor.items.push(itemdata);
 				}
@@ -965,7 +965,7 @@ export default class RWPF1Actor {
 					itemdata = {
 						name: trait.name,
 						type: 'feat',
-						data: {
+						system: {
 							featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
 							description: {
 								value: addParas(trait.description['#text'])
@@ -1019,8 +1019,8 @@ export default class RWPF1Actor {
 			if (!nodes) return false;
 			
 			//console.debug(`Creating spellbook ${book} for '${character.name}'`);
-			if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
-			actor.data.attributes.spells.usedSpellbooks.push(book);
+			if (!actor.system.attributes.spells) actor.system.attributes.spells = { usedSpellbooks : []};
+			actor.system.attributes.spells.usedSpellbooks.push(book);
 				
 			// <spell name="Eagle's Splendor" level="2" class="Sorcerer" casttime="1 action" range="touch" target="creature touched" area="" effect="" duration="1 min./level" 
 			//		save="Will negates (harmless)" resist="yes" dc="18" casterlevel="7" componenttext="Verbal, Somatic, Material or Divine Focus"
@@ -1035,37 +1035,37 @@ export default class RWPF1Actor {
 				const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
 				let itemdata;
 				if (entry)
-					itemdata = (await spell_pack.getDocument(entry._id)).data.toObject();
+					itemdata = (await spell_pack.getDocument(entry._id)).toObject();
 				else {
 					// Manually create a spell item
 					try {
 						itemdata = {
 							name: spell.shortname ?? spell.name,
 							type: 'spell',
-							data: {
+							system: {
 								uses: {}
 							},
 						};
 						if (spell.type == 'Extraordinary Ability') {
-							itemdata.data.abilityType = 'ex';
+							itemdata.system.abilityType = 'ex';
 						}
-						itemdata.data.description = {
+						itemdata.system.description = {
 							value: spell.description['#text']
 						};
 							// spell not special
 						if (spell.spellschool) {
 							// There might be more than one spellschool child.
 							let school = (spell.spellschool instanceof Array ? spell.spellschool[0] : spell.spellschool)['#text'];
-							itemdata.data.level = +spell.level;
-							itemdata.data.school = RWPF1Actor.spellschool_names[school.toLowerCase()] ?? school;
-							itemdata.data.subschool = spell.subschool;
+							itemdata.system.level = +spell.level;
+							itemdata.system.school = RWPF1Actor.spellschool_names[school.toLowerCase()] ?? school;
+							itemdata.system.subschool = spell.subschool;
 							if (spell.spelldescript) {
-								itemdata.data.types = toArray(spell.spelldescript).map(el => el['#text']).join(';');
+								itemdata.system.types = toArray(spell.spelldescript).map(el => el['#text']).join(';');
 							}
 							let comps = toArray(spell.spellcomp).map(el => el['#text']);
 							let material = (spell.componenttext.indexOf('Material') >= 0);
 							let sfocus = (spell.componenttext.indexOf('Divine Focus') >= 0);
-							itemdata.data.components = {
+							itemdata.system.components = {
 								//value: spell.componenttext,
 								verbal: comps.includes('Verbal'),
 								somatic: comps.includes('Somatic'),
@@ -1077,15 +1077,15 @@ export default class RWPF1Actor {
 									comps.includes('Divine Focus') ? 1 :
 									0,
 							};
-							itemdata.data.castTime = spell.casttime;
-							itemdata.data.sr = (spell.resisttext == 'Yes');
-							itemdata.data.spellDuration = spell.duration;
-							itemdata.data.spellEffect = spell.effect;
-							itemdata.data.spellArea = spell.area;
-							//itemdata.data.materials.value/focus/gpValue
-							// itemdata.data.preparation.preparedAmount/maxAmount/autoDeductCharges/spontaneousPrepared
+							itemdata.system.castTime = spell.casttime;
+							itemdata.system.sr = (spell.resisttext == 'Yes');
+							itemdata.system.spellDuration = spell.duration;
+							itemdata.system.spellEffect = spell.effect;
+							itemdata.system.spellArea = spell.area;
+							//itemdata.system.materials.value/focus/gpValue
+							// itemdata.system.preparation.preparedAmount/maxAmount/autoDeductCharges/spontaneousPrepared
 							if (spell.spontaneous == 'Yes')
-								itemdata.data.preparation = {
+								itemdata.system.preparation = {
 									spontaneousPrepared: true
 								};
 						}
@@ -1094,16 +1094,16 @@ export default class RWPF1Actor {
 						continue;
 					}
 				}
-				itemdata.data.spellbook = book;
-				if (memorized.includes(lowername)) itemdata.data.preparation = { preparedAmount : 1};
+				itemdata.system.spellbook = book;
+				if (memorized.includes(lowername)) itemdata.system.preparation = { preparedAmount : 1};
 				if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
-				if (lowername.indexOf('at will)') >= 0) itemdata.data.atWill = true;
+				if (lowername.indexOf('at will)') >= 0) itemdata.system.atWill = true;
 				if (lowername.endsWith('/day)')) {
-					itemdata.data.uses.max   = parseInt(lowername.slice(-6));	// assume one digit
-					itemdata.data.uses.value = itemdata.data.uses.max;
-					itemdata.data.uses.per   = 'day';
+					itemdata.system.uses.max   = parseInt(lowername.slice(-6));	// assume one digit
+					itemdata.system.uses.value = itemdata.system.uses.max;
+					itemdata.system.uses.per   = 'day';
 				}
-				//itemdata.data.learnedAt = { 'class': [  };
+				//itemdata.system.learnedAt = { 'class': [  };
 				actor.items.push(itemdata);
 			}
 			return true;
@@ -1143,15 +1143,15 @@ export default class RWPF1Actor {
 		
 		// data.traits.size - fine|dim|tiny|med|lg|huge|grg|col
 		switch (character.size.name) {
-		case 'Fine':		actor.data.traits.size = 'fine';	break;
-		case 'Diminutive':	actor.data.traits.size = 'dim';		break;
-		case 'Tiny':		actor.data.traits.size = 'tiny';	break;
-		case 'Small':		actor.data.traits.size = 'sm';		break;
-		case 'Medium':		actor.data.traits.size = 'med';		break;
-		case 'Large':		actor.data.traits.size = 'lg';		break;
-		case 'Huge':		actor.data.traits.size = 'huge';	break;
-		case 'Gargantuan':	actor.data.traits.size = 'grg';		break;
-		case 'Colossal':	actor.data.traits.size = 'col';		break;
+		case 'Fine':		actor.system.traits.size = 'fine';	break;
+		case 'Diminutive':	actor.system.traits.size = 'dim';		break;
+		case 'Tiny':		actor.system.traits.size = 'tiny';	break;
+		case 'Small':		actor.system.traits.size = 'sm';		break;
+		case 'Medium':		actor.system.traits.size = 'med';		break;
+		case 'Large':		actor.system.traits.size = 'lg';		break;
+		case 'Huge':		actor.system.traits.size = 'huge';	break;
+		case 'Gargantuan':	actor.system.traits.size = 'grg';		break;
+		case 'Colossal':	actor.system.traits.size = 'col';		break;
 		default:
 			console.warn(`Unknown actor size ${character.size.name}`);
 		}
@@ -1162,7 +1162,7 @@ export default class RWPF1Actor {
 				senses.push(sense.name);
 			}
 		}
-		actor.data.traits.senses = senses.join(', ');
+		actor.system.traits.senses = senses.join(', ');
 		// data.traits.dr		// damage reduction		(character.damagereduction)
 		// data.traits.eres		// energy resistance	(character.resistances)
 		// data.traits.cres		// condition resistance	(character.resistances)
@@ -1170,11 +1170,11 @@ export default class RWPF1Actor {
 		// data.traits.fastHealing
 		// data.traits.languages.value[]/custom
 		if (character.languages.language) {
-			actor.data.traits.languages = {
+			actor.system.traits.languages = {
 				value: []
 			};
 			for (const lang of toArray(character.languages.language)) {
-				actor.data.traits.languages.value.push(lang.name.toLowerCase());
+				actor.system.traits.languages.value.push(lang.name.toLowerCase());
 			}
 		}
 
@@ -1201,7 +1201,7 @@ export default class RWPF1Actor {
 			if (!actor) continue;
 			// For each weapon, create the relevant attacks
 			for (const item of actor.items) {
-				if (item.data.type === "weapon") {
+				if (item.system.type === "weapon") {
 					console.debug(`'${actor.name}' creating attacks for '${item.name}'`);
 					await actor.createAttackFromWeapon(item);
 				}
