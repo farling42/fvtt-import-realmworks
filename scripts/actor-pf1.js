@@ -193,7 +193,7 @@ export default class RWPF1Actor {
 		// SUMMARY tab
 		//
 
-		// data.attributes.hp.value/base/max/temp/nonlethal
+		// system.attributes.hp.value/base/max/temp/nonlethal
 		//let hp = +character.health.hitpoints;
 		actor.system.attributes.hp = {
 			value: +character.health.currenthp,
@@ -201,13 +201,13 @@ export default class RWPF1Actor {
 			min:   0,
 			max:   +character.health.hitpoints,
 		};
-		// data.attributes.wounds.min/max/base/value
-		// data.attributes.vigor.min/value/temp/max/base
-		// data.attributes.woundThresholds.penalty/mod/level/override
+		// system.attributes.wounds.min/max/base/value
+		// system.attributes.vigor.min/value/temp/max/base
+		// system.attributes.woundThresholds.penalty/mod/level/override
 
-		// data.details.cr.base/total
+		// system.details.cr.base/total
 		if (character.challengerating === undefined) {
-			// data.details.xp.value/min/max
+			// system.details.xp.value/min/max
 			actor.system.details.xp = {
 				value: +character.xp.total,
 				min  : 0,
@@ -218,7 +218,7 @@ export default class RWPF1Actor {
 			actor.system.details.cr = { base: cr, total: cr };
 			actor.system.details.xp = { value : +character.xpaward.value };
 		};
-		// data.details.height/weight/gender/deity/age
+		// system.details.height/weight/gender/deity/age
 		actor.system.details.height = character.personal.charheight.text;
 		actor.system.details.weight = character.personal.charweight.text;
 		actor.system.details.gender = character.personal.gender;
@@ -435,60 +435,60 @@ export default class RWPF1Actor {
 		};
 */
 
-		// data.attributes.vision.lowLight/darkvision
+		// system.attributes.vision.lowLight/darkvision
 		actor.system.attributes.vision = {
 			lowLight   : character.senses?.special?.name && character.senses.special.name.includes("Low-Light Vision"),
 			darkvision : 0,
 		}
-		// data.attributes.hpAbility
-		// data.attributes.cmbAbility
-		// data.attributes.hd -> actually handled by level of "racialhd" item
+		// system.attributes.hpAbility
+		// system.attributes.cmbAbility
+		// system.attributes.hd -> actually handled by level of "racialhd" item
 
-		// data.attributes.sr.formula/total
-		// data.attributes.saveNotes
-		// data.attributes.acNotes
-		// data.attributes.cmdNotes
-		// data.attributes.srNotes
-		// data.attributes.attack.general/shared/melee/ranged/meleeAbility/rangedAbility
-		// data.attributes.damage.general/weapon/spell
-		// data.attributes.maxDexBonus
-		// data.attributes.mDex.armorBonus/shieldBonus
-		// data.attributes.acp.gear/encumbrance/total/armorBonus/shieldBonus/attackPenalty
-		// data.attributes.energyDrain
-		// data.attributes.quadruped
+		// system.attributes.sr.formula/total
+		// system.attributes.saveNotes
+		// system.attributes.acNotes
+		// system.attributes.cmdNotes
+		// system.attributes.srNotes
+		// system.attributes.attack.general/shared/melee/ranged/meleeAbility/rangedAbility
+		// system.attributes.damage.general/weapon/spell
+		// system.attributes.maxDexBonus
+		// system.attributes.mDex.armorBonus/shieldBonus
+		// system.attributes.acp.gear/encumbrance/total/armorBonus/shieldBonus/attackPenalty
+		// system.attributes.energyDrain
+		// system.attributes.quadruped
 
-		// data.attributes.prof
-		// data.attributes.speed.land/climb/swim/burrow/fly (base/total + for fly, .maneuverability)
+		// system.attributes.prof
+		// system.attributes.speed.land/climb/swim/burrow/fly (base/total + for fly, .maneuverability)
 		actor.system.attributes.speed = {
 			land: {
 				base:  +character.movement.speed.value,
 				total: +character.movement.speed.value
 			},
 		}
-		// data.attributes.conditions((long list false|true)
-		// data.attributes.spells.usedSpellbooks[]
-		// data.attributes.spells.spellbooks.primary/secondary/tertiary/spelllike
-		// data.details.level.value/min/max
-		// data.details.mythicTier
-		// data.details.bonusFeatFormula
-		// data.details.alignment: 'tn'
+		// system.attributes.conditions((long list false|true)
+		// system.attributes.spells.usedSpellbooks[]
+		// system.attributes.spells.spellbooks.primary/secondary/tertiary/spelllike
+		// system.details.level.value/min/max
+		// system.details.mythicTier
+		// system.details.bonusFeatFormula
+		// system.details.alignment: 'tn'
 		actor.system.details.alignment = character.alignment;
-		// data.details.biography.value/public
+		// system.details.biography.value/public
 		let bio = character.personal.description['#text'];
 		if (bio) {
 			actor.system.details.biography = {
 				value: addParas(bio)	  // Each paragraph is on a single line
 			};
 		}
-		// data.details.notes.value/public
-		// data.details.bonusRankSkillFormula
-		// data.details.tooltip.name/hideHeld/hideArmor/hideBuffs/hideConditions/hideClothing/hideName
+		// system.details.notes.value/public
+		// system.details.bonusRankSkillFormula
+		// system.details.tooltip.name/hideHeld/hideArmor/hideBuffs/hideConditions/hideClothing/hideName
 		
 		//
 		// COMBAT tab
 		//
 		
-		// data.attributes.init.value/bonus/total/ability
+		// system.attributes.init.value/bonus/total/ability
 		const initvalue = +character.initiative.misctext; //+character.initiative.total - +character.initiative.attrtext;
 		actor.system.attributes.init = {
 			value: initvalue,
@@ -653,10 +653,10 @@ export default class RWPF1Actor {
 		// COMBAT - MISCELLANEOUS
 		for (const miscatk of toArray(character.attack.special)) {
 			let atkdata = {
-				name : "Special Attack: " + miscatk.shortname,
-				type : "attack",
-				img  : "systems/pf1/icons/skills/yellow_36.jpg",
-				data : {
+				name: "Special Attack: " + miscatk.shortname,
+				type: "attack",
+				img:  "systems/pf1/icons/skills/yellow_36.jpg",
+				system: {
 					description: { value: miscatk.description["#text"], chat: "", unidentified: "" },
 					attackType: "misc",
 				},
@@ -668,16 +668,16 @@ export default class RWPF1Actor {
 		// INVENTORY tab
 		//
 		
-		// data.currency.pp/gp/sp/cp
+		// system.currency.pp/gp/sp/cp
 		actor.system.currency = {
 			pp: +character.money.pp,
 			gp: +character.money.gp,
 			sp: +character.money.sp,
 			cp: +character.money.cp,
 		}
-		// data.altCurrency.pp/gp/sp/cp  (weightless coins) - count as weightless
+		// system.altCurrency.pp/gp/sp/cp  (weightless coins) - count as weightless
 
-		// data.attributes.encumbrance.level/levels/carriedWeight
+		// system.attributes.encumbrance.level/levels/carriedWeight
 		const enc = character.encumbrance;
 		actor.system.attributes.encumbrance = {
 			level: (enc.level == 'Light Load') ? 0 : 1, // 0 = light load TBD
@@ -829,7 +829,7 @@ export default class RWPF1Actor {
 		// FEATURES tab
 		//
 		
-		// data.items (includes feats) - must be done AFTER skills
+		// system.items (includes feats) - must be done AFTER skills
 		if (character.feats?.feat) {
 			let packs = await collectPacks([ 'feats', 'pf-feats' ]);
 
@@ -996,9 +996,9 @@ export default class RWPF1Actor {
 		//
 		// SPELLS tab
 		//
-		// data.attributes.spells.spellbooks.primary/secondary/tertiary/spelllike
+		// system.attributes.spells.spellbooks.primary/secondary/tertiary/spelllike
 		//
-		// data.attributes.spellbooks.usedSpellbooks: [ 'primary', 'tertiary', 'spelllike' ]
+		// system.attributes.spellbooks.usedSpellbooks: [ 'primary', 'tertiary', 'spelllike' ]
 		// spells are added to items array.
 		// <character>
 		// <spellsknown>
@@ -1141,7 +1141,7 @@ export default class RWPF1Actor {
 		// STUFF TO BE PUT INTO THE CORRECT PLACE
 		//
 		
-		// data.traits.size - fine|dim|tiny|med|lg|huge|grg|col
+		// system.traits.size - fine|dim|tiny|med|lg|huge|grg|col
 		switch (character.size.name) {
 		case 'Fine':		actor.system.traits.size = 'fine';	break;
 		case 'Diminutive':	actor.system.traits.size = 'dim';		break;
@@ -1155,7 +1155,7 @@ export default class RWPF1Actor {
 		default:
 			console.warn(`Unknown actor size ${character.size.name}`);
 		}
-		// data.traits.senses
+		// system.traits.senses
 		let senses = [];
 		if (character.senses.special) {
 			for (const sense of toArray(character.senses.special)) {
@@ -1163,12 +1163,12 @@ export default class RWPF1Actor {
 			}
 		}
 		actor.system.traits.senses = senses.join(', ');
-		// data.traits.dr		// damage reduction		(character.damagereduction)
-		// data.traits.eres		// energy resistance	(character.resistances)
-		// data.traits.cres		// condition resistance	(character.resistances)
-		// data.traits.regen
-		// data.traits.fastHealing
-		// data.traits.languages.value[]/custom
+		// system.traits.dr		// damage reduction		(character.damagereduction)
+		// system.traits.eres		// energy resistance	(character.resistances)
+		// system.traits.cres		// condition resistance	(character.resistances)
+		// system.traits.regen
+		// system.traits.fastHealing
+		// system.traits.languages.value[]/custom
 		if (character.languages.language) {
 			actor.system.traits.languages = {
 				value: []
@@ -1178,17 +1178,17 @@ export default class RWPF1Actor {
 			}
 		}
 
-		// data.traits.di.value[]/custom
-		// data.traits.dv.value[]/custom
-		// data.traits.ci.value[]/custom
-		// data.traits.perception.
-		// data.traits.stature
-		// data.traits.weaponProf.value[]/custom
-		// data.traits.armorProf.value[]/custom
-		// data.flags
-		// data.token (leave empty)
+		// system.traits.di.value[]/custom
+		// system.traits.dv.value[]/custom
+		// system.traits.ci.value[]/custom
+		// system.traits.perception.
+		// system.traits.stature
+		// system.traits.weaponProf.value[]/custom
+		// system.traits.armorProf.value[]/custom
+		// system.flags
+		// system.token (leave empty)
 		
-		// data.effects
+		// system.effects
 
 		return actor;
 	}

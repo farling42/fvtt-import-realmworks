@@ -75,7 +75,7 @@ export default class RWSWADEActor {
 			});
 			if (!entry) return undefined;
 			
-			let itemdata = (await pack.getDocument(entry._id)).data.toObject();
+			let itemdata = (await pack.getDocument(entry._id)).toObject();
 			if (itemdata.name.toLowerCase() === prefix) itemdata.name = name;	// restore original name
 			return itemdata;
 		}
@@ -86,7 +86,7 @@ export default class RWSWADEActor {
 			name: character.name,
 			type: (character.role === 'pc' && character.race.term == 'Race') ? 'character' : 'npc', // 'npc' or 'character'
 			relationship : character.relationship,
-			data: {
+			system: {
 				// template: common
 				attributes: {},
 				stats: {},
@@ -113,7 +113,7 @@ export default class RWSWADEActor {
 		// agility = { die: { sides: 4, modifier: 0 }, "wild-die" : { sides: 6 } }
 		for (const attr of character.attributes.attribute) {
 			let name = attr.name.toLowerCase();
-			actor.data.attributes[name] = { die : getDice(attr.value) };
+			actor.system.attributes[name] = { die : getDice(attr.value) };
 			
 			// attribute-specific additional variables
 			//switch (name) {
@@ -123,46 +123,46 @@ export default class RWSWADEActor {
 			//}
 		}
 		
-		//actor.data.stats.speed     = { runningDie : 6, runningMod : 0, value: 6 };
-		//actor.data.stats.toughness = { value: 0, armor: 0, modifier: 0 };
-		//actor.data.stats.parry     = { value: 0, modifier: 0 };
-		//actor.data.stats.size      = 0;
+		//actor.system.stats.speed     = { runningDie : 6, runningMod : 0, value: 6 };
+		//actor.system.stats.toughness = { value: 0, armor: 0, modifier: 0 };
+		//actor.system.stats.parry     = { value: 0, modifier: 0 };
+		//actor.system.stats.size      = 0;
 		
 		// These are probably not required, since Toughness and Parry are calculated automatically.
 		// HL traits = Pace, Parry, Toughness, Charisma, (optional: Running Die, Size)
 		for (const trait of toArray(character.traits.trait)) {
 			switch (trait.name) {
 				case 'Running Die':
-					if (!actor.data.stats.speed) actor.data.stats.speed = {};
-					actor.data.stats.speed.runningDie = +trait.value.slice(1);
+					if (!actor.system.stats.speed) actor.system.stats.speed = {};
+					actor.system.stats.speed.runningDie = +trait.value.slice(1);
 					break;
 				case 'Pace':
-					if (!actor.data.stats.speed) actor.data.stats.speed = {};
-					actor.data.stats.speed.value = +trait.value;
+					if (!actor.system.stats.speed) actor.system.stats.speed = {};
+					actor.system.stats.speed.value = +trait.value;
 					break;
 				case 'Size':
-					actor.data.stats.size = +trait.value;
+					actor.system.stats.size = +trait.value;
 					break;
 				default:
-					actor.data.stats[trait.name.toLowerCase()] = { value : trait.value };
+					actor.system.stats[trait.name.toLowerCase()] = { value : trait.value };
 			}
 		}
 		
-		//actor.data.details.biography = { value: "" }; -- HTML statblock added here later
+		//actor.system.details.biography = { value: "" }; -- HTML statblock added here later
 		
-		actor.data.details.species  = { name : character.race.name };
-		actor.data.details.currency = character.cash.total;
+		actor.system.details.species  = { name : character.race.name };
+		actor.system.details.currency = character.cash.total;
 		
-		//actor.data.details.wealth            = { die : 6, modifier: 0, "wild-die": 6 };
-		//actor.data.details.conviction        = { value: 0, active: false };
-		//actor.data.details.autoCalcToughness = true;
-		//actor.data.details.autoCalcParry     = true;
+		//actor.system.details.wealth            = { die : 6, modifier: 0, "wild-die": 6 };
+		//actor.system.details.conviction        = { value: 0, active: false };
+		//actor.system.details.autoCalcToughness = true;
+		//actor.system.details.autoCalcParry     = true;
 		
-		//actor.data.powerPoints = {};
+		//actor.system.powerPoints = {};
 		
-		//actor.data.fatigue = { value : 0, min: 0, max: 2 };
-		//actor.data.wounds  = { value: 0, min: 0, max: 3, ignored: 0 };
-		actor.data.advances = {
+		//actor.system.fatigue = { value : 0, min: 0, max: 2 };
+		//actor.system.wounds  = { value: 0, min: 0, max: 3, ignored: 0 };
+		actor.system.advances = {
 			value: +character.xp.total,
 			rank : character.rank.name,
 			details: "",
@@ -170,7 +170,7 @@ export default class RWSWADEActor {
 		
 		for (const tracker of toArray(character.trackers.tracker)) {
 			if (tracker.name === 'Bennies') {
-				actor.data.bennies = { value: tracker.left, max: tracker.max };
+				actor.system.bennies = { value: tracker.left, max: tracker.max };
 			}
 		}
 		
@@ -182,13 +182,13 @@ export default class RWSWADEActor {
 			isEntangled: false,
 			isBound: false
 		}
-		actor.data.initiative = {
+		actor.system.initiative = {
 			hasHesitant : false,
 			hasLevelHeaded: false,
 			hasImpLevelHeaded: false,
 			hasQuick: false 
 			}
-		actor.data.additionalStats = {};
+		actor.system.additionalStats = {};
 		*/
 		
 		// Skills
@@ -200,16 +200,16 @@ export default class RWSWADEActor {
 			if (!itemdata) itemdata = await searchPack(basic_skill_pack, skill.name);
 			if (itemdata) {
 				// Put in our value(s)
-				if (itemdata.data.description.startsWith('See SWADE') || itemdata.data.description.startsWith('<p>See SWADE')) {
-					itemdata.data.description = toFormatted(skill.description["#text"])
+				if (itemdata.system.description.startsWith('See SWADE') || itemdata.system.description.startsWith('<p>See SWADE')) {
+					itemdata.system.description = toFormatted(skill.description["#text"])
 				}
-				itemdata.data.die = foundry.utils.mergeObject(itemdata.data.die, getDice(skill.value));
+				itemdata.system.die = foundry.utils.mergeObject(itemdata.system.die, getDice(skill.value));
 			} else {
 				// Create homebrew
 				itemdata = {
 					name: skill.name,
 					type: 'skill',
-					data: {
+					system: {
 						// template itemDescription
 						description: toFormatted(skill.description["#text"]),
 						notes: "",
@@ -235,14 +235,14 @@ export default class RWSWADEActor {
 			if (swade_edges_pack) itemdata = await searchPack(swade_edges_pack, edge.name);
 			if (!itemdata) itemdata = await searchPack(basic_edges_pack, edge.name);
 			if (itemdata) {
-				if (itemdata.data.description.startsWith('See SWADE') || itemdata.data.description.startsWith('<p>See SWADE')) {
-					itemdata.data.description = toFormatted(edge.description["#text"])
+				if (itemdata.system.description.startsWith('See SWADE') || itemdata.system.description.startsWith('<p>See SWADE')) {
+					itemdata.system.description = toFormatted(edge.description["#text"])
 				}
 			} else {
 				itemdata = {
 					name: edge.name,
 					type: 'edge',
-					data: {
+					system: {
 						// template itemDescription
 						description: toFormatted(edge.description["#text"]),
 						//notes: "",
@@ -258,7 +258,7 @@ export default class RWSWADEActor {
 			actor.items.push(itemdata);
 			// Special check to set power points: TODO - is this always correct?
 			if (edge.name.startsWith('Arcane Background')) {
-				actor.data.powerPoints = { value : 10, max: 10 };
+				actor.system.powerPoints = { value : 10, max: 10 };
 			}
 		}
 
@@ -269,14 +269,14 @@ export default class RWSWADEActor {
 			if (swade_hind_pack) itemdata = await searchPack(swade_hind_pack, hindrance.name);
 			if (!itemdata) itemdata = await searchPack(basic_hind_pack, hindrance.name);
 			if (itemdata) {
-				if (itemdata.data.description.startsWith('See SWADE') || itemdata.data.description.startsWith('<p>See SWADE')) {
-					itemdata.data.description = toFormatted(hindrance.description["#text"])
+				if (itemdata.system.description.startsWith('See SWADE') || itemdata.system.description.startsWith('<p>See SWADE')) {
+					itemdata.system.description = toFormatted(hindrance.description["#text"])
 				}
 			} else {
 				itemdata = {
 					name: hindrance.name,
 					type: 'hindrance',
-					data: {
+					system: {
 						// template itemDescription
 						description: toFormatted(hindrance.description["#text"]),
 						//notes: "",
@@ -292,7 +292,7 @@ export default class RWSWADEActor {
 			let itemdata = {
 				name: drawback.name,
 				type: 'hindrance',
-				data: {
+				system: {
 					// template itemDescription
 					description: toFormatted(drawback.description["#text"]),
 					notes: "",
@@ -309,12 +309,12 @@ export default class RWSWADEActor {
 			let itemdata;
 			if (swade_powers_pack) itemdata = await searchPack(swade_powers_pack, item.name);
 			if (itemdata) {
-				itemdata.data.trapping = item.trappings;
+				itemdata.system.trapping = item.trappings;
 			} else {
 				itemdata = {
 					name: item.name,
 					type: 'power',
-					data: {
+					system: {
 						// template itemDescription
 						description: toFormatted(item.description["#text"]),
 						notes: "",
@@ -347,12 +347,12 @@ export default class RWSWADEActor {
 			let itemdata;
 			if (swade_powers_pack) itemdata = await searchPack(swade_powers_pack, item.name);
 			if (itemdata) {
-				itemdata.data.trapping = item.trappings;
+				itemdata.system.trapping = item.trappings;
 			} else {
 				itemdata = {
 					name: item.name,
 					type: 'power',
-					data: {
+					system: {
 						// template itemDescription
 						description: toFormatted(item.description["#text"]),
 						notes: "",
@@ -388,12 +388,12 @@ export default class RWSWADEActor {
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, gear.name);
 			if (itemdata) {
-				itemdata.data.quantity = +gear.quantity;
+				itemdata.system.quantity = +gear.quantity;
 			} else {
 				itemdata = {
 					name: gear.name,
 					type: 'gear',
-					data: {
+					system: {
 						// itemDescription template
 						description: toFormatted(gear.description["#text"]),
 						notes: "",
@@ -418,12 +418,12 @@ export default class RWSWADEActor {
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, magicitem.name);
 			if (itemdata) {
-				itemdata.data.quantity = +attack.quantity;
+				itemdata.system.quantity = +attack.quantity;
 			} else {
 				itemdata = {
 					name: gear.name,
 					type: 'gear',
-					data: {
+					system: {
 						// itemDescription template
 						description: toFormatted(magicitem.description["#text"]),
 						notes: "",
@@ -453,14 +453,14 @@ export default class RWSWADEActor {
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, attack.name);
 			if (itemdata) {
 				// Transfer quantity + equipped to found items
-				itemdata.data.quantity = +attack.quantity;
-				itemdata.data.equipped = attack.equipped ? true : false;
+				itemdata.system.quantity = +attack.quantity;
+				itemdata.system.equipped = attack.equipped ? true : false;
 				//itemdata.damage = dmg;   // TODO - do we need this?
 			} else {
 				itemdata = {
 					name: attack.name,
 					type: 'weapon',
-					data: {
+					system: {
 						// itemDescription template
 						description: "", // HTML
 						notes: attack.description["#text"], // plain text
@@ -500,13 +500,13 @@ export default class RWSWADEActor {
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, defense.name);
 			if (itemdata) {
 				// Transfer quantity + equipped to found items
-				itemdata.data.quantity = +defense.quantity;
-				itemdata.data.equipped = defense.equipped ? true : false;
+				itemdata.system.quantity = +defense.quantity;
+				itemdata.system.equipped = defense.equipped ? true : false;
 			} else if (defense.name.indexOf('Shield') == -1) {
 				itemdata = {
 					name: defense.name,
 					type: 'armor',
-					data: {
+					system: {
 						// itemDescription template
 						description: "", // HTML
 						notes: defense.description["#text"], // plain text
@@ -540,7 +540,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: defense.name,
 					type: 'shield',
-					data: {
+					system: {
 						// itemDescription template
 						description: "", // HTML
 						notes: defense.description["#text"], // plain text

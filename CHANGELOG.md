@@ -1,3 +1,6 @@
+## 2.1
+PF1 now works in Foundry V10.
+
 ## 2.0
 Initial version for Foundry version 10 that works for Call of Cthulhu (coc7) game system.
 
