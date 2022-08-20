@@ -435,11 +435,6 @@ export default class RWPF1Actor {
 		};
 */
 
-		// data.attributes.vision.lowLight/darkvision
-		actor.data.attributes.vision = {
-			lowLight   : character.senses?.special?.name && character.senses.special.name.includes("Low-Light Vision"),
-			darkvision : 0,
-		}
 		// data.attributes.hpAbility
 		// data.attributes.cmbAbility
 		// data.attributes.hd -> actually handled by level of "racialhd" item
@@ -1155,14 +1150,53 @@ export default class RWPF1Actor {
 		default:
 			console.warn(`Unknown actor size ${character.size.name}`);
 		}
-		// data.traits.senses
-		let senses = [];
-		if (character.senses.special) {
-			for (const sense of toArray(character.senses.special)) {
-				senses.push(sense.name);
+		// data.traits.senses { dv, ts, bs, bse, ll { enabled, multiplier { dim, bright}}, sid, tr, si, sc, custom }
+		actor.data.traits.senses = {}
+		if (character.senses.special) {		
+			const number = /[\d]+/;
+			function senseNumber(mysenses,sensename) {
+				if (!mysenses) return 0;
+				for (const sense of mysenses) {
+					if (sense.name.startsWith(sensename)) {
+						let val = sense.name.match(number);
+						if (val) return +val[0];
+						return 0;
+					}
+				}
+				return 0;
+			}
+			function sensePresent(mysenses,sensename) {
+				if (!mysenses) return false;
+				for (const sense of mysenses) {
+					if (sense.name.startsWith(sensename)) {
+						return true;
+					}
+				}
+				return false;
+			}	
+			let mysenses = toArray(character.senses.special);
+			let myspellike = toArray(character.spelllike.special);
+			actor.data.traits.senses = {
+				dv:  senseNumber(mysenses,'Darkvision'),
+				ts:  senseNumber(mysenses,'Tremorsense'),
+				bs:  senseNumber(mysenses,'Blindsight'),
+				bse: senseNumber(mysenses,'Blindsense'),
+				sid: sensePresent(mysenses,'See in Darkness'),
+				tr:  sensePresent(myspellike,'True Seeing (Constant)'),
+				si:  sensePresent(myspellike,'See Invisibility (Constant)'),  // spelllike.special.name="See Invisibility (Constant)"
+				sc:  sensePresent(mysenses,'Scent'),
+			}
+			if (sensePresent(mysenses,"Low-Light Vision")) {
+				actor.data.traits.senses.ll =  {
+					enabled: true,
+					multiplier: {
+						dim:    2,
+						bright: 2,
+					}
+				}
 			}
 		}
-		actor.data.traits.senses = senses.join(', ');
+		
 		// data.traits.dr		// damage reduction		(character.damagereduction)
 		// data.traits.eres		// energy resistance	(character.resistances)
 		// data.traits.cres		// condition resistance	(character.resistances)

@@ -1,3 +1,6 @@
+# 1.24
+Update decoding of Senses to use new PF1 Actor format.
+
 # 1.23
 Fix error reported when decoding actors.
 Fix an error in decoding Skills for CoC7.
