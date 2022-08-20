@@ -694,8 +694,10 @@ export default class RWPF1Actor {
 		if (items.length > 0) {
 			// Core System compendiums
 			let packs = await collectPacks(
-				[ 'items', 'armors-and-shields', 'weapons-and-ammo',				// Base PF1 system
-				  'pf-magicitems', 'pf-items', 'pf-wondrous', 'pf-goods-services'])	// "PF1 Compendiums" module			
+				[ 
+				  'pf-magicitems', 'pf-items', 'pf-wondrous', 'pf-goods-services',	// "PF1 Compendiums" module
+				  'items', 'armors-and-shields', 'weapons-and-ammo',				// Base PF1 system
+				])		
 			
 			for (const item of items) {
 				// Get all forms of item's name once, since we search each pack.
@@ -826,7 +828,7 @@ export default class RWPF1Actor {
 		
 		// data.items (includes feats) - must be done AFTER skills
 		if (character.feats?.feat) {
-			let packs = await collectPacks([ 'feats', 'pf-feats' ]);
+			let packs = await collectPacks([ 'pf-feats', 'feats' ]);
 
 			for (const feat of toArray(character.feats.feat)) {
 				// since that indicates a class or race-based feature.
