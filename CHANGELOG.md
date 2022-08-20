@@ -1,7 +1,10 @@
-# 1.24
+# 1.25
 Improvements to PF1 Actor decoding:
 - Update decoding of Senses to use new PF1 Actor format.
 - When looking for Items to add to a PF1 actor, prefer to take Items from the "Pathfinder 1e Content" and "Pathfinder 1e Archetypes and Abilities" modules.
+
+# 1.24
+If it isn't possible to place the Import button at the top of the Compendium panel, then try to put it at the bottom.
 
 # 1.23
 Fix error reported when decoding actors.
