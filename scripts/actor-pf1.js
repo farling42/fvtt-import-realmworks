@@ -19,7 +19,7 @@ async function collectPacks(namelist) {
 async function searchPacks(packs, test) {
 	for (const pack of packs) {
 		const entry = pack.index.find(e => test (e.name));
-		if (entry) return duplicate((await pack.getDocument(entry._id)).data);
+		if (entry) return (await pack.getDocument(entry._id)).data.toObject();
 	}
 	return null;
 }
@@ -86,9 +86,9 @@ export default class RWPF1Actor {
 	]);
 	
 	static feat_name_mapping = new Map([
-		[ "Armor Proficiency (Light)", "Armor Proficiency, Light" ],
+		[ "Armor Proficiency (Light)",  "Armor Proficiency, Light" ],
 		[ "Armor Proficiency (Medium)", "Armor Proficiency, Medium" ],
-		[ "Armor Proficiency (Heavy)", "Armor Proficiency, Heavy" ],
+		[ "Armor Proficiency (Heavy)",  "Armor Proficiency, Heavy" ],
 	]);
 
 	static skill_mapping = new Map([
@@ -130,6 +130,18 @@ export default class RWPF1Actor {
 		[ "Swim", "swm" ],
 		[ "Use Magic Device", "umd" ],
 	]);
+
+	static alignment_mapping = {
+		'Lawful Good' : 'lg',
+		'Lawful Neutral' : 'ln',
+		'Lawful Evil' : 'le',
+		'Neutral Good': 'ng',
+		'True Neutral' : 'tn',
+		'Neutral Evil': 'ne',
+		'Chaotic Good': 'cg',
+		'Chaotic Neutral': 'cn',
+		'Chaotic Evil': 'ce'
+	}
 	
 	static wizard_subclasses = [ 'Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Evoker', 'Illusionist', 'Necromancer', 'Transmuter', 'Universalist' ];
 	
@@ -166,8 +178,10 @@ export default class RWPF1Actor {
 	static async createOneActorData(character) {
 
 		//console.debug(`Parsing ${character.name}`);
-		
+		const numberpattern = /[\d]+/;
+
 		function addParas(string) {
+			if (!string) return "";
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;
 		}
 		function toArray(thing) {
@@ -177,7 +191,7 @@ export default class RWPF1Actor {
 		// A HL file will have EITHER <xp> or <challengerating> & <xpaward>
 		let actor = {
 			name: character.name,
-			type: (character.challengerating === undefined) ? 'character' : 'npc',		// 'npc' or 'character'
+			type: (character.role === 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
 			relationship : character.relationship,
 			data: {
 				abilities: {},
@@ -200,19 +214,21 @@ export default class RWPF1Actor {
 			//base:  +character.health.hitpoints,		// This screws up PF1E if automatic HP calculation is enabled
 			min:   0,
 			max:   +character.health.hitpoints,
+			nonlethal: +character.health.nonlethal,
 		};
 		// data.attributes.wounds.min/max/base/value
 		// data.attributes.vigor.min/value/temp/max/base
 		// data.attributes.woundThresholds.penalty/mod/level/override
 
 		// data.details.cr.base/total
-		if (character.challengerating === undefined) {
+		if (actor.type == 'pc') {
 			// data.details.xp.value/min/max
 			actor.data.details.xp = {
 				value: +character.xp.total,
 				min  : 0,
 				max  : +character.xp.total
 			};
+			actor.data.attributes.hd = { total: character.classes.level};
 		} else {
 			let cr = +character.challengerating.value;
 			actor.data.details.cr = { base: cr, total: cr };
@@ -231,13 +247,12 @@ export default class RWPF1Actor {
 		const hitdice = character.health.hitdice;		// either "9d8+16" or "12 HD; 7d6+5d10+67" or just "7d6+5d10+67"
 		let t1 = hitdice.split(';');
 		let justdice = t1[t1.length - 1];
-		let hdparts = justdice.split('+');
-		let lastpart = hdparts[hdparts.length - 1];
-		let hp_bonus = lastpart.includes('d') ? 0 : parseInt(lastpart);
+		let lastpart = hitdice.match(/[+-][\d]+$/);	// ensure we keep the sign on the fixed modifier
+		let hp_bonus = lastpart ? +lastpart[0] : 0;
 		let total_hd = 0;
-		for (let i = 0; i<hdparts.length-1; i++)
-			total_hd += parseInt(hdparts[i]);
-		let classes_hd = parseInt(character.classes.level);
+		for (const part of justdice.split(/[+-]/))
+			if (part.includes('d')) total_hd += parseInt(part); // first number from "xdy"
+		let classes_hd = +character.classes.level;
 		let races_hd  = total_hd - classes_hd;
 		
 		let remain_hp = hitpoints - hp_bonus;
@@ -293,9 +308,9 @@ export default class RWPF1Actor {
 					if (favclasses.includes(cclass.name) || character.role === 'npc') {
 						// This is NOT a favoured class, so cancel any favoured class bonuses.
 						console.debug(`Setting favoured class for ${cclass.name}`);
-						classdata.data.fc.hp.value = levels;
-						classdata.data.fc.skill.value = 0;
-						classdata.data.fc.alt.value = 0;
+						classdata.data.fc.hp.value    = 0;
+						classdata.data.fc.skill.value = levels;  // TODO - might NOT be allocated to skills (that information isn't available in POR)
+						classdata.data.fc.alt.value   = 0;
 					}
 					
 					// Start by adding the class item with the correct number of levels & HP
@@ -314,7 +329,7 @@ export default class RWPF1Actor {
 						const collection = co.id.split(".").slice(0, 2).join(".");
 						const itemId = co.id.split(".")[2];
 						const pack = game.packs.get(collection);
-						const itemData = duplicate((await pack.getDocument(itemId)).data);
+						const itemData = (await pack.getDocument(itemId)).data.toObject();
 						
 						// No record on each classFeature as to which class and level added it.
 						//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
@@ -362,28 +377,35 @@ export default class RWPF1Actor {
 			const racialhd_pack = await game.packs.find(p => p.metadata.name === 'racialhd');
 			const racehdlower = character.types.type.name.toLowerCase();
 			const racialhd = await racialhd_pack.index.find(e => e.name.toLowerCase() === racehdlower);
+			let itemdata;
 			if (racialhd) {
-				let item = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
-				item.data.level = races_hd;
-				item.data.hp = races_hp;
+				itemdata = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
+				itemdata.data.level = races_hd;
+				itemdata.data.hp = races_hp;
 				if (races_hd == 0) {
-					item.data.skillsPerLevel = 0;
-					item.data.savingThrows.fort.value = "Low";
-					item.data.savingThrows.ref.value = "Low";
-					item.data.savingThrows.will.value = "Low";
-				}					
-				actor.items.push(item);
+					itemdata.data.skillsPerLevel = 0;
+					itemdata.data.savingThrows.fort.value = "Low";
+					itemdata.data.savingThrows.ref.value = "Low";
+					itemdata.data.savingThrows.will.value = "Low";
+				}
 			} else {
 				console.warn(`racialhd '${character.types.type.name}' not in 'racialhd' pack`);
-				const itemdata = {
+				itemdata = {
 					name: character.types.type.name,
-					type: 'class',
-					classType: 'racial',
-					hp : races_hp,
+					data: {
+						type: 'class',
+						classType: 'racial',
+						hp : races_hp
+					},
 					//data: { description : { value : addParas(character.racialhd.name['#text']) }}
 				};
-				actor.items.push(itemdata);
 			}
+			let subtypes = [];
+			for (const st of toArray(character.subtypes?.subtype)) {
+				subtypes.push(st.name);
+			}
+			if (subtypes.length > 0) itemdata.name = itemdata.name + ` (${subtypes.join(', ')})`;
+			actor.items.push(itemdata);
 		}
 		//
 		// ATTRIBUTES tab
@@ -392,7 +414,7 @@ export default class RWPF1Actor {
 		// attrvalue.modified includes bonuses
 		for (const attr of character.attributes.attribute) {
 			actor.data.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
-				value: +attr.attrvalue.base,
+				value: (attr.attrvalue.text=='-') ? 0 : +attr.attrvalue.base,
 			}
 		}
 		// Remove racial bonuses (if any)
@@ -454,10 +476,12 @@ export default class RWPF1Actor {
 
 		// data.attributes.prof
 		// data.attributes.speed.land/climb/swim/burrow/fly (base/total + for fly, .maneuverability)
+		// movement.speed includes modifiers due to conditions (but active conditions aren't in POR)
+		// movement.basespeed is the base speed (before modifiers)
 		actor.data.attributes.speed = {
 			land: {
-				base:  +character.movement.speed.value,
-				total: +character.movement.speed.value
+				base:  +character.movement.basespeed.value,
+				total: +character.movement.basespeed.value
 			},
 		}
 		// data.attributes.conditions((long list false|true)
@@ -467,7 +491,7 @@ export default class RWPF1Actor {
 		// data.details.mythicTier
 		// data.details.bonusFeatFormula
 		// data.details.alignment: 'tn'
-		actor.data.details.alignment = character.alignment;
+		actor.data.details.alignment = RWPF1Actor.alignment_mapping[character.alignment.name];
 		// data.details.biography.value/public
 		let bio = character.personal.description['#text'];
 		if (bio) {
@@ -687,10 +711,7 @@ export default class RWPF1Actor {
 		};
 
 		// gear.[item.name/quantity/weight/cost/description
-		let items = [];
-		if (character.gear?.item) items = items.concat(toArray(character.gear.item));
-		if (character.magicitems?.item) items = items.concat(toArray(character.magicitems.item));
-		
+		let items = toArray(character.gear?.item).concat(toArray(character.magicitems?.item));		
 		if (items.length > 0) {
 			// Core System compendiums
 			let packs = await collectPacks(
@@ -795,7 +816,7 @@ export default class RWPF1Actor {
 				acp:     (skill.armorcheck  === 'yes'),
 				rank:    +skill.ranks,
 				//mod:     +skill.attrbonus,
-				//cs:      (skill.classskill  === 'yes'),		// overridden by class definitions
+				//cs:      (skill.classskill  === 'yes'),		// overridden by class definitions (if the creature has classes!)
 				// rt, acp, background
 			}
 			if (!value.ability) {
@@ -978,6 +999,25 @@ export default class RWPF1Actor {
 		
 		
 		// defensive.[special.shortname]  from 'class abilities'
+		let specials = toArray(character.defensive.special).concat(toArray(character.otherspecials.special));
+		if (specials.length > 0) {
+			let packs = await collectPacks(['pf-universal-monster-rules']);
+
+			for (const special of specials) {
+				let itemdata = await searchPacks(packs, name => name == special.shortname);
+				if (!itemdata) {
+					itemdata = {
+						type: 'feat',
+						data: {}
+					}
+				}
+				itemdata.name = special.name;
+				itemdata.data.featType = 'racial';
+				itemdata.data.description = { value: addParas(special.description['#text'])};
+				if (special.type) itemdata.data.abilityType = special.type.slice(0,2).toLowerCase();
+				actor.items.push(itemdata);
+			}
+		}
 		
 
 		//
@@ -1010,25 +1050,84 @@ export default class RWPF1Actor {
 		//			<spellschool>Void Elemental</spellschool>
 		//			<spellsubschool>Figment</spellsubschool>
 		//		</spell>
+		let spellbooks = [ 'primary', 'secondary', 'tertiary' ];
 		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
+		let spellmaps = new Map();
+
+		actor.data.attributes.spells = { spellbooks : {}}
+		if (character.spellclasses?.spellclass) {
+			for (const sclass of toArray(character.spellclasses.spellclass)) {
+
+				let hasCantrips = false;
+				for (const level of toArray(sclass.spelllevel)) {
+					if (level.level === "0") hasCantrips = true;
+				}
+
+				let book = spellbooks[0];
+				let classname = sclass.name;
+				if (this.wizard_subclasses.includes(classname)) {
+					classname = 'Wizard';
+				}
+				spellbooks.shift();
+				actor.data.attributes.spells.spellbooks[book] = {
+					inUse: true,
+					name:  classname,
+					hasCantrips: hasCantrips,
+					spellPreparationMode:  sclass.spells === 'Spellbook' ? 'prepared' : 'spontaneous',
+					// casterType: high, med, low  // opposite(?) of class' Bab
+					class: classname.toLowerCase()
+				}
+				spellmaps.set(classname, book);
+			}
+		}
 		
-		async function addSpells(nodes, book, memorized=[]) {
+		async function addSpells(nodes, memorized=undefined) {
 			if (!nodes) return false;
 			
-			//console.debug(`Creating spellbook ${book} for '${character.name}'`);
-			if (!actor.data.attributes.spells) actor.data.attributes.spells = { usedSpellbooks : []};
-			actor.data.attributes.spells.usedSpellbooks.push(book);
-				
+			let fixedbook;
+			if (typeof memorized === 'string') {
+				fixedbook = memorized;
+				memorized = undefined;
+			}
+
 			// <spell name="Eagle's Splendor" level="2" class="Sorcerer" casttime="1 action" range="touch" target="creature touched" area="" effect="" duration="1 min./level" 
 			//		save="Will negates (harmless)" resist="yes" dc="18" casterlevel="7" componenttext="Verbal, Somatic, Material or Divine Focus"
 			//		schooltext="Transmutation" subschooltext="" descriptortext="" savetext="Harmless, Will negates" resisttext="Yes" spontaneous="yes">
 			// <special name="Serpentfriend (At will) (Ex)" shortname="Serpentfriend (At will)" type="Extraordinary Ability" sourcetext="Sorcerer">
-
 			for (const spell of toArray(nodes)) {
 				const lowername = spell.name.toLowerCase();
 				const shortpos = lowername.indexOf(' (');
 				const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
-					
+
+				// Manage spellbooks
+				let sclass = spell['class'];
+				if (fixedbook) {
+					// Let's assume it is the spell-like category
+					actor.data.attributes.spells.spellbooks[fixedbook] = {
+						inUse: true,
+						hasCantrips: false,
+						autoSpellLevelCalculation: false,
+						spellPreparationMode: "prepared"
+					}
+				} else if (!spellmaps.has(sclass)) {
+					// Get next available spell book
+					if (spellbooks.length == 0) {
+						console.warn('Not enough spellbooks to support all the required spell-casting classes')
+						return;
+					}
+					// Get the next available spellbook for the Actor
+					let book = spellbooks[0];
+					spellbooks.shift();
+					actor.data.attributes.spells.spellbooks[book] = {
+						inUse: true,
+						name:  sclass,
+						//casterType: high,
+						"class": sclass.toLowerCase()
+					}
+					spellmaps.set(sclass,book);
+				}
+				let book = fixedbook || spellmaps.get(sclass);
+				
 				const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
 				let itemdata;
 				if (entry)
@@ -1092,13 +1191,27 @@ export default class RWPF1Actor {
 					}
 				}
 				itemdata.data.spellbook = book;
-				if (memorized.includes(lowername)) itemdata.data.preparation = { preparedAmount : 1};
+				if (memorized && memorized.has(shortname)) {
+					itemdata.data.preparation = { 
+						maxAmount: memorized.get(shortname),
+						preparedAmount: spell.castsleft || 1,
+						spontaneousPrepared: false
+					};
+				}
 				if (shortpos >= 0) itemdata.name = spell.name;	// full name has extra details
 				if (lowername.indexOf('at will)') >= 0) itemdata.data.atWill = true;
-				if (lowername.endsWith('/day)')) {
-					itemdata.data.uses.max   = parseInt(lowername.slice(-6));	// assume one digit
-					itemdata.data.uses.value = itemdata.data.uses.max;
+				const perday = lowername.match(/([\d]+)\/day/);
+				if (perday) {
+					let uses = +perday[1];
+					// TODO - setting uses doesn't do anything
+					itemdata.data.uses.max   = uses;
+					itemdata.data.uses.value = uses;
 					itemdata.data.uses.per   = 'day';
+
+					itemdata.data.preparation = {
+						preparedAmount: uses,
+						maxAmount: uses,
+					}
 				}
 				//itemdata.data.learnedAt = { 'class': [  };
 				actor.items.push(itemdata);
@@ -1107,22 +1220,31 @@ export default class RWPF1Actor {
 		}
 
 		// Technically, we should process spellsmemorized to mark which spells in spellbook are prepared
-		let spellbooks = [ 'primary', 'secondary', 'tertiary' ];
-		let memorized = [];
+		let memorized;
 		if (character.spellsmemorized.spell) {
 			for (const spell of toArray(character.spellsmemorized.spell)) {
-				memorized.push(spell.name.toLowerCase());
+				const lowername = spell.name.toLowerCase();
+				const shortpos = lowername.indexOf(' (');
+				const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
+				let count = 1;
+				if (shortpos > 0 && shortpos+4 < lowername.length && lowername.at(shortpos+2) == 'x') {
+					let matches = lowername.slice(shortpos).match(numberpattern);
+					if (matches) count = +matches[0];
+				}
+				// need to store the (x2) to know how many times it was memorized
+				if (!memorized) memorized = new Map();
+				memorized.set(shortname,count);
 			}
 		}
-		if (await addSpells(character.spellbook.spell, spellbooks[0], memorized)) spellbooks.shift();
-		if (await addSpells(character.spellsknown.spell, spellbooks[0]))
-			spellbooks.shift();
-		else if (await addSpells(character.spellsmemorized.spell, spellbooks[0])) spellbooks.shift();
+		await addSpells(character.spellbook.spell, memorized);		// e.g. Wizard (spellsmemorized contains spells actually prepared from the spellbook)
+		await addSpells(character.spellsknown.spell); 				// e.g. Bard, Summoner
+		if (!character.spellbook.spell)
+			await addSpells(character.spellsmemorized.spell);  			// e.g. Ranger
 		
 		// <special name="Disguise Self (humanoid form only, At will)" shortname="Disguise Self">
 		// <special name="Blur (1/day)" shortname="Blur">
 		// <special name="Serpentfriend (At will) (Ex)" shortname="Serpentfriend (At will)" type="Extraordinary Ability" sourcetext="Sorcerer">
-		await addSpells(character.spelllike.special, 'spelllike');
+		await addSpells(character.spelllike.special, "spelllike");  // force into the book 'spelllike'
 		
 		//
 		// NOTES tab
@@ -1155,13 +1277,12 @@ export default class RWPF1Actor {
 		// data.traits.senses { dv, ts, bs, bse, ll { enabled, multiplier { dim, bright}}, sid, tr, si, sc, custom }
 		actor.data.traits.senses = {}
 		if (character.senses.special) {		
-			const number = /[\d]+/;
 			function senseNumber(mysenses,sensename) {
 				if (!mysenses) return 0;
 				for (const sense of mysenses) {
 					if (sense.name.startsWith(sensename)) {
-						let val = sense.name.match(number);
-						if (val) return +val[0];
+						let matches = sense.name.match(numberpattern);
+						if (matches) return +matches[0];
 						return 0;
 					}
 				}
@@ -1202,6 +1323,52 @@ export default class RWPF1Actor {
 		// data.traits.dr		// damage reduction		(character.damagereduction)
 		// data.traits.eres		// energy resistance	(character.resistances)
 		// data.traits.cres		// condition resistance	(character.resistances)
+		// data.traits.di.value[]/custom	- Damage Immunities
+		// data.traits.dv.value[]/custom	- Damage Vulnerabilities
+		// data.traits.ci.value[]/custom	- Condition Immunities
+
+		if (character.damagereduction.special) {
+			let set = [];
+			for (const item of toArray(character.damagereduction.special)) {
+				set.push(item.shortname);
+			}
+			actor.data.traits.dr = set.join(',');
+		}
+		if (character.resistances.special) {
+			let eset = [];
+			let cset = [];
+			let sset = [];
+			let spellres;
+			for (const item of toArray(character.resistances.special)) {
+				if (item.name.startsWith('Energy Resistance'))
+					eset.push(item.shortname);
+				else if (item.name.startsWith('Spell Resistance')) {
+					let match = item.shortname.match(numberpattern);
+					if (match) spellres = match[0];  // need string version for sr.formula
+				} else
+					cset.push(item.shortname);
+			}
+			actor.data.traits.eres = eset.join(',');
+			actor.data.traits.cres = cset.join(',');
+			if (spellres) actor.data.attributes.sr = {formula: spellres, total: +spellres};
+		}
+
+		if (character.immunities.special) {
+			actor.data.traits.di = {value: []};
+			actor.data.traits.ci = {value: []};
+			let custom = [];
+
+			for (const item of toArray(character.immunities.special)) {
+				let name = item.shortname;
+				if (game.pf1.config.damageTypes[name])
+					actor.data.traits.di.value.push(name);
+				else if (game.pf1.config.conditionTypes[name])
+					actor.data.traits.ci.value.push(name);
+				else
+					custom.push(name);
+			}
+			actor.data.traits.di.custom = custom.join(',');
+		}
 		// data.traits.regen
 		// data.traits.fastHealing
 		// data.traits.languages.value[]/custom
@@ -1213,10 +1380,19 @@ export default class RWPF1Actor {
 				actor.data.traits.languages.value.push(lang.name.toLowerCase());
 			}
 		}
+		if (character.languages.special) {
+			if (!actor.data.traits.languages)
+				actor.data.traits.languages = {
+					value: []
+				};
+			let spec = [];
+			for (const lang of toArray(character.languages.special)) {
+				spec.push(lang.name.toLowerCase());
+			}
+			actor.data.traits.languages.custom = spec.join(',');
+		}
 
-		// data.traits.di.value[]/custom
-		// data.traits.dv.value[]/custom
-		// data.traits.ci.value[]/custom
+		
 		// data.traits.perception.
 		// data.traits.stature
 		// data.traits.weaponProf.value[]/custom
