@@ -1,28 +1,47 @@
 //import { PF1 } from "../../../systems/pf1/pf1.js";
 
-
-async function collectPacks(namelist) {
-	let packs = [];
-	for (const packname of namelist) {
-		const pack = await game.packs.find(p => p.metadata.name === packname);
-		if (pack) packs.push(pack);
-	}
-	return packs;
-}
-
 /**
  * 
- * @param {*} packs An array of packs to check
- * @param {*} test  A function to check the name supplied as the only parameter
+ * @param {*} packs     An array of packs to check
+ * @param {*} typematch array of strings that must match the 'type' of the Item's to be passed to testfunc
+ * @param {*} testfunc  A function to check the name supplied as the only parameter
  * @returns {*} A copy of the data from the pack, or null
  */
-async function searchPacks(packs, test) {
+async function searchPacks(packs, typematch, testfunc) {
 	for (const pack of packs) {
-		const entry = pack.index.find(e => test (e.name));
+		const entry = pack.index.find(item => typematch.includes(item.type) && testfunc (item.name.toLowerCase()));
+		//const entry = pack.index.find(item => testfunc (item.name));
 		if (entry) return (await pack.getDocument(entry._id)).data.toObject();
 	}
 	return null;
 }
+
+function toArray(thing) {
+	return !thing ? [] : Array.isArray(thing) ? thing : [thing];
+}
+
+function noType(name) {
+	if (name.endsWith(' (Ex)') || 
+		name.endsWith(' (Su)') ||
+		name.endsWith(' (Sp)')) {
+		return name.slice(0,-5);
+	}
+	return name;
+}
+
+// The types of Item which represent stuff that an Actor can carry
+const ITEM_TYPES = [
+	//'attack',
+	//'buff',
+	//'class',
+	//'feat',
+	//'spell',
+	'consumable',
+	'container',
+	'equipment',
+	'loot',
+	'weapon'
+];
 
 export default class RWPF1Actor {
 
@@ -145,32 +164,59 @@ export default class RWPF1Actor {
 	
 	static wizard_subclasses = [ 'Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Evoker', 'Illusionist', 'Necromancer', 'Transmuter', 'Universalist' ];
 	
-	static async initModule() {
-		// full list of packs: classes, mythicpaths, commonbuffs
-		// spells, feats, items, armors-and-shields, weapons-and-ammo, racialhd
-		// races, class-abilities, monster-templates, sample-macros, roll-tables
-		// ultimate-equipment, bestiary_1/2/3/4/5, conditions, skills
-		//game.packs.find(p => console.debug(`PF1 pack = ${p.metadata.name}`));
-		// Very specific to PF1, generate the FEAT index only once (it avoids excessive re-writing of feats.db)
-		await game.packs.find(p => p.metadata.name === 'armors-and-shields')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'classes')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'feats')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'items')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'racialhd')?.getIndex();	// creature types
-		await game.packs.find(p => p.metadata.name === 'races')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'spells')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'weapons-and-ammo')?.getIndex();
-	}
+	static item_packs;
+	static feat_packs;
+	static classability_packs;
 
+	static async initModule() {
+		// Get a list of the compendiums to search,
+		// using compendiums in the two support modules first (if loaded)
+		RWPF1Actor.item_packs = [];
+		let items = { core: [], modules: []};
+		let feats = { core: [], modules: []};
+		let classfeats = { core: [], modules: []};
+		for (const pack of game.packs) {
+			if (pack.metadata.type === 'Item' || pack.metadata.entity === 'Item')
+			{
+				// 'type' of 'Item' documents are:
+				// attack
+				// buff
+				// class (racial hd, mythic path, etc.)
+				// consumable
+				// equipment (magic item, etc)
+				// feat (class feature, talent, etc)
+				// loot
+				// spell
+				// weapon
+				// race (ItemRacePF)
+				// ?container (ItemContainerPF)
+				let stuff = items;
+				if (pack.metadata.name.includes('feats') || pack.metadata.name.includes('traits'))
+					stuff = feats;
+				else if (pack.metadata.name.includes('class-abilities'))
+					stuff = classfeats;
+
+				if (pack.metadata.package === 'pf1')
+					stuff.core.push(pack);
+				else if (
+					pack.metadata.package === 'pf-content' ||
+					pack.metadata.package === 'pf1-archetypes')
+					stuff.modules.push (pack);
+			}
+		}
+		// Always put the core packs last - i.e. prefer contents from modules before core
+		// so that the module compendiums are searched first.
+		RWPF1Actor.item_packs = items.modules.concat(items.core);
+		RWPF1Actor.feat_packs = feats.modules.concat(feats.core);
+		RWPF1Actor.classability_packs = classfeats.modules.concat(classfeats.core);
+	}
 	
 	static async createActorData(character) {
 		// The main character
 		let result = [ await RWPF1Actor.createOneActorData(character) ];
-		// The minions
-		if (character.minions?.character) {
-			for (const minion of (Array.isArray(character.minions.character) ? character.minions.character : [character.minions.character])) {
-				result.push (await RWPF1Actor.createOneActorData(minion));
-			}
+		// The minions (if any)
+		for (const minion of toArray(character.minions.character)) {
+			result.push (await RWPF1Actor.createOneActorData(minion));
 		}
 		return result;
 	}
@@ -183,9 +229,6 @@ export default class RWPF1Actor {
 		function addParas(string) {
 			if (!string) return "";
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;
-		}
-		function toArray(thing) {
-			return !thing ? [] : Array.isArray(thing) ? thing : [thing];
 		}
 		
 		// A HL file will have EITHER <xp> or <challengerating> & <xpaward>
@@ -278,10 +321,9 @@ export default class RWPF1Actor {
 				favclasses.push(fc.name);
 			}
 		}
+		let classnames = [];
 		const classes = character.classes?.["class"];
-		if (classes) {
-			const class_pack = await game.packs.find(p => p.metadata.name === 'classes');
-			
+		if (classes) {			
 			for (const cclass of toArray(classes)) {
 				// Calculate how many class HP belong to this class; and remove from the pool.
 				let levels = +cclass.level;
@@ -297,9 +339,9 @@ export default class RWPF1Actor {
 				}
 				//console.debug(`Looking for class called '${name}'`);
 				// Strip trailing (...)  from class.name
-				const entry = class_pack.index.find(e => e.name === name);
-				if (entry) {
-					let classdata = (await class_pack.getDocument(entry._id)).data.toObject();
+				let lowername=name.toLowerCase();
+				let classdata = await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => itemname === lowername);
+				if (classdata) {
 					//console.debug(`Class ${entry.name} at level ${cclass.levels}`);
 
 					// class.hp needs setting to the amount of HP gained from levelling in this class.
@@ -312,6 +354,7 @@ export default class RWPF1Actor {
 						classdata.data.fc.skill.value = levels;  // TODO - might NOT be allocated to skills (that information isn't available in POR)
 						classdata.data.fc.alt.value   = 0;
 					}
+					classnames.push(classdata.name);
 					
 					// Start by adding the class item with the correct number of levels & HP
 					classdata.data.level = levels;
@@ -337,27 +380,24 @@ export default class RWPF1Actor {
 					}
 				} else {
 					// Create our own placemarker class.
-					const itemdata = {
+					classdata = {
 						name: cclass.name,
-						type: 'race',
+						type: 'class',
 						data: { 
 							level : levels,
 							hp    : class_hp,
 						},
 						//data: { description : { value : addParas(feat.description['#text']) }}
 					};
-					actor.items.push(itemdata);
+					actor.items.push(classdata);
 				}
 			}
 		} // if (classes)
 
 		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
-		const race_pack = await game.packs.find(p => p.metadata.name === 'races');
 		const lowerrace = character.race.name.toLowerCase();
-		const race = await race_pack.index.find(e => e.name.toLowerCase() === lowerrace);
-		let racedata;  // needed for attribute processing
-		if (race) {
-			racedata = (await race_pack.getDocument(race._id)).data.toObject();
+		let racedata = await searchPacks(RWPF1Actor.item_packs, ['race'], itemname => itemname === lowerrace);  // needed for attribute processing
+		if (racedata) {
 			actor.items.push(racedata);
 		} else if (character.types.type?.name == 'Humanoid') {
 			// Only do manual entry for humanoids, since monstrous races
@@ -374,12 +414,10 @@ export default class RWPF1Actor {
 		// <types><type name="Humanoid" active="yes"/>
 		// <subtypes><subtype name="Human"/>
 		if (character.types.type) {
-			const racialhd_pack = await game.packs.find(p => p.metadata.name === 'racialhd');
+			// Search for racialhd information
 			const racehdlower = character.types.type.name.toLowerCase();
-			const racialhd = await racialhd_pack.index.find(e => e.name.toLowerCase() === racehdlower);
-			let itemdata;
-			if (racialhd) {
-				itemdata = (await racialhd_pack.getDocument(racialhd._id)).data.toObject();
+			let itemdata = await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => itemname === racehdlower);
+			if (itemdata) {
 				itemdata.data.level = races_hd;
 				itemdata.data.hp = races_hp;
 				if (races_hd == 0) {
@@ -713,16 +751,9 @@ export default class RWPF1Actor {
 		// gear.[item.name/quantity/weight/cost/description
 		let items = toArray(character.gear?.item).concat(toArray(character.magicitems?.item));		
 		if (items.length > 0) {
-			// Core System compendiums
-			let packs = await collectPacks(
-				[ 
-				  'pf-magicitems', 'pf-items', 'pf-wondrous', 'pf-goods-services',	// "PF1 Compendiums" module
-				  'items', 'armors-and-shields', 'weapons-and-ammo',				// Base PF1 system
-				])		
-			
 			for (const item of items) {
 				// Get all forms of item's name once, since we search each pack.
-				let lower = item.name.toLowerCase();
+				let lower = noType(item.name).toLowerCase();
 				let singular, reversed, pack, entry, noparen;
 				// Firstly deal with masterwork and enhancement bonuses on weapons.
 				let masterwork, enh;
@@ -752,10 +783,9 @@ export default class RWPF1Actor {
 				// Finally, some name changes aren't simple re-mappings
 				if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
 				
-				let itemdata = await searchPacks(packs, name => {	
-					const elc = name.toLowerCase(); 
-					return elc === lower || (singular && elc === singular) || (reversed && elc === reversed) || (noparen && elc === noparen)
-				})
+				// Match items of any type
+				let itemdata = await searchPacks(RWPF1Actor.item_packs, ITEM_TYPES, itemname =>
+					itemname === lower || (singular && itemname === singular) || (reversed && itemname === reversed) || (noparen && itemname === noparen))
 				
 				if (itemdata) {
 					itemdata.data.quantity = +item.quantity;
@@ -849,11 +879,9 @@ export default class RWPF1Actor {
 		
 		// data.items (includes feats) - must be done AFTER skills
 		if (character.feats?.feat) {
-			let packs = await collectPacks([ 'pf-feats', 'feats' ]);
-
 			for (const feat of toArray(character.feats.feat)) {
 				// since that indicates a class or race-based feature.
-				let featname = feat.name;
+				let featname = noType(feat.name);
 				let realname = featname;
 				if (RWPF1Actor.feat_name_mapping.has(featname))
 					realname = featname = RWPF1Actor.feat_name_mapping.get(featname);
@@ -876,9 +904,11 @@ export default class RWPF1Actor {
 				}
 				let lowername = featname.toLowerCase()
 				let shortname;
-				if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf('('));
+				if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf(' ('));
 				
-				let itemdata = await searchPacks(packs, name => name.toLowerCase() === lowername || (shortname && name.toLowerCase() == shortname));
+				// Ignore 'classFeat' entries when searching for normal feats
+				let itemdata = await searchPacks(RWPF1Actor.feat_packs, ['feat'],
+					itemname => itemname === lowername || (shortname && itemname == shortname));
 
 				if (itemdata) {
 					itemdata.name = realname;	// TODO: in case we removed parentheses
@@ -971,52 +1001,88 @@ export default class RWPF1Actor {
 		
 		// Traits (on FEATURES tab)
 		// <trait name="Dangerously Curious" categorytext="Magic">
-		if (character.traits?.trait) {
-			let packs = await collectPacks(['pf-traits', 'pf-racial-traits'])
+		for (const trait of toArray(character.traits?.trait)) {
 
-			for (const trait of toArray(character.traits.trait)) {
+			// Which type of Item actually might contain something from an HL trait
+			// Some traits in the PF sources has the name of the module from which it is derived.
+			let lowername = trait.name.toLowerCase();
+			let shortname;
+			if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf(' ('));
 
-				let itemdata = await searchPacks(packs, name => name == trait.name);
-				// Some traits in the PF sources has the name of the module from which it is derived.
-				if (!itemdata) itemdata = await searchPacks(packs, name => name.startsWith(trait.name));
-				if (!itemdata) {
-					itemdata = {
-						name: trait.name,
-						type: 'feat',
-						data: {
-							featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-							description: {
-								value: addParas(trait.description['#text'])
-							}
+			let itemdata = await searchPacks(RWPF1Actor.feat_packs, ['feat'],
+				itemname => itemname == lowername || itemname == shortname);
+			if (!itemdata) {
+				itemdata = {
+					name: trait.name,
+					type: 'feat',
+					data: {
+						featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+						description: {
+							value: addParas(trait.description['#text'])
 						}
 					}
 				}
-				actor.items.push(itemdata);
 			}
+			if (!itemdata.data.uses?.max) {
+				// maybe add uses
+				let uses = trait.name.match(/ \((\d+)\/([\w]+)\)/);
+				if (uses) {
+					itemdata.data.uses = { max : +uses[1], per: uses[2], value: 0}
+					itemdata.name = trait.name.slice(0,uses.index);
+				}
+			}
+			actor.items.push(itemdata);
 		}
 		// and otherspecials.special with sourcetext attribute set to one of the classes
 		// find items in "class-abilities"
 		
 		
 		// defensive.[special.shortname]  from 'class abilities'
-		let specials = toArray(character.defensive.special).concat(toArray(character.otherspecials.special));
-		if (specials.length > 0) {
-			let packs = await collectPacks(['pf-universal-monster-rules']);
+		for (const special of toArray(character.defensive.special).concat(toArray(character.otherspecials.special))) {
+			// Special abilities such as class abilities have a type of 'feat'
+			// Ignore anything in parentheses
+			let lowername = special.shortname.toLowerCase();
+			let shortname;
+			if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf(' ('));
 
-			for (const special of specials) {
-				let itemdata = await searchPacks(packs, name => name == special.shortname);
-				if (!itemdata) {
-					itemdata = {
-						type: 'feat',
-						data: {}
+			// Ignore abilities which were auto-entered by the class processing above,
+			// or which were added from a magic item.
+			let found=false;
+			for (const item of actor.items) {
+				let itemname = item.name.toLowerCase();
+				if (itemname == lowername || (shortname && itemname == shortname)) {
+					found=true;
+					break;
+				}
+			}
+			if (found) {
+				console.log(`ignoring ${special.name} since it was already exists in items[]`);
+				continue;
+			}
+
+			let specname = special.name;
+			let itemdata = await searchPacks(classnames.includes(special?.sourcetext) ? RWPF1Actor.classability_packs : RWPF1Actor.feat_packs, ['feat'], 
+				itemname => itemname == lowername || (shortname && itemname == shortname));
+			if (!itemdata) {
+				itemdata = {
+					type: 'feat',
+					data: {
+						featType: (special?.sourcetext == 'Trait') ? 'trait' : (classnames.includes(special?.sourcetext)) ? 'classFeat' : 
+							character.role === 'pc' ? 'misc' : 'racial'
 					}
 				}
-				itemdata.name = special.name;
-				itemdata.data.featType = 'racial';
-				itemdata.data.description = { value: addParas(special.description['#text'])};
-				if (special.type) itemdata.data.abilityType = special.type.slice(0,2).toLowerCase();
-				actor.items.push(itemdata);
+				// maybe add uses
+				let uses = specname.match(/ \((\d+)\/([\w]+)\)/);
+				if (uses) {
+					itemdata.data.uses = { max : +uses[1], per: uses[2], value: 0}
+					specname = specname.slice(0,uses.index);
+				}
 			}
+			itemdata.name = noType(specname);
+			//itemdata.data.featType = 'racial';
+			itemdata.data.description = { value: addParas(special.description['#text'])};
+			if (special.type) itemdata.data.abilityType = special.type.slice(0,2).toLowerCase();
+			actor.items.push(itemdata);
 		}
 		
 
@@ -1051,7 +1117,6 @@ export default class RWPF1Actor {
 		//			<spellsubschool>Figment</spellsubschool>
 		//		</spell>
 		let spellbooks = [ 'primary', 'secondary', 'tertiary' ];
-		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
 		let spellmaps = new Map();
 
 		actor.data.attributes.spells = { spellbooks : {}}
@@ -1128,11 +1193,8 @@ export default class RWPF1Actor {
 				}
 				let book = fixedbook || spellmaps.get(sclass);
 				
-				const entry = spell_pack.index.find(e => e.name.toLowerCase() == shortname);
-				let itemdata;
-				if (entry)
-					itemdata = (await spell_pack.getDocument(entry._id)).data.toObject();
-				else {
+				let itemdata = await searchPacks(RWPF1Actor.item_packs, ['spell'], itemname => itemname == shortname);
+				if (!itemdata) {
 					// Manually create a spell item
 					try {
 						itemdata = {
