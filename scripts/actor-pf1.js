@@ -1,4 +1,4 @@
-//import { PF1 } from "../../../systems/pf1/pf1.js";
+import { ItemAction } from "../../../systems/pf1/pf1.js";
 
 /**
  * 
@@ -606,89 +606,59 @@ export default class RWPF1Actor {
 				let critmult  = +attack.crit.slice(x+1);
 				let primaryAttack = (parseInt(attack.attack) >= (parseInt(attack.rangedattack) ? parseInt(character.attack.rangedattack) : parseInt(character.attack.meleeattack)));
 				
-				// templates: itemDescription
-				let atkdata = {
+				let itemdata = {
 					// item
 					name: attack.name,
 					type: "attack",
+					hasAttack: true,
 					data: {
-						// TEMPLATE: itemDescription
 						description: { value: attack.description["#text"], chat: "", unidentified: "" },
-						//tags: [],
-						// TEMPLATE: activatedEffect
-						activation: { cost: 1, type: "attack" },
-						//unchainedAction: { activation: { cost: 1, type: "" },
-						duration: { value: null, units: "inst" },
-						//target: { value : "" },
-						//range: { value: null, units: "", maxIncrements: 1, minValue: null, minUnits: "" },
-						//uses: { value: 0, per: null, autoDetectCharges: true, autoDeductChargesCost: 1, maxFormula:  "" },
-						// TEMPLATE: action
-						//measureTemplate: { type: "", size: "", overrideColor: false, customColor: "", overrideTexture: false, customTexture: "" },
-						attackName: attack.name,
-						actionType: (attack.rangedattack ? "rwak" : "mwak"),		// eg "rwak" or "mwak"
-						attackBonus: (parseInt(attack.attack) - parseInt(character.attack.attackbonus) + (primaryAttack?0:5)).toString(),		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
-						//critConfirmBonus: "",
-						damage: { 
-							parts: [ [ attack.damage.split(' ')[0] , attack.typetext ] ],			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ],
-								// split to remove " nonlethal" (or " plus grab", etc.) from tail end of damage, if present
-							//critParts: [],		//	
-							//nonCritParts: []
-						},
-						//attackParts: [],
-						formulaicAttacks: {		// standard formula for all attacks
-							//count: { formula: "ceil(@attributes.bab.total / 5) - 1" },
-							//bonus: { formula: "@formulaicAttack * -5" },
-							label: null
-						},
-						//formula: "",
-						ability: {
-							// attackBonus and damage already include attackBonus/damage.parts above, so don't let FVTT-PF1 add it again
-							//attack: (attack.rangedattack ? "dex" : "str"),		// "str" or "dex"
-							//damage: (attack.rangedattack ? null  : "str"),		// "str" or "dex" or null (ranged weapons might always have null)
-							damageMult: 1,
-							critRange: critrange,
-							critMult:  critmult,
-						},
-						save: { dc: 0, type: "", description: "" },
-						//effectNotes: [],
 						attackNotes: (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [],
-						//soundEffect: "",
-						// TEMPLATE: links
-						//links: { children: {} },
-						// TEMPLATE: tagged
-						//tag: "",
-						//useCustomTag: false,
-						// TEMPLATE: flags
-						//flags: { boolean: [], dictionary: [] },
-						// TEMPLATE: scriptCalls
-						//scriptCalls: []
-						// ITEM: attack
 						attackType: "natural",		// or weapon?
-						//masterwork: false,
-						nonlethal: (attack.damage.indexOf("nonlethal") != -1),
-						//enh: null,
-						//proficient: true,
-						primaryAttack: primaryAttack,	// TODO : very coarse
-						//showInQuickbar: true,
-						//broken: false,
-						//held: "normal",
-						//conditionals: [],
-						//links: { charges: [], ammunition: [] },
+						primaryAttack: primaryAttack,	// TODO : very coarse (if false, then -5 to attack)
 					}
-					// from HeroLab
-/*					cta: attack.category,	// "Melee Weapon, Unarmed Attack"
-					attack.weight,
-					attack.cost,
-					attack.description,
-					attack.wepcategory["#text"],  //maybe more than one
-					attack.wepcategory["#text"],
-					attack.wepcategory["#text"],
-					attack.weptype["#text"],		// Bludgeoning,Piercing
-					attack.situationalmodifiers.text;*/
 				}
 
+				// Build the actual attack action
+				let actiondata = ItemAction.defaultData;
+				actiondata.activation = { cost: 1, type: "attack" };
+				actiondata.duration   = { value: null, units: "inst" };
+				//actiondata.attackName = attack.name;
+				actiondata.actionType = (attack.rangedattack ? "rwak" : "mwak");		// eg "rwak" or "mwak"
+				actiondata.attackBonus = (parseInt(attack.attack) - parseInt(character.attack.attackbonus) + (primaryAttack?0:5)).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
+				let dmgparts = []; // convert 'B/P/S' to array of damage types
+				for (const part of attack.typetext.split('/')) {
+					switch (part) {
+						case 'B': dmgparts.push('bludgeoning'); break;
+						case 'P': dmgparts.push('piercing'); break;
+						case 'S': dmgparts.push('slashing'); break;
+					}
+				}
+				dmgparts.push(attack.typetext);
+				actiondata.damage.parts = [ [ attack.damage.split(' ')[0] , { values: dmgparts, custom: ""} ] ],			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ],
+				actiondata.enh = { override: false, value: 0};
+				actiondata.name = 'Attack';
+				actiondata.ability = {
+					// attackBonus and damage already include attackBonus/damage.parts above, so don't let FVTT-PF1 add it again
+					//attack: (attack.rangedattack ? "dex" : "str"),		// "str" or "dex"
+					//damage: (attack.rangedattack ? null  : "str"),		// "str" or "dex" or null (ranged weapons might always have null)
+					damageMult: 1,
+					critRange: critrange,
+					critMult:  critmult,
+					attack: 'str',
+					damage: 'str',
+				};
+				actiondata.attackNotes = (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [];
+				actiondata.range.units = 'melee';
+				actiondata.attackType = "natural";		// or weapon?
+				actiondata.nonlethal = (attack.damage.indexOf("nonlethal") != -1);
+
+				itemdata.data.actions = [actiondata];
+				//itemdata.actions = new Map();
+				//itemdata.actions.set(actiondata._id, actiondata);
+
 				if (attack.rangedattack) {
-					atkdata.data.range = { 
+					itemdata.data.range = { 
 						value: attack.rangedattack.rangeinctext,
 						units: "ft",
 						maxIncrements: 1,
@@ -696,7 +666,7 @@ export default class RWPF1Actor {
 						//minUnits: "",
 					};
 				} else {
-					atkdata.data.range = { 
+					itemdata.data.range = { 
 						//value: null,
 						units: "melee",
 						//maxIncrements: 1,
@@ -704,7 +674,7 @@ export default class RWPF1Actor {
 						//minUnits: "",
 					};
 				}
-				actor.items.push(atkdata);
+				actor.items.push(itemdata);
 			}
 		}
 		// COMBAT - MISCELLANEOUS
