@@ -228,7 +228,7 @@ export default class RWPF1Actor {
 				min  : 0,
 				max  : +character.xp.total
 			};
-			actor.data.attributes.hd = { total: character.classes.level};
+			actor.system.attributes.hd = { total: character.classes.level};
 		} else {
 			let cr = +character.challengerating.value;
 			actor.system.details.cr = { base: cr, total: cr };
@@ -258,7 +258,10 @@ export default class RWPF1Actor {
 		let remain_hp = hitpoints - hp_bonus;
 		let races_hp  = (races_hd > 0) ? Math.round(remain_hp * races_hd / total_hd) : 0;
 		let classes_hp = remain_hp - races_hp;
-		
+
+		if (actor.type !== 'pc') {
+			actor.system.attributes.hd = { total: total_hd };  // TODO - not entirely correct!
+		}
 		//
 		// CLASSES sub-tab (before RACE, in case we need to adjust HD by number of class levels)
 		//
@@ -455,11 +458,6 @@ export default class RWPF1Actor {
 		};
 */
 
-		// system.attributes.vision.lowLight/darkvision
-		actor.system.attributes.vision = {
-			lowLight   : character.senses?.special?.name && character.senses.special.name.includes("Low-Light Vision"),
-			darkvision : 0,
-		}
 		// system.attributes.hpAbility
 		// system.attributes.cmbAbility
 		// system.attributes.hd -> actually handled by level of "racialhd" item
@@ -1011,13 +1009,13 @@ export default class RWPF1Actor {
 				if (!itemdata) {
 					itemdata = {
 						type: 'feat',
-						data: {}
+						system: {}
 					}
 				}
 				itemdata.name = special.name;
-				itemdata.data.featType = 'racial';
-				itemdata.data.description = { value: addParas(special.description['#text'])};
-				if (special.type) itemdata.data.abilityType = special.type.slice(0,2).toLowerCase();
+				itemdata.system.featType = 'racial';
+				itemdata.system.description = { value: addParas(special.description['#text'])};
+				if (special.type) itemdata.system.abilityType = special.type.slice(0,2).toLowerCase();
 				actor.items.push(itemdata);
 			}
 		}
@@ -1057,7 +1055,7 @@ export default class RWPF1Actor {
 		const spell_pack = await game.packs.find(p => p.metadata.name === 'spells');
 		let spellmaps = new Map();
 
-		actor.data.attributes.spells = { spellbooks : {}}
+		actor.system.attributes.spells = { spellbooks : {}}
 		if (character.spellclasses?.spellclass) {
 			for (const sclass of toArray(character.spellclasses.spellclass)) {
 
@@ -1072,7 +1070,7 @@ export default class RWPF1Actor {
 					classname = 'Wizard';
 				}
 				spellbooks.shift();
-				actor.data.attributes.spells.spellbooks[book] = {
+				actor.system.attributes.spells.spellbooks[book] = {
 					inUse: true,
 					name:  classname,
 					hasCantrips: hasCantrips,
@@ -1106,7 +1104,7 @@ export default class RWPF1Actor {
 				let sclass = spell['class'];
 				if (fixedbook) {
 					// Let's assume it is the spell-like category
-					actor.data.attributes.spells.spellbooks[fixedbook] = {
+					actor.system.attributes.spells.spellbooks[fixedbook] = {
 						inUse: true,
 						hasCantrips: false,
 						autoSpellLevelCalculation: false,
@@ -1121,7 +1119,7 @@ export default class RWPF1Actor {
 					// Get the next available spellbook for the Actor
 					let book = spellbooks[0];
 					spellbooks.shift();
-					actor.data.attributes.spells.spellbooks[book] = {
+					actor.system.attributes.spells.spellbooks[book] = {
 						inUse: true,
 						name:  sclass,
 						//casterType: high,
@@ -1137,6 +1135,7 @@ export default class RWPF1Actor {
 					itemdata = (await spell_pack.getDocument(entry._id)).toObject();
 				else {
 					// Manually create a spell item
+					console.debug(`Manually creating spell '${shortname}'`);
 					try {
 						itemdata = {
 							name: spell.shortname ?? spell.name,
@@ -1363,9 +1362,9 @@ export default class RWPF1Actor {
 
 			for (const item of toArray(character.immunities.special)) {
 				let name = item.shortname;
-				if (game.pf1.config.damageTypes[name])
+				if (CONFIG.PF1.damageTypes[name])
 					actor.system.traits.di.value.push(name);
-				else if (game.pf1.config.conditionTypes[name])
+				else if (CONFIG.PF1.conditionTypes[name])
 					actor.system.traits.ci.value.push(name);
 				else
 					custom.push(name);
