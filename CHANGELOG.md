@@ -1,3 +1,9 @@
+## 2.3
+
+Get secret sections to work as per Foundry V10 - providing the reveal/hide button.
+
+There might be issues with some of the formatting since I haven't got the RW styles into the new ProseMirror editor block styles menu yet.
+
 ## 2.2
 
 Confirmed as working with PF1 version 0.82.0 for Foundry V10; which emrges the changes from 1.26 into the V10 branch.

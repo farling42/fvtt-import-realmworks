@@ -387,6 +387,7 @@ function escapeHTML(s) {
 	return s.replace( /[&"'<>]/g, c => lookup[c] );
 }
 
+let idnumber=0;
 function startSection(section_context, classes) {
 	// Ignore setting "secret" if the context says to do so
 	// (which would be when the topic is NOT revealed and the user doesn't want it all marked as SECRET
@@ -396,7 +397,7 @@ function startSection(section_context, classes) {
 	let result = "";
 	if (section_context.classes?.length > 0) result += '</section>';
 	section_context.classes = classes;
-	if (classes.length > 0) result += `<section class="${classes}">`;
+	if (classes.length > 0) result += `<section class="${classes}" id="${++idnumber}">`;
 	// Note, no section needed if no classes
 	return result;
 }
@@ -1502,7 +1503,7 @@ class RealmWorksImporter extends Application
 						// This is always a separate section - since it needs a box to be drawn around it.
 						let gmbody = simplifyPara(functhis.replaceLinks(gmdir.textContent, links, /*direction*/ "1"));
 						/* Our CSS requires both RWgmDirections and secret to be specified for the same section */
-						result += `<section class="RWgmDirections secret">${gmbody}</section>`;
+						result += `<section class="RWgmDirections secret" id="${++idnumber}">${gmbody}</section>`;
 					}
 				}
 				
