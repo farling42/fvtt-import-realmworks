@@ -342,7 +342,10 @@ Hooks.on("renderSidebarTab", async (app, html) => {
         new RealmWorksImporter().render(true);
       });
       
-      html.find(".directory-header").append(button);
+	  // 3.5 SRD doesn't have a directory-header
+	  let anchor = html.find(".directory-header");
+	  if (!anchor || anchor.length == 0) anchor = html.find(".directory-footer");
+      anchor.append(button);
     }
 })
 

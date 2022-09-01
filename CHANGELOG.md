@@ -4,11 +4,37 @@ PF1 now works in Foundry V10.
 ## 2.0
 Initial version for Foundry version 10 that works for Call of Cthulhu (coc7) game system.
 
+## 1.26
+Improvements to PF1 Actor decoding:
+- Get alignment mapped correctly
+- Ensure actors are set to PC if the portfolio has a role of "pc"
+- Add nonlethal damage to generated actors
+- Handle negative modifier to HP correctly
+- Don't assume favoured class bonus is to HP
+- Convert "-" for attribute into 0
+- Use basespeed for base movement speed (ignores conditions set in HL)
+- Decode defensive and "other" special abilities, using pf-universal-monster-rules compendium
+- Rework how spellbooks are created
+- Decode damage reduction, resistances and immunities
+- Decode additional languages
+
+## 1.25
+Improvements to PF1 Actor decoding:
+- Update decoding of Senses to use new PF1 Actor format.
+- When looking for Items to add to a PF1 actor, prefer to take Items from the "Pathfinder 1e Content" and "Pathfinder 1e Archetypes and Abilities" modules.
+
+## 1.24
+If it isn't possible to place the Import button at the top of the Compendium panel, then try to put it at the bottom.
+
 ## 1.23
 Fix error reported when decoding actors.
 Fix an error in decoding Skills for CoC7.
 Improvements in PF1 actor generation:
 - natural armor bonus of items is removed from the base naturalAC of the actor read from the portfolio file
+
+## 1.22.1
+Ensure that the Realm Works Importer button is displayed at the bottom of the Compendium tab if it is not possible to display it at the top of the compendium tab
+(this will get the button visible in games based on the 3.5 SRD game system).
 
 ## 1.22
 Improvements in PF1 actor generation for stuff in the "Pathfinder 1e content" module:
