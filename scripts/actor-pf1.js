@@ -10,7 +10,11 @@ import { ItemAction } from "../../../systems/pf1/pf1.js";
 async function searchPacks(packs, typematch, testfunc) {
 	for (const pack of packs) {
 		const entry = pack.index.find(item => typematch.includes(item.type) && testfunc (item.name.toLowerCase()));
-		if (entry) return (await pack.getDocument(entry._id)).toObject();
+		if (entry) {
+			let result = (await pack.getDocument(entry._id)).toObject();
+			delete result._id;
+			return result;
+		}
 	}
 	return null;
 }
@@ -195,7 +199,7 @@ export default class RWPF1Actor {
 				else if (pack.metadata.name.includes('class-abilities'))
 					stuff = classfeats;
 
-				if (pack.metadata.packageName === 'pf1')
+				if (pack.metadata.packageType === 'system')
 					stuff.core.push(pack);
 				else if (
 					pack.metadata.packageName === 'pf-content' ||
@@ -206,9 +210,16 @@ export default class RWPF1Actor {
 		// Core packs have better modifiers in them, so use them first.
 		// Always put the core packs last - i.e. prefer contents from modules before core
 		// so that the module compendiums are searched first.
+
+		// CORE COMPENDIUMS FIRST
 		RWPF1Actor.item_packs = items.core.concat(items.modules);
 		RWPF1Actor.feat_packs = feats.core.concat(feats.modules);
 		RWPF1Actor.classability_packs = classfeats.core.concat(classfeats.modules);
+
+		// CORE COMPENDIUMS LAST
+		//RWPF1Actor.item_packs = items.modules.concat(items.core);
+		//RWPF1Actor.feat_packs = feats.modules.concat(feats.core);
+		//RWPF1Actor.classability_packs = classfeats.modules.concat(classfeats.core);
 	}
 	
 	static async createActorData(character) {
@@ -325,77 +336,74 @@ export default class RWPF1Actor {
 			}
 		}
 		let classnames = [];
-		const classes = character.classes?.["class"];
-		if (classes) {			
-			for (const cclass of toArray(classes)) {
-				// Calculate how many class HP belong to this class; and remove from the pool.
-				let levels = +cclass.level;
-				let class_hp = Math.round((classes_hp * levels) / classes_hd);
-				classes_hp -= class_hp;
-				classes_hd -= levels;
+		for (const cclass of toArray(character.classes?.["class"])) {
+			// Calculate how many class HP belong to this class; and remove from the pool.
+			let levels = +cclass.level;
+			let class_hp = Math.round((classes_hp * levels) / classes_hd);
+			classes_hp -= class_hp;
+			classes_hd -= levels;
 				
-				// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
-				let name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
-				// Special case for wizard classes
-				if (this.wizard_subclasses.includes(name)) {
-					name = 'Wizard';
-				}
-				//console.debug(`Looking for class called '${name}'`);
-				// Strip trailing (...)  from class.name
-				let lowername=name.toLowerCase();
-				let classdata = await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => itemname === lowername);
-				if (classdata) {
-					//console.debug(`Class ${entry.name} at level ${cclass.levels}`);
-
-					// class.hp needs setting to the amount of HP gained from levelling in this class.
-					// class.fc needs setting for the favoured class with information as to how the point was spent.
-					// Do all NPCs really get the HP favoured class bonus on their stats?
-					if (favclasses.includes(cclass.name) || character.role === 'npc') {
-						// This is NOT a favoured class, so cancel any favoured class bonuses.
-						console.debug(`Setting favoured class for ${cclass.name}`);
-						classdata.system.fc.hp.value = 0;
-						classdata.system.fc.skill.value = levels;  // TODO - might NOT be allocated to skills (that information isn't available in POR)
-						classdata.system.fc.alt.value = 0;
-					}
-					classnames.push(classdata.name);
-					
-					// Start by adding the class item with the correct number of levels & HP
-					classdata.system.level = levels;
-					classdata.system.hp = class_hp;		// how do we work this out?
-					actor.items.push(classdata);
-					
-					// Now add all the class features up to the level of the class.
-					// See PF1._onLevelChange (triggered by updateItem and createItem, but not create()
-					const classAssociations = (classdata.system.links.classAssociations || []).filter((o, index) => {
-						o.__index = index;
-						return o.level <= levels;
-					});
-
-					for (const co of classAssociations) {
-						const collection = co.id.split(".").slice(0, 2).join(".");
-						const itemId = co.id.split(".")[2];
-						const pack = game.packs.get(collection);
-						const itemData = (await pack.getDocument(itemId)).toObject();
-						
-						// No record on each classFeature as to which class and level added it.
-						//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
-						actor.items.push(itemData);
-					}
-				} else {
-					// Create our own placemarker class.
-					classdata = {
-						name: cclass.name,
-						type: 'class',
-						system: { 
-							level : levels,
-							hp    : class_hp,
-						},
-						//system: { description : { value : addParas(feat.description['#text']) }}
-					};
-					actor.items.push(classdata);
-				}
+			// TODO: we shouldn't really do this, because we are stripping the archetype from the class.
+			let name = (cclass.name.indexOf('(Unchained)') > 0) ? cclass.name : cclass.name.replace(/ \(.*/,'');
+			// Special case for wizard classes
+			if (this.wizard_subclasses.includes(name)) {
+				name = 'Wizard';
 			}
-		} // if (classes)
+			//console.debug(`Looking for class called '${name}'`);
+			// Strip trailing (...)  from class.name
+			let lowername=name.toLowerCase();
+			let classdata = await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => itemname === lowername);
+			if (classdata) {
+				//console.debug(`Class ${entry.name} at level ${cclass.levels}`);
+
+				// class.hp needs setting to the amount of HP gained from levelling in this class.
+				// class.fc needs setting for the favoured class with information as to how the point was spent.
+				// Do all NPCs really get the HP favoured class bonus on their stats?
+				if (favclasses.includes(cclass.name) || character.role === 'npc') {
+					// This is NOT a favoured class, so cancel any favoured class bonuses.
+					console.debug(`Setting favoured class for ${cclass.name}`);
+					classdata.system.fc.hp.value = 0;
+					classdata.system.fc.skill.value = levels;  // TODO - might NOT be allocated to skills (that information isn't available in POR)
+					classdata.system.fc.alt.value = 0;
+				}
+				classnames.push(classdata.name);
+					
+				// Start by adding the class item with the correct number of levels & HP
+				classdata.system.level = levels;
+				classdata.system.hp = class_hp;		// how do we work this out?
+				actor.items.push(classdata);
+					
+				// Now add all the class features up to the level of the class.
+				// See PF1._onLevelChange (triggered by updateItem and createItem, but not create()
+				const classAssociations = (classdata.system.links.classAssociations || []).filter((o, index) => {
+					o.__index = index;
+					return o.level <= levels;
+				});
+
+				for (const co of classAssociations) {
+					const collection = co.id.split(".").slice(0, 2).join(".");
+					const itemId = co.id.split(".")[2];
+					const pack = game.packs.get(collection);
+					const itemData = (await pack.getDocument(itemId)).toObject();
+						
+					// No record on each classFeature as to which class and level added it.
+					//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
+					actor.items.push(itemData);
+				}
+			} else {
+				// Create our own placemarker class.
+				classdata = {
+					name: cclass.name,
+					type: 'class',
+					system: { 
+						level : levels,
+						hp    : class_hp,
+					},
+					//system: { description : { value : addParas(feat.description['#text']) }}
+				};
+				actor.items.push(classdata);
+			}
+		} // for (class)
 
 		// <race racetext="human (Taldan)" name="human" ethnicity="Taldan"/>
 		const lowerrace = character.race.name.toLowerCase();
@@ -599,7 +607,7 @@ export default class RWPF1Actor {
 				actor.system.attributes.naturalAC = +armor.ac;
 			}
 		}
-		for (const attack of toArray(character.melee.weapon).concat(toArray(character.ranged.weapon))) {
+		for (const attack of toArray(character.melee?.weapon).concat(toArray(character.ranged?.weapon))) {
 			if (attack?.useradded === "no") {
 				// decode crit: either "x2" or "17-20/x2"
 				let x = attack.crit.indexOf("×");
@@ -686,7 +694,11 @@ export default class RWPF1Actor {
 				type: "attack",
 				img:  "systems/pf1/icons/skills/yellow_36.jpg",
 				system: {
-					description: { value: miscatk.description["#text"], chat: "", unidentified: "" },
+					description: {
+						value: miscatk.description["#text"],
+						chat: "",
+						unidentified: ""
+					},
 					attackType: "misc",
 				},
 			};
@@ -721,86 +733,96 @@ export default class RWPF1Actor {
 		};
 
 		// gear.[item.name/quantity/weight/cost/description
-		let items = toArray(character.gear?.item).concat(toArray(character.magicitems?.item));		
-		if (items.length > 0) {
-			for (const item of items) {
-				// Get all forms of item's name once, since we search each pack.
-				let lower = noType(item.name).toLowerCase();
-				let singular, reversed, pack, entry, noparen;
-				// Firstly deal with masterwork and enhancement bonuses on weapons.
-				let masterwork, enh;
-				if (lower.startsWith("masterwork ")) {
-					masterwork = true;
-					lower = lower.slice(11);
-				}
-				if (lower.length > 3 && lower[0] === "+" && lower[2] === " ") {
-					enh = parseInt(lower[1]);
-					if (!isNaN(enh)) lower = lower.slice(3);
-				}
-				// Remove container "(x @ y lbs)"
-				//if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)') || lower.endsWith('/day)')))
-				if (lower.endsWith(')'))
-					lower = lower.slice(0,lower.lastIndexOf(' ('));
-				// Remove plurals
-				if (lower.endsWith('s')) singular = lower.slice(0,-1);
-				// Handle names like "bear trap" => "trap, bear"
-				const words = lower.split(' ');
-				if (words.length == 2) reversed = words[1] + ', ' + words[0];
-				// Handle "Something (else)" -> "Something, else"
-				if (lower.endsWith(')')) {
-					let pos = lower.lastIndexOf(' (');
-					noparen = lower.slice(0,pos) + ', ' + lower.slice(pos+2,-1);
-				}
+		for (const item of toArray(character.gear?.item).concat(toArray(character.magicitems?.item))) {
+			// Get all forms of item's name once, since we search each pack.
+			let lower = noType(item.name).toLowerCase();
+			let singular, reversed, pack, entry, noparen;
+			// Firstly deal with masterwork and enhancement bonuses on weapons.
+			let masterwork, enh;
+			if (lower.startsWith("masterwork ")) {
+				masterwork = true;
+				lower = lower.slice(11);
+			}
+			if (lower.length > 3 && lower[0] === "+" && lower[2] === " ") {
+				enh = parseInt(lower[1]);
+				if (!isNaN(enh)) lower = lower.slice(3);
+			}
+			// Remove container "(x @ y lbs)"
+			//if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)') || lower.endsWith('/day)')))
+			if (lower.endsWith(')'))
+				lower = lower.slice(0,lower.lastIndexOf(' ('));
+			// Remove plurals
+			if (lower.endsWith('s')) singular = lower.slice(0,-1);
+			// Handle names like "bear trap" => "trap, bear"
+			const words = lower.split(' ');
+			if (words.length == 2) reversed = words[1] + ', ' + words[0];
+			// Handle "Something (else)" -> "Something, else"
+			if (lower.endsWith(')')) {
+				let pos = lower.lastIndexOf(' (');
+				noparen = lower.slice(0,pos) + ', ' + lower.slice(pos+2,-1);
+			}
 				
-				// Finally, some name changes aren't simple re-mappings
-				if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
+			// Finally, some name changes aren't simple re-mappings
+			if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
 				
-				// Match items of any type
-				let itemdata = await searchPacks(RWPF1Actor.item_packs, ITEM_TYPES, itemname =>
-					itemname === lower || (singular && itemname === singular) || (reversed && itemname === reversed) || (noparen && itemname === noparen))
+			// Match items of any type
+			let itemdata = await searchPacks(RWPF1Actor.item_packs, ITEM_TYPES, itemname =>
+				itemname === lower || 
+				(singular && itemname === singular) || 
+				(reversed && itemname === reversed) || 
+				(noparen  && itemname === noparen))
+
+			if (!itemdata) {
+				itemdata = await searchPacks(RWPF1Actor.item_packs, ITEM_TYPES, itemname =>
+					lower.endsWith(itemname) || 
+					(singular && singular.endsWith()) || 
+					(reversed && reversed.endsWith(itemname)) || 
+					(noparen  && noparen.endsWith(itemname)))
+				if (itemdata)
+					console.log(`Found item (${itemdata.name}) which ENDS with the creature's item name (${item.name})`)
+			}
 				
-				if (itemdata) {
-					itemdata.system.quantity = +item.quantity;
-					if (masterwork) itemdata.system.masterwork = true;
-					if (enh) {
-						if (itemdata.system.armor)
-							itemdata.system.armor.enh = enh;
-						else
-							itemdata.system.enh = enh;
-					}
-					// Restore original POR name if there is information in brackets at the end of the name
-					if (masterwork || enh || item.name.endsWith(')')) {
-						itemdata.name = item.name;
-						itemdata.system.identifiedName = item.name;
-					}
-					// See if need to remove the naturalAC that was added from the defenses section.
-					if (actor.system.attributes.naturalAC > 0 && itemdata.system.changes) {
-						for (const effect of itemdata.system.changes) {
-							if (effect.target === 'ac' && effect.subTarget === 'nac') {
-								console.log(`Removing item's Natural AC from actor's natural AC ${effect.formula}`)
-								actor.system.attributes.naturalAC = actor.system.attributes.naturalAC - (+effect.formula);
-							}
+			if (itemdata) {
+				itemdata.system.quantity = +item.quantity;
+				if (masterwork) itemdata.system.masterwork = true;
+				if (enh) {
+					if (itemdata.system.armor)
+						itemdata.system.armor.enh = enh;
+					else
+						itemdata.system.enh = enh;
+				}
+				// Restore original POR name if there is information in brackets at the end of the name
+				if (masterwork || enh || item.name.endsWith(')')) {
+					itemdata.name = item.name;
+					itemdata.system.identifiedName = item.name;
+				}
+				// See if need to remove the naturalAC that was added from the defenses section.
+				if (actor.system.attributes.naturalAC > 0 && itemdata.system.changes) {
+					for (const effect of itemdata.system.changes) {
+						if (effect.target === 'ac' && effect.subTarget === 'nac') {
+							console.log(`Removing item's Natural AC from actor's natural AC ${effect.formula}`)
+							actor.system.attributes.naturalAC = actor.system.attributes.naturalAC - (+effect.formula);
 						}
 					}
-					actor.items.push(itemdata);
-				} else {
-					// Create our own placemarker item.
-					const itemdata = {
-						name: item.name,
-						type: 'loot',
-						system: {
-							quantity: +item.quantity,
-							weight:   +item.weight.value,
-							price:    +item.cost.value,
-							description: {
-								value: addParas(item.description['#text'])
-							},
-							identified: true,
-							carried: true,
-						},
-					};
-					actor.items.push(itemdata);
 				}
+				actor.items.push(itemdata);
+			} else {
+				// Create our own placemarker item.
+				const itemdata = {
+					name: item.name,
+					type: item.name.includes(' lbs)') ? 'container' : 'loot',
+					system: {
+						quantity: +item.quantity,
+						weight:   +item.weight.value,
+						price:    +item.cost.value,
+						description: {
+							value: addParas(item.description['#text'])
+						},
+						identified: true,
+						carried: true,
+					},
+				};
+				actor.items.push(itemdata);
 			}
 		}
 				
@@ -850,126 +872,124 @@ export default class RWPF1Actor {
 		//
 		
 		// system.items (includes feats) - must be done AFTER skills
-		if (character.feats?.feat) {
-			for (const feat of toArray(character.feats.feat)) {
-				// since that indicates a class or race-based feature.
-				let featname = noType(feat.name);
-				let realname = featname;
-				if (RWPF1Actor.feat_name_mapping.has(featname))
-					realname = featname = RWPF1Actor.feat_name_mapping.get(featname);
-				else
-					featname = featname.replace(/ \(.*/,'').replace(/ -.*/,'');
+		for (const feat of toArray(character.feats?.feat)) {
+			// since that indicates a class or race-based feature.
+			let featname = noType(feat.name);
+			let realname = featname;
+			if (RWPF1Actor.feat_name_mapping.has(featname))
+				realname = featname = RWPF1Actor.feat_name_mapping.get(featname);
+			else
+				featname = featname.replace(/ \(.*/,'').replace(/ -.*/,'');
+
+			if (feat.useradded == 'no') {
+				// Never manually add armor/shield/weapon proficiencies
+				if (feat.profgroup == 'yes') continue;
+						
+				// But don't add it if a copy has already been added when processing classes.
+				let acopy = false;
+				for (const item of actor.items) {
+					if (item.name == realname) {
+						acopy = true;
+						break;
+					}
+				}
+				if (acopy) continue;
+			}
+			let lowername = featname.toLowerCase()
+			let shortname;
+			if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf(' ('));
+				
+			// Ignore 'classFeat' entries when searching for normal feats
+			let itemdata = await searchPacks(RWPF1Actor.feat_packs, ['feat'],
+				itemname => itemname === lowername || (shortname && itemname == shortname));
+
+			if (itemdata) {
+				itemdata.name = realname;	// TODO: in case we removed parentheses
 
 				if (feat.useradded == 'no') {
-					// Never manually add armor/shield/weapon proficiencies
-					if (feat.profgroup == 'yes') continue;
-						
-					// But don't add it if a copy has already been added when processing classes.
-					let acopy = false;
-					for (const item of actor.items) {
-						if (item.name == realname) {
-							acopy = true;
-							break;
-						}
-					}
-					if (acopy) continue;
+					// We are going to add it as a manual class feature.
+					itemdata.system.featType = 'classFeat';
 				}
-				let lowername = featname.toLowerCase()
-				let shortname;
-				if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf(' ('));
-				
-				// Ignore 'classFeat' entries when searching for normal feats
-				let itemdata = await searchPacks(RWPF1Actor.feat_packs, ['feat'],
-					itemname => itemname === lowername || (shortname && itemname == shortname));
-
-				if (itemdata) {
-					itemdata.name = realname;	// TODO: in case we removed parentheses
-
-					if (feat.useradded == 'no') {
-						// We are going to add it as a manual class feature.
-						itemdata.system.featType = 'classFeat';
-					}
 					
-					// Special additions:
-					if (feat.name.startsWith('Skill Focus (')) {
-						// Skill Focus (Profession [Merchant]) => Profession (Merchant)
-						let ranks;
-						let p1 = feat.name.indexOf(' (');
-						let p2 = feat.name.lastIndexOf(')');
-						let skillname = feat.name.slice(p1+2,p2).replace('[','(').replace(']',')');
-						// Find any descendent of actor.system.skills with a .name that matches the skill
-						let skill;
-						let baseskill = this.skill_mapping.get(skillname);
-						if (baseskill) {
-							ranks = actor.system.skills[baseskill].rank;
-							skill = 'skill.' + baseskill;
-						} else {
-							// Check for a subskill
-							let paren = skillname.indexOf(' (');
-							skill = paren ? this.skill_mapping.get(skillname.slice(0,paren)) : undefined;
-							if (skill) {
-								for (const skl2 of Object.keys(actor.system.skills[skill].subSkills)) {
-									if (actor.system.skills[skill].subSkills[skl2].name == skillname) {
-										ranks = actor.system.skills[skill].subSkills[skl2].rank;
-										skill = 'skill.' + skill + ".subSkills." + skl2;
-										break;
-									}
-								}
-							}
-							if (!skill) { 
-								// Check custom skills
-								// actor.system.skills.skill
-								// actor.system.skills.skill2
-								let i=0;
-								while (true) {
-									let name = (i==0) ? 'skill' : `skill${i}`;
-									if (!(name in actor.system.skills)) break;
-									if (actor.system.skills[name].name == skill.name) {
-										ranks = actor.system.skills[name].rank;
-										skill = 'skill.' + name;
-										break;
-									}
-								}
-							}
-						}
+				// Special additions:
+				if (feat.name.startsWith('Skill Focus (')) {
+					// Skill Focus (Profession [Merchant]) => Profession (Merchant)
+					let ranks;
+					let p1 = feat.name.indexOf(' (');
+					let p2 = feat.name.lastIndexOf(')');
+					let skillname = feat.name.slice(p1+2,p2).replace('[','(').replace(']',')');
+					// Find any descendent of actor.system.skills with a .name that matches the skill
+					let skill;
+					let baseskill = this.skill_mapping.get(skillname);
+					if (baseskill) {
+						ranks = actor.system.skills[baseskill].rank;
+						skill = 'skill.' + baseskill;
+					} else {
+						// Check for a subskill
+						let paren = skillname.indexOf(' (');
+						skill = paren ? this.skill_mapping.get(skillname.slice(0,paren)) : undefined;
 						if (skill) {
-							let bonus = (ranks >= 10) ? "6" : "3";
-							itemdata.system.changes = [
-							{
-								formula:   bonus,
-								operator:  "add",
-								subTarget: skill,
-								modifier:  "untyped",
-								priority:  0,
-								value:     bonus,
-							}];
-							//console.debug(`Skill Focus: ${itemdata.system.changes[0].formula} to ${itemdata.system.changes[0].subTarget}`);
-						}
-					}
-					actor.items.push(itemdata);
-				} else {
-					// Create our own placemarker feat.
-					const itemdata = {
-						name: feat.name,
-						type: 'feat',
-						system: {
-							description: {
-								value: addParas(feat.description['#text'])
+							for (const skl2 of Object.keys(actor.system.skills[skill].subSkills)) {
+								if (actor.system.skills[skill].subSkills[skl2].name == skillname) {
+									ranks = actor.system.skills[skill].subSkills[skl2].rank;
+									skill = 'skill.' + skill + ".subSkills." + skl2;
+									break;
+								}
 							}
 						}
-					};
-					if (feat.useradded == 'no') {
-						itemdata.system.featType = 'classFeat';
-					}					
-					if (feat.featcategory) {
-						let cats = [[feat.featcategory['#text']]];
-						//itemdata.system.tags = new Map();
-						//itemdata.system.tags.insert( cats );
+						if (!skill) { 
+							// Check custom skills
+							// actor.system.skills.skill
+							// actor.system.skills.skill2
+							let i=0;
+							while (true) {
+								let name = (i==0) ? 'skill' : `skill${i}`;
+								if (!(name in actor.system.skills)) break;
+								if (actor.system.skills[name].name == skill.name) {
+									ranks = actor.system.skills[name].rank;
+									skill = 'skill.' + name;
+									break;
+								}
+							}
+						}
 					}
-					actor.items.push(itemdata);
+					if (skill) {
+						let bonus = (ranks >= 10) ? "6" : "3";
+						itemdata.system.changes = [
+						{
+							formula:   bonus,
+							operator:  "add",
+							subTarget: skill,
+							modifier:  "untyped",
+							priority:  0,
+							value:     bonus,
+						}];
+						//console.debug(`Skill Focus: ${itemdata.system.changes[0].formula} to ${itemdata.system.changes[0].subTarget}`);
+					}
 				}
-			} /* for feat in pack */
-		}
+				actor.items.push(itemdata);
+			} else {
+				// Create our own placemarker feat.
+				const itemdata = {
+					name: feat.name,
+					type: 'feat',
+					system: {
+						description: {
+							value: addParas(feat.description['#text'])
+						}
+					}
+				};
+				if (feat.useradded == 'no') {
+					itemdata.system.featType = 'classFeat';
+				}					
+				if (feat.featcategory) {
+					let cats = [[feat.featcategory['#text']]];
+					//itemdata.system.tags = new Map();
+					//itemdata.system.tags.insert( cats );
+				}
+				actor.items.push(itemdata);
+			}
+		} /* for feat in pack */
 		
 		// Traits (on FEATURES tab)
 		// <trait name="Dangerously Curious" categorytext="Magic">
@@ -1092,30 +1112,28 @@ export default class RWPF1Actor {
 		let spellmaps = new Map();
 
 		actor.system.attributes.spells = { spellbooks : {}}
-		if (character.spellclasses?.spellclass) {
-			for (const sclass of toArray(character.spellclasses.spellclass)) {
+		for (const sclass of toArray(character.spellclasses?.spellclass)) {
 
-				let hasCantrips = false;
-				for (const level of toArray(sclass.spelllevel)) {
-					if (level.level === "0") hasCantrips = true;
-				}
-
-				let book = spellbooks[0];
-				let classname = sclass.name;
-				if (this.wizard_subclasses.includes(classname)) {
-					classname = 'Wizard';
-				}
-				spellbooks.shift();
-				actor.system.attributes.spells.spellbooks[book] = {
-					inUse: true,
-					name:  classname,
-					hasCantrips: hasCantrips,
-					spellPreparationMode:  sclass.spells === 'Spellbook' ? 'prepared' : 'spontaneous',
-					// casterType: high, med, low  // opposite(?) of class' Bab
-					class: classname.toLowerCase()
-				}
-				spellmaps.set(classname, book);
+			let hasCantrips = false;
+			for (const level of toArray(sclass.spelllevel)) {
+				if (level.level === "0") hasCantrips = true;
 			}
+
+			let book = spellbooks[0];
+			let classname = sclass.name;
+			if (this.wizard_subclasses.includes(classname)) {
+				classname = 'Wizard';
+			}
+			spellbooks.shift();
+			actor.system.attributes.spells.spellbooks[book] = {
+				inUse: true,
+				name:  classname,
+				hasCantrips: hasCantrips,
+				spellPreparationMode:  sclass.spells === 'Spellbook' ? 'prepared' : 'spontaneous',
+				// casterType: high, med, low  // opposite(?) of class' Bab
+				class: classname.toLowerCase()
+			}
+			spellmaps.set(classname, book);
 		}
 		
 		async function addSpells(nodes, memorized=undefined) {
@@ -1256,20 +1274,18 @@ export default class RWPF1Actor {
 
 		// Technically, we should process spellsmemorized to mark which spells in spellbook are prepared
 		let memorized;
-		if (character.spellsmemorized.spell) {
-			for (const spell of toArray(character.spellsmemorized.spell)) {
-				const lowername = spell.name.toLowerCase();
-				const shortpos = lowername.indexOf(' (');
-				const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
-				let count = 1;
-				if (shortpos > 0 && shortpos+4 < lowername.length && lowername.at(shortpos+2) == 'x') {
-					let matches = lowername.slice(shortpos).match(numberpattern);
-					if (matches) count = +matches[0];
-				}
-				// need to store the (x2) to know how many times it was memorized
-				if (!memorized) memorized = new Map();
-				memorized.set(shortname,count);
+		for (const spell of toArray(character.spellsmemorized?.spell)) {
+			const lowername = spell.name.toLowerCase();
+			const shortpos = lowername.indexOf(' (');
+			const shortname = (shortpos > 0) ? lowername.slice(0,shortpos) : lowername;
+			let count = 1;
+			if (shortpos > 0 && shortpos+4 < lowername.length && lowername.at(shortpos+2) == 'x') {
+				let matches = lowername.slice(shortpos).match(numberpattern);
+				if (matches) count = +matches[0];
 			}
+			// need to store the (x2) to know how many times it was memorized
+			if (!memorized) memorized = new Map();
+			memorized.set(shortname,count);
 		}
 		await addSpells(character.spellbook.spell, memorized);		// e.g. Wizard (spellsmemorized contains spells actually prepared from the spellbook)
 		await addSpells(character.spellsknown.spell); 				// e.g. Bard, Summoner
