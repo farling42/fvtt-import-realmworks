@@ -599,7 +599,7 @@ export default class RWPF1Actor {
 			}
 		}
 		for (const attack of toArray(character.melee.weapon).concat(toArray(character.ranged.weapon))) {
-			if (attack && attack.useradded === "no") {
+			if (attack?.useradded === "no") {
 				// decode crit: either "x2" or "17-20/x2"
 				let x = attack.crit.indexOf("×");
 				let critrange = (x === 0) ? 20 : parseInt(attack.crit);
