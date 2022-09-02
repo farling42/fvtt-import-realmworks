@@ -747,6 +747,12 @@ export default class RWPF1Actor {
 				enh = parseInt(lower[1]);
 				if (!isNaN(enh)) lower = lower.slice(3);
 			}
+			// Handle "Something (else)" -> "Something, else"
+			if (lower.endsWith(')')) {
+				let pos = lower.lastIndexOf(' (');
+				noparen = lower.slice(0,pos) + ', ' + lower.slice(pos+2,-1);
+				console.error(`'${item.name}' has noparen = '${noparen}'`)
+			}
 			// Remove container "(x @ y lbs)"
 			//if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)') || lower.endsWith('/day)')))
 			if (lower.endsWith(')'))
@@ -756,11 +762,6 @@ export default class RWPF1Actor {
 			// Handle names like "bear trap" => "trap, bear"
 			const words = lower.split(' ');
 			if (words.length == 2) reversed = words[1] + ', ' + words[0];
-			// Handle "Something (else)" -> "Something, else"
-			if (lower.endsWith(')')) {
-				let pos = lower.lastIndexOf(' (');
-				noparen = lower.slice(0,pos) + ', ' + lower.slice(pos+2,-1);
-			}
 				
 			// Finally, some name changes aren't simple re-mappings
 			if (RWPF1Actor.item_name_mapping.has(lower)) lower = RWPF1Actor.item_name_mapping.get(lower);
@@ -773,9 +774,11 @@ export default class RWPF1Actor {
 				(noparen  && itemname === noparen))
 
 			if (!itemdata) {
+				// Maybe this item contains a longer description, so look for an item whose name
+				// appears at the end of this item's name
 				itemdata = await searchPacks(RWPF1Actor.item_packs, ITEM_TYPES, itemname =>
 					lower.endsWith(itemname) || 
-					(singular && singular.endsWith()) || 
+					(singular && singular.endsWith(itemname)) || 
 					(reversed && reversed.endsWith(itemname)) || 
 					(noparen  && noparen.endsWith(itemname)))
 				if (itemdata)
@@ -807,6 +810,12 @@ export default class RWPF1Actor {
 				}
 				actor.items.push(itemdata);
 			} else {
+
+				// TODO: Consumable items which contain a spell..
+				//if (item.name.startsWith('Potion of'))
+				//if (item.name.startsWith('Scroll of'))
+				//if (item.name.startsWith('Wand of'))
+
 				// Create our own placemarker item.
 				const itemdata = {
 					name: item.name,
