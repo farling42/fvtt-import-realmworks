@@ -143,7 +143,7 @@ export default class RWDND5EActor {
 			name: character.name,
 			type: (character.role === 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
 			relationship : character.relationship,
-			data: {
+			system: {
 				// common template: abilities, attributes, details, traits, currency
 				abilities: {},
 				attributes: {},
@@ -168,7 +168,7 @@ export default class RWDND5EActor {
 		
 		// Abilities:   name : { value : number , proficient : 0|1 }
 		for (const stat of character.abilityscores.abilityscore) {
-			actor.data.abilities[RWDND5EActor.ability_names[stat.name.toLowerCase()]] = {
+			actor.system.abilities[RWDND5EActor.ability_names[stat.name.toLowerCase()]] = {
 				value      : +stat.abilvalue.base,
 				proficient : stat.savingthrow.isproficient === "no" ? 0 : 1,
 			};
@@ -182,19 +182,19 @@ export default class RWDND5EActor {
 		for (const def of toArray(character.otherspecials.special)) {
 			if (def.name === 'Natural Armor') natural = +character.armorclass.fromnatural + 10;
 		}
-		actor.data.attributes.ac = {
+		actor.system.attributes.ac = {
 			flat : natural,
 			calc : natural ? "natural" : "default",
 			formula: ""
 		};
 		// hp : { value : 0, min: 0,max: 10, temp: 0, tempmax: 0 }
-		actor.data.attributes.hp = { value : +character.health.currenthp, max: +character.health.hitpoints };
+		actor.system.attributes.hp = { value : +character.health.currenthp, max: +character.health.hitpoints };
 		// init : { value: 0, bonus: 0 }    - allow it to be auto-calculated
-		actor.data.attributes.movement = { walk: +character.movement.basespeed.value };
+		actor.system.attributes.movement = { walk: +character.movement.basespeed.value };
 		// actor.details.biography = { value : "", public: "" }
 		
 		//actor.traits.di = { value : [], custom: "" };
-		actor.data.traits = {};
+		actor.system.traits = {};
 		
 		function resist(string, predefined) {
 			let values = [];
@@ -208,29 +208,29 @@ export default class RWDND5EActor {
 			}
 			return { value : values, custom : custom.join(';') }
 		}
-		actor.data.traits.di = resist(character.damageimmunities.text,      DND5E.damageTypes);
-		actor.data.traits.dr = resist(character.damageresistances.text,     DND5E.damageTypes);
-		actor.data.traits.dv = resist(character.damagevulnerabilities.text, DND5E.damageTypes);
-		actor.data.traits.ci = resist(character.conditionimmunities.text,   DND5E.conditionTypes);
+		actor.system.traits.di = resist(character.damageimmunities.text,      DND5E.damageTypes);
+		actor.system.traits.dr = resist(character.damageresistances.text,     DND5E.damageTypes);
+		actor.system.traits.dv = resist(character.damagevulnerabilities.text, DND5E.damageTypes);
+		actor.system.traits.ci = resist(character.conditionimmunities.text,   DND5E.conditionTypes);
 		
 		switch (character.size.name) {
-			case 'Tiny':       actor.data.traits.size = "tny";  break;
-			case 'Small':      actor.data.traits.size = "sm";   break;
-			case 'Medium':     actor.data.traits.size = "med";  break;
-			case 'Large':      actor.data.traits.size = "lg";   break;
-			case 'Huge':       actor.data.traits.size = "huge"; break;
-			case 'Gargantuan': actor.data.traits.size = "grg";  break;
+			case 'Tiny':       actor.system.traits.size = "tny";  break;
+			case 'Small':      actor.system.traits.size = "sm";   break;
+			case 'Medium':     actor.system.traits.size = "med";  break;
+			case 'Large':      actor.system.traits.size = "lg";   break;
+			case 'Huge':       actor.system.traits.size = "huge"; break;
+			case 'Gargantuan': actor.system.traits.size = "grg";  break;
 		}
 		
 		for (const money of character.money.coins) {
-			actor.data.currency[money.abbreviation] = +money.count;
+			actor.system.currency[money.abbreviation] = +money.count;
 		}
 		
 		//
 		// CREATURE template
 		//
 		//character.senses.?
-		actor.data.attributes.senses = {
+		actor.system.attributes.senses = {
 			darkvision  : 0,
 			blindsight  : 0,
 			tremorsense : 0,
@@ -241,52 +241,52 @@ export default class RWDND5EActor {
 		for (const spec of toArray(character.otherspecials.special)) {
 			let name = spec.name.toLowerCase();
 			if (name.startsWith("darkvision"))
-				actor.data.attributes.senses.darkvision = getNumber(name);
+				actor.system.attributes.senses.darkvision = getNumber(name);
 			else if (name.startsWith("blindsight"))
-				actor.data.attributes.senses.blindsight = getNumber(name);
+				actor.system.attributes.senses.blindsight = getNumber(name);
 			else if (name.startsWith("tremorsense")) 
-				actor.data.attributes.senses.tremorsense = getNumber(name);
+				actor.system.attributes.senses.tremorsense = getNumber(name);
 			else if (name.startsWith("truesight"))
-				actor.data.attributes.senses.truesight = getNumber(name);
+				actor.system.attributes.senses.truesight = getNumber(name);
 		}
 		
-		//actor.data.spellcasting = "int"		-- TODO
-		actor.data.details = {
+		//actor.system.spellcasting = "int"		-- TODO
+		actor.system.details = {
 			alignment: character.alignment.name,
 			race     : character.race.displayname,
 		}
 		for (const skill of toArray(character.skills.skill)) {
 			let name = skill.name;
 			// value : 0 (not proficient), 0.5 (half proficient), 1 (proficient), 2 (expertise)
-			actor.data.skills[RWDND5EActor.skill_names[name]] = {
+			actor.system.skills[RWDND5EActor.skill_names[name]] = {
 				value  : skill.isprofdoubled ? 2 : skill.isproficient ? 1 : 0,
 				ability: skill.abilabbreviation.toLowerCase(),
 			}
 		}
 		
-		actor.data.traits.languages = { value: [], custom: "" };
+		actor.system.traits.languages = { value: [], custom: "" };
 		let lcust = [];
 		for (const lang of toArray(character.languages.language)) {
 			let name = lang.name.toLowerCase();
 			if (name === "deep speech")
-				actor.data.traits.languages.value.push("deep");
+				actor.system.traits.languages.value.push("deep");
 			else if (CONFIG.DND5E.languages[name])
-				actor.data.traits.languages.value.push(name);
+				actor.system.traits.languages.value.push(name);
 			else
 				lcust.push(lang.name);
 		}
-		actor.data.traits.languages.custom = lcust.join(';');
+		actor.system.traits.languages.custom = lcust.join(';');
 		
-		// actor.data.spells - TODO
-		// actor.data.spells = []
-		// actor.data.spells[x] = { value: 0, override: null }
+		// actor.system.spells - TODO
+		// actor.system.spells = []
+		// actor.system.spells[x] = { value: 0, override: null }
 		
 		let dc;
 		for (const clas of toArray(character.classes.class)) {
 			if (clas.spellsavedc) dc = clas.spellsavedc;
 		}
 		
-		actor.data.bonuses = {
+		actor.system.bonuses = {
 			mwak : { attack: "", damage: "" },		// melee  weapon attack
 			rwak : { attack: "", damage: "" },		// ranged weapon attack
 			msak : { attack: "", damage: "" },		// melee  spell attack
@@ -299,16 +299,16 @@ export default class RWDND5EActor {
 		// EXTRA for 'character'
 		//
 		if (actor.type === 'character') {
-			//actor.data.attributes.death = { success: 0, failure: 0 }
+			//actor.system.attributes.death = { success: 0, failure: 0 }
 			let insp = 0;
 			for (const res of toArray(character.trackedresources.trackedresource)) {
 				if (res.name === 'Inspiration')
-					actor.data.attributes.inspiration = +res.left;
+					actor.system.attributes.inspiration = +res.left;
 			}
-			//actor.data.details.background = ""
-			//actor.data.details.originalClass = ""
-			actor.data.details.xp = { value: character.xp.total /*, min: 0, max: 300*/ }
-			//actor.data.details.appearance = "";
+			//actor.system.details.background = ""
+			//actor.system.details.originalClass = ""
+			actor.system.details.xp = { value: character.xp.total /*, min: 0, max: 300*/ }
+			//actor.system.details.appearance = "";
 			let traits = [];
 			for (const bg of toArray(character.background.backgroundtrait)) {
 				let txt = bg["#text"];
@@ -317,29 +317,29 @@ export default class RWDND5EActor {
 						traits.push(txt);
 						break;
 					case 'ideal':
-						actor.data.details.ideal = txt;
+						actor.system.details.ideal = txt;
 						break;
 					case 'bond':
-						actor.data.details.bond = txt;
+						actor.system.details.bond = txt;
 						break;
 					case 'flaw':
-						actor.data.details.flaw = txt;
+						actor.system.details.flaw = txt;
 						break;
 				}
 			}
-			actor.data.details.trait = traits.join('\n');
-			/*actor.data.resources = {
+			actor.system.details.trait = traits.join('\n');
+			/*actor.system.resources = {
 				primary:   { value: 0, max: 0, sr: 0, lr: 0 },
 				secondary: { value: 0, max: 0, sr: 0, lr: 0 },
 				tertiary:  { value: 0, max: 0, sr: 0, lr: 0 },
 			}*/
-			actor.data.traits.weaponProf = { value: [], custom: "" };
+			actor.system.traits.weaponProf = { value: [], custom: "" };
 			let wcust = [];
 			for (const prof of character.weaponproficiencies.text.split('; ')) {
 				if (prof === 'Martial weapons')
-					actor.data.traits.weaponProf.value.push('mar');
+					actor.system.traits.weaponProf.value.push('mar');
 				else if (prof === 'Simple weapons')
-					actor.data.traits.weaponProf.value.push('sim');
+					actor.system.traits.weaponProf.value.push('sim');
 				else {
 					let wpn = prof.toLowerCase();
 					// Swap something like "Crossbow, Hand" to become "Hand Crossbow"
@@ -348,54 +348,54 @@ export default class RWDND5EActor {
 					
 					let min = wpn.toLowerCase().replaceAll(' ','');
 					if (DND5E.weaponIds[min])
-						actor.data.traits.weaponProf.value.push(min);
+						actor.system.traits.weaponProf.value.push(min);
 					else 
 						wcust.push(prof);
 				}
 			}
-			actor.data.traits.weaponProf.custom = wcust.join(';');
+			actor.system.traits.weaponProf.custom = wcust.join(';');
 		
-			actor.data.traits.armorProf = { value: [], custom: "" };
+			actor.system.traits.armorProf = { value: [], custom: "" };
 			let acust = [];
 			for (const prof of character.armorproficiencies.text.split('; ')) {
 				if (prof === 'Light armor')
-					actor.data.traits.armorProf.value.push('lgt');
+					actor.system.traits.armorProf.value.push('lgt');
 				else if (prof === 'Medium armor')
-					actor.data.traits.armorProf.value.push('med');
+					actor.system.traits.armorProf.value.push('med');
 				else if (prof === 'Heavy armor')
-					actor.data.traits.armorProf.value.push('hvy');
+					actor.system.traits.armorProf.value.push('hvy');
 				else if (prof === 'Shields')
-					actor.data.traits.armorProf.value.push('shl');
+					actor.system.traits.armorProf.value.push('shl');
 				else
 					acust.push(prof);
 			}
-			actor.data.traits.armorProf.custom = acust.join(';');
+			actor.system.traits.armorProf.custom = acust.join(';');
 		
-			actor.data.traits.toolProf = { value: [], custom: "" };
+			actor.system.traits.toolProf = { value: [], custom: "" };
 			let tcust = [];
 			for (const prof of character.toolproficiencies.text.split('; ')) {
 				let tool = RWDND5EActor.tool_proficiencies[prof.toLowerCase()]
 				if (tool)
-					actor.data.traits.toolProf.value.push(tool)
+					actor.system.traits.toolProf.value.push(tool)
 				else
 					tcust.push(prof);
 			}
-			actor.data.traits.toolProf.custom = tcust.join(';');
+			actor.system.traits.toolProf.custom = tcust.join(';');
 		}
 		
 		//
 		// EXTRA for 'npc'
 		//
 		if (actor.type === 'npc') {
-			actor.data.details.type = { value: "", subtype: "", swarm: "", custom: "" }
-			actor.data.details.environment = ""
-			actor.data.details.cr = 1
-			actor.data.details.spellLevel = 0
-			actor.data.details.xp = { value: 10 }
-			actor.data.details.source = ""
-			actor.data.resources.legact = { value: 0, max: 0 }
-			actor.data.resources.legres = { value: 0, max: 0 }
-			actor.data.resources.lair   = { value: 0, initiative: 0 }
+			actor.system.details.type = { value: "", subtype: "", swarm: "", custom: "" }
+			actor.system.details.environment = ""
+			actor.system.details.cr = 1
+			actor.system.details.spellLevel = 0
+			actor.system.details.xp = { value: 10 }
+			actor.system.details.source = ""
+			actor.system.resources.legact = { value: 0, max: 0 }
+			actor.system.resources.legres = { value: 0, max: 0 }
+			actor.system.resources.lair   = { value: 0, initiative: 0 }
 		}
 
 		//
@@ -419,9 +419,9 @@ export default class RWDND5EActor {
 				});
 				
 				if (entry) {
-					let itemdata = (await item_pack.getDocument(entry._id)).data.toObject();
+					let itemdata = (await item_pack.getDocument(entry._id)).toObject();
 					if (othername) itemdata.name = name;
-					itemdata.data.quantity = +item.quantity;
+					itemdata.system.quantity = +item.quantity;
 					// Equipped state of equipment is stored in the melee/ranged/defenses section
 					let equipped = false;
 					for (const armor of toArray(character.defenses.armor)) {
@@ -442,14 +442,14 @@ export default class RWDND5EActor {
 							break;
 						}
 					}
-					if (equipped) itemdata.data.equipped = true;
+					if (equipped) itemdata.system.equipped = true;
 					actor.items.push(itemdata);
 				} else {
 					// Create our own placemarker item.
 					const itemdata = {
 						name: name,
 						type: 'loot',
-						data: {
+						system: {
 							// itemDescription template
 							description: {
 								value: addParas(item.description['#text']),
@@ -485,13 +485,13 @@ export default class RWDND5EActor {
 					return elc === lower;
 				});
 				if (entry) {
-					actor.items.push((await spell_pack.getDocument(entry._id)).data.toObject());
+					actor.items.push((await spell_pack.getDocument(entry._id)).toObject());
 				} else {
 					// Create our own placemarker item.
 					let itemdata = {
 						name: spell.name,
 						type: 'spell',
-						data: {
+						system: {
 							// itemDescription template
 							description: {
 								value: addParas(spell.description['#text']),
@@ -561,9 +561,9 @@ export default class RWDND5EActor {
 					};
 					for (const comp of toArray(spell.spellcomp)) {
 						let label = comp["#text"];
-						if      (label === 'Verbal')   itemdata.data.components.vocal    = true;
-						else if (label === 'Somatic')  itemdata.data.components.somatic  = true;
-						else if (label === 'Material') itemdata.data.components.material = true;
+						if      (label === 'Verbal')   itemdata.system.components.vocal    = true;
+						else if (label === 'Somatic')  itemdata.system.components.somatic  = true;
+						else if (label === 'Material') itemdata.system.components.material = true;
 					}
 
 					actor.items.push(itemdata);
@@ -595,13 +595,13 @@ export default class RWDND5EActor {
 			}
 			
 			if (entry) {
-				actor.items.push((await pack.getDocument(entry._id)).data.toObject());
+				actor.items.push((await pack.getDocument(entry._id)).toObject());
 			} else {
 				// Add a "feat"
 				let itemdata = {
 					name: ability.name,
 					type: 'feat',
-					data: {
+					system: {
 						// itemDescription template
 						description: {
 							value: addParas(ability.description['#text']),
@@ -661,14 +661,14 @@ export default class RWDND5EActor {
 			});
 			
 			if (entry) {
-				let itemdata = (await class_pack.getDocument(entry._id)).data.toObject();
-				itemdata.data.levels = cls.level;
+				let itemdata = (await class_pack.getDocument(entry._id)).toObject();
+				itemdata.system.levels = cls.level;
 				actor.items.push(itemdata);
 			} else {
 				let itemdata = {
-					name : cls.name,
-					type : 'class',
-					data : {
+					name: cls.name,
+					type: 'class',
+					system: {
 						// itemDescription template
 						description: {
 							value: "",
@@ -695,7 +695,7 @@ export default class RWDND5EActor {
 					}
 				}
 				// Some NPC classes don't have a description
-				if (cls.description) itemdata.data.description.value = addParas(cls.description['#text']);
+				if (cls.description) itemdata.system.description.value = addParas(cls.description['#text']);
 				actor.items.push(itemdata);
 			}
 		}
