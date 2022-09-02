@@ -28,7 +28,7 @@ function noType(name) {
 	return name;
 }
 
-// The types of Item which represent stuff that an Actor can carry
+// The types of Item which appear on the Inventory tab of Actors
 const ITEM_TYPES = [
 	//'attack',
 	//'buff',
@@ -175,7 +175,7 @@ export default class RWPF1Actor {
 		let feats = { core: [], modules: []};
 		let classfeats = { core: [], modules: []};
 		for (const pack of game.packs) {
-			if (pack.metadata.type === 'Item' || pack.metadata.entity === 'Item')
+			if (pack.metadata.type === 'Item')
 			{
 				// 'type' of 'Item' documents are:
 				// attack
@@ -195,19 +195,20 @@ export default class RWPF1Actor {
 				else if (pack.metadata.name.includes('class-abilities'))
 					stuff = classfeats;
 
-				if (pack.metadata.package === 'pf1')
+				if (pack.metadata.packageName === 'pf1')
 					stuff.core.push(pack);
 				else if (
-					pack.metadata.package === 'pf-content' ||
-					pack.metadata.package === 'pf1-archetypes')
+					pack.metadata.packageName === 'pf-content' ||
+					pack.metadata.packageName === 'pf1-archetypes')
 					stuff.modules.push (pack);
 			}
 		}
+		// Core packs have better modifiers in them, so use them first.
 		// Always put the core packs last - i.e. prefer contents from modules before core
 		// so that the module compendiums are searched first.
-		RWPF1Actor.item_packs = items.modules.concat(items.core);
-		RWPF1Actor.feat_packs = feats.modules.concat(feats.core);
-		RWPF1Actor.classability_packs = classfeats.modules.concat(classfeats.core);
+		RWPF1Actor.item_packs = items.core.concat(items.modules);
+		RWPF1Actor.feat_packs = feats.core.concat(feats.modules);
+		RWPF1Actor.classability_packs = classfeats.core.concat(classfeats.modules);
 	}
 	
 	static async createActorData(character) {
@@ -242,7 +243,7 @@ export default class RWPF1Actor {
 				skills: {},
 				traits: {},
 			},
-			items: []		// add items with :   items.push(new Item(itemdata).data)
+			items: []		// add items with :   items.push(new Item(itemdata).system)
 		};
 
 		//
@@ -654,7 +655,7 @@ export default class RWPF1Actor {
 				actiondata.attackType = "natural";		// or weapon?
 				actiondata.nonlethal = (attack.damage.indexOf("nonlethal") != -1);
 
-				itemdata.data.actions = [actiondata];
+				itemdata.system.actions = [actiondata];
 				//itemdata.actions = new Map();
 				//itemdata.actions.set(actiondata._id, actiondata);
 
@@ -994,11 +995,11 @@ export default class RWPF1Actor {
 					}
 				}
 			}
-			if (!itemdata.data.uses?.max) {
+			if (!itemdata.system.uses?.max) {
 				// maybe add uses
 				let uses = trait.name.match(/ \((\d+)\/([\w]+)\)/);
 				if (uses) {
-					itemdata.data.uses = { max : +uses[1], per: uses[2], value: 0}
+					itemdata.system.uses = { max : +uses[1], per: uses[2], value: 0}
 					itemdata.name = trait.name.slice(0,uses.index);
 				}
 			}
@@ -1050,9 +1051,9 @@ export default class RWPF1Actor {
 				}
 			}
 			itemdata.name = noType(specname);
-			//itemdata.data.featType = 'racial';
-			itemdata.data.description = { value: addParas(special.description['#text'])};
-			if (special.type) itemdata.data.abilityType = special.type.slice(0,2).toLowerCase();
+			//itemdata.system.featType = 'racial';
+			itemdata.system.description = { value: addParas(special.description['#text'])};
+			if (special.type) itemdata.system.abilityType = special.type.slice(0,2).toLowerCase();
 			actor.items.push(itemdata);
 		}
 		
@@ -1518,7 +1519,7 @@ export default class RWPF1Actor {
 		// item.type = weapon | equipment | consumable | loot | class | spell | feat | buff | attack | race | container
 
 		let item = {
-			// "type" will be promoted outside of the item.data object
+			// "type" will be promoted outside of the item.system object
 			description: {
 				value : content,
 			}
