@@ -1,111 +1,56 @@
 export default class RWDND5EActor {
-
-	static ability_names = {
-		"strength" : "str",
-		"dexterity" : "dex",
-		"constitution" : "con",
-		"intelligence" : "int",
-		"wisdom" : "wis",
-		"charisma" : "cha",
-		// Just so that we don't have to have conditional code to check if it is long or short name
-		"str" : "str",
-		"dex" : "dex",
-		"con" : "con",
-		"int" : "int",
-		"wis" : "wis",
-		"cha" : "cha"
-	};
 	
 	static tool_proficiencies = {
-	"alchemist's supplies": "alchemist",
-	"bagpipes": "bagpipes",
-	"brewer's supplies": "brewer",
-	"calligrapher's supplies": "calligrapher",
-	"playing card set": "card",
-	"three-dragon ante set": "card",
-	"carpenter's tools": "carpenter",
-	"cartographer's tools": "cartographer",
-	"dragonchess set": "chess",
-	"cobbler's tools": "cobbler",
-	"cook's utensils": "cook",
-	"dice set": "dice",
-	"disguise kit": "disg",
-	"drum": "drum",
-	"dulcimer": "dulcimer",
-	"flute": "flute",
-	"forgery kit": "forg",
-	"glassblower's tools": "glassblower",
-	"herbalism kit": "herb",
-	"horn": "horn",
-	"jeweler's tools": "jeweler",
-	"leatherworker's tools": "leatherworker",
-	"lute": "lute",
-	"lyre": "lyre",
-	"mason's tools": "mason",
-	"navigator's tools": "navg",
-	"painter's supplies": "painter",
-	"pan flute": "panflute",
-	"poisoner's kit": "pois",
-	"potter's tools": "potter",
-	"shawm": "shawm",
-	"smith's tools": "smith",
-	"thieves' tools": "thief",
-	"tinker's tools": "tinker",
-	"viol": "viol",
-	"weaver's tools": "weaver",
-	"woodcarver's tools": "woodcarver",
-	}
-	
-	static skill_names = {
-		"Acrobatics"      : "acr",
-		"Animal Handling" : "ani",
-		"Arcana"          : "arc",
-		"Athletics"       : "ath",
-		"Deception"       : "dec",
-		"History"         : "his",
-		"Insight"         : "ins",
-		"Intimidation"    : "itm",
-		"Investigation"   : "inv",
-		"Medicine"        : "med",
-		"Nature"          : "nat",
-		"Perception"      : "prc",
-		"Performance"     : "prf",
-		"Persuasion"      : "per",
-		"Religion"        : "rel",
-		"Sleight of Hand" : "slt",
-		"Stealth"         : "ste",
-		"Survival"        : "sur",
-	}
-	
+		// These are in HL but not in DND5E Items (SRD) compendium
+		"playing card set": "card",
+		"three-dragon ante set": "card",
+		"dragonchess set": "chess",
+	};
+
+	static once;
+	static ability_names = {};
+	static skill_names   = {};
+	static spell_schools = {};
+	static armor_profs   = {};
+	static actor_sizes   = {}; // not lower case
+
 	static item_names = {
 		"dragonchess set" : "gaming set of chess",
 		"acid" : "acid (vial)",
 	}
 	
-	static spell_schools = {
-		"abjuration"  : "abj",
-		"conjuration" : "con",
-		"divination"  : "div",
-		"enchantment" : "enc",
-		"evocation"   : "evo",
-		"illusion"    : "ill",
-		"necromancy"  : "nec",
-		"transmutation" : "trs",
-	}
-	
 	static async initModule() {
-		// Ensure all packs have valid indices
-		await game.packs.find(p => p.metadata.name === 'classes')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'classfeatures')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'heroes')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'items')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'monsterfeatures')?.getIndex();	// creature types
-		await game.packs.find(p => p.metadata.name === 'monsters')?.getIndex();	// creature types
-		await game.packs.find(p => p.metadata.name === 'racialfeatures')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'races')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'rules')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'spells')?.getIndex();
-		await game.packs.find(p => p.metadata.name === 'tradegoods')?.getIndex();
+		if (RWDND5EActor.once) return;
+		RWDND5EActor.once=true;
+
+		// Create look-up tables from the system's data tables
+		const skills = game.dnd5e.config.skills;
+		for (const [key,value] of Object.entries(skills)) {
+			RWDND5EActor.skill_names[value.label] = key;
+		}
+		const schools = game.dnd5e.config.spellSchools;
+		for (const [key,value] of Object.entries(schools)) {
+			RWDND5EActor.spell_schools[value.toLowerCase()] = key;
+		}
+		const abilities = game.dnd5e.config.abilities;  // both "strength" and "str" are stored with "str" as the value
+		for (const [key,value] of Object.entries(abilities)) {
+			RWDND5EActor.ability_names[value.toLowerCase()] = key;
+			RWDND5EActor.ability_names[key] = key;
+		}
+		const tools = game.dnd5e.config.toolIds;
+		let item_pack = await game.packs.find(p => p.metadata.name === 'items');
+		for (const [key,value] of Object.entries(tools)) {
+			// Find name from Items compendium
+			RWDND5EActor.tool_proficiencies[item_pack.index.get(value).name.toLowerCase()] = key;
+		}
+		const armorprofs = game.dnd5e.config.armorProficiencies;
+		for (const [key,value] of Object.entries(armorprofs)) {
+			RWDND5EActor.armor_profs[value.toLowerCase()] = key;
+		}
+		const actorSizes = game.dnd5e.config.actorSizes;
+		for (const [key,value] of Object.entries(actorSizes)) {
+			RWDND5EActor.actor_sizes[value] = key;  // not lower case
+		}
 	}
 
 	static async createActorData(character) {
@@ -191,9 +136,6 @@ export default class RWDND5EActor {
 		actor.system.attributes.movement = { walk: +character.movement.basespeed.value };
 		// actor.details.biography = { value : "", public: "" }
 		
-		//actor.traits.di = { value : [], custom: "" };
-		actor.system.traits = {};
-		
 		function resist(string, predefined) {
 			let values = [];
 			let custom = [];
@@ -206,19 +148,13 @@ export default class RWDND5EActor {
 			}
 			return { value : values, custom : custom.join(';') }
 		}
-		actor.system.traits.di = resist(character.damageimmunities.text,      game.dnd5e.config.damageTypes);
-		actor.system.traits.dr = resist(character.damageresistances.text,     game.dnd5e.config.damageTypes);
-		actor.system.traits.dv = resist(character.damagevulnerabilities.text, game.dnd5e.config.damageTypes);
-		actor.system.traits.ci = resist(character.conditionimmunities.text,   game.dnd5e.config.conditionTypes);
-		
-		switch (character.size.name) {
-			case 'Tiny':       actor.system.traits.size = "tny";  break;
-			case 'Small':      actor.system.traits.size = "sm";   break;
-			case 'Medium':     actor.system.traits.size = "med";  break;
-			case 'Large':      actor.system.traits.size = "lg";   break;
-			case 'Huge':       actor.system.traits.size = "huge"; break;
-			case 'Gargantuan': actor.system.traits.size = "grg";  break;
-		}
+		actor.system.traits = {
+			di: resist(character.damageimmunities.text,      game.dnd5e.config.damageTypes),
+		    dr: resist(character.damageresistances.text,     game.dnd5e.config.damageTypes),
+			dv: resist(character.damagevulnerabilities.text, game.dnd5e.config.damageTypes),
+			ci: resist(character.conditionimmunities.text,   game.dnd5e.config.conditionTypes),
+			size: RWDND5EActor.actor_sizes[character.size.name]
+		};
 		
 		for (const money of character.money.coins) {
 			actor.system.currency[money.abbreviation] = +money.count;
@@ -356,14 +292,9 @@ export default class RWDND5EActor {
 			actor.system.traits.armorProf = { value: [], custom: "" };
 			let acust = [];
 			for (const prof of character.armorproficiencies.text.split('; ')) {
-				if (prof === 'Light armor')
-					actor.system.traits.armorProf.value.push('lgt');
-				else if (prof === 'Medium armor')
-					actor.system.traits.armorProf.value.push('med');
-				else if (prof === 'Heavy armor')
-					actor.system.traits.armorProf.value.push('hvy');
-				else if (prof === 'Shields')
-					actor.system.traits.armorProf.value.push('shl');
+				let id = RWDND5EActor.armor_profs[prof.toLowerCase()];
+				if (id)
+					actor.system.traits.armorProf.value.push(id);
 				else
 					acust.push(prof);
 			}
