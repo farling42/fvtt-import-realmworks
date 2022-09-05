@@ -1,3 +1,14 @@
+## 2.4
+
+Foundry V10 seems to load every esmodule rather than only when referenced from the main import module. This meant that a file from the PF1 game system was trying to be accessed in every world. The module has been changed to no longer do this.
+
+DND5E Actor decoding now sets CR and XP correctly for NPCs.
+
+PF1 Actor decoding:
+
+- Collects compendiums only once regardless of the number of actors being generated.
+- Searches for "Item (Extra)" also as "Item, Extra"
+
 ## 2.3
 
 Get secret sections to work as per Foundry V10 - providing the reveal/hide button.
