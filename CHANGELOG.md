@@ -1,3 +1,5 @@
+# CHANGELOG
+
 ## 2.4
 
 Foundry V10 seems to load every esmodule rather than only when referenced from the main import module. This meant that a file from the PF1 game system was trying to be accessed in every world. The module has been changed to no longer do this.
@@ -191,9 +193,7 @@ Further reduce the amount of HTML generated for each journal entry (faster world
 
 Ensure new text block names are less likely to conflict with other modules (internal to the code).
 
-Add a new configuration **Use 'secret' in Unrevealed Topics**, which when ticked will do the normal topic generation, but if unticked then topics 
-which are NOT revealed in RW will NOT have any secret sections in their corresponding Journal Entries. This is so that the journal entry doesn't end up
-with large portions of it using the secret (darker) background.
+Add a new configuration **Use 'secret' in Unrevealed Topics**, which when ticked will do the normal topic generation, but if unticked then topics which are NOT revealed in RW will NOT have any secret sections in their corresponding Journal Entries. This is so that the journal entry doesn't end up with large portions of it using the secret (darker) background.
 
 Add information about new editor blocks in README.md
 
@@ -331,7 +331,7 @@ Fix an issue where links were misaligned inside/after tables within a snippet.
 
 ## 1.0.0
 
-**IMPORTANT: Change to read RWEXPORT files instead of rwoutput files**
+**IMPORTANT**: Changed to read RWEXPORT files instead of rwoutput files
 
 This will ensure that links are always created correctly.
 
@@ -526,7 +526,7 @@ Hopefully speed up processing time.
 
 Add one entry in "module settings" window of Foundry to support configuring the upload folder for assets (pictures, videos, sounds, etc.).
 
-## 0.3.7 
+## 0.3.7
 
 README.md and FUNDING.yml updated with Ko-Fi link.
 
