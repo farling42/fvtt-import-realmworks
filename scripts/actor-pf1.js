@@ -1,5 +1,3 @@
-import { ItemAction } from "../../../systems/pf1/pf1.js";
-
 /**
  * 
  * @param {*} packs     An array of packs to check
@@ -45,6 +43,8 @@ const ITEM_TYPES = [
 	'loot',
 	'weapon'
 ];
+
+let ItemAction;
 
 export default class RWPF1Actor {
 
@@ -172,6 +172,11 @@ export default class RWPF1Actor {
 	static classability_packs;
 
 	static async initModule() {
+		// Load ItemAction class
+		//import { ItemAction } from "../../../systems/pf1/pf1.js";
+		let { ItemAction:temp } = await import("../../../systems/pf1/pf1.js");
+		ItemAction = temp;
+
 		// Get a list of the compendiums to search,
 		// using compendiums in the two support modules first (if loaded)
 		RWPF1Actor.item_packs = [];
@@ -751,7 +756,7 @@ export default class RWPF1Actor {
 			if (lower.endsWith(')')) {
 				let pos = lower.lastIndexOf(' (');
 				noparen = lower.slice(0,pos) + ', ' + lower.slice(pos+2,-1);
-				console.error(`'${item.name}' has noparen = '${noparen}'`)
+				//console.error(`'${item.name}' has noparen = '${noparen}'`)
 			}
 			// Remove container "(x @ y lbs)"
 			//if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)') || lower.endsWith('/day)')))

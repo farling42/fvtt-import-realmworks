@@ -1,5 +1,3 @@
-import { DND5E } from "../../../systems/dnd5e/module/config.js";
-
 export default class RWDND5EActor {
 
 	static ability_names = {
@@ -208,10 +206,10 @@ export default class RWDND5EActor {
 			}
 			return { value : values, custom : custom.join(';') }
 		}
-		actor.system.traits.di = resist(character.damageimmunities.text,      DND5E.damageTypes);
-		actor.system.traits.dr = resist(character.damageresistances.text,     DND5E.damageTypes);
-		actor.system.traits.dv = resist(character.damagevulnerabilities.text, DND5E.damageTypes);
-		actor.system.traits.ci = resist(character.conditionimmunities.text,   DND5E.conditionTypes);
+		actor.system.traits.di = resist(character.damageimmunities.text,      game.dnd5e.config.damageTypes);
+		actor.system.traits.dr = resist(character.damageresistances.text,     game.dnd5e.config.damageTypes);
+		actor.system.traits.dv = resist(character.damagevulnerabilities.text, game.dnd5e.config.damageTypes);
+		actor.system.traits.ci = resist(character.conditionimmunities.text,   game.dnd5e.config.conditionTypes);
 		
 		switch (character.size.name) {
 			case 'Tiny':       actor.system.traits.size = "tny";  break;
@@ -270,7 +268,7 @@ export default class RWDND5EActor {
 			let name = lang.name.toLowerCase();
 			if (name === "deep speech")
 				actor.system.traits.languages.value.push("deep");
-			else if (CONFIG.DND5E.languages[name])
+			else if (game.dnd5e.config.languages[name])
 				actor.system.traits.languages.value.push(name);
 			else
 				lcust.push(lang.name);
@@ -347,7 +345,7 @@ export default class RWDND5EActor {
 					if (pos > 0) wpn = wpn.slice(pos+2) + ' ' + wpn.slice(0,pos);
 					
 					let min = wpn.toLowerCase().replaceAll(' ','');
-					if (DND5E.weaponIds[min])
+					if (game.dnd5e.config.weaponIds[min])
 						actor.system.traits.weaponProf.value.push(min);
 					else 
 						wcust.push(prof);
@@ -381,17 +379,15 @@ export default class RWDND5EActor {
 					tcust.push(prof);
 			}
 			actor.system.traits.toolProf.custom = tcust.join(';');
-		}
-		
-		//
-		// EXTRA for 'npc'
-		//
-		if (actor.type === 'npc') {
+		} else if (actor.type === 'npc') {
+			//
+			// EXTRA for 'npc'
+			//
 			actor.system.details.type = { value: "", subtype: "", swarm: "", custom: "" }
 			actor.system.details.environment = ""
-			actor.system.details.cr = 1
+			actor.system.details.cr = +character.challengerating.value;
 			actor.system.details.spellLevel = 0
-			actor.system.details.xp = { value: 10 }
+			actor.system.details.xp = { value: +character.xpaward.value }
 			actor.system.details.source = ""
 			actor.system.resources.legact = { value: 0, max: 0 }
 			actor.system.resources.legres = { value: 0, max: 0 }
