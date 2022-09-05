@@ -974,9 +974,9 @@ class RealmWorksImporter extends Application
 		
 		const id = this.document_for_topic.get(topic_id)?._id;
 		if (id)
-			return `${prefix}@${link_type}[${id}]{${link_text}}${suffix}`;
+			return `${prefix}@UUID[${link_type}.${id}]{${link_text}}${suffix}`;
 		else
-			return `${prefix}@${link_type}[${link_text}]${suffix}`;
+			return `${prefix}@UUID[${link_type}.${link_text}]${suffix}`;
 	}
 	
 	// Some image files are changed to .png (from .bmp .gif .tif .tiff)
@@ -1449,7 +1449,7 @@ class RealmWorksImporter extends Application
 				table = await RollTable.create(tabledata).catch(e => console.warn(`Failed to create roll table '${tabledata.name}' due to ${e}`));
 			}
 			// Add the new table to the HTML to be returned
-			result += hpara(`@RollTable[${table.id}]{${table.name}}`);
+			result += hpara(`@UUID[RollTable.${table.id}]{${table.name}}`);
 		}
 		
 		return result;
@@ -1676,7 +1676,7 @@ class RealmWorksImporter extends Application
 
 						// Create the scene now
 						await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
-							.then(sceneid => result += hpara(`@Scene[${sceneid}]{${smart_image.getAttribute('name')}}`))
+							.then(sceneid => result += hpara(`@UUID[Scene.${sceneid}]{${smart_image.getAttribute('name')}}`))
 							.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
 					}
 					break;

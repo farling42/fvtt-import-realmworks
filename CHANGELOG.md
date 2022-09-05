@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.5
+
+Change created link format to the V10 preferred format @UUID[type.id]
+
 ## 2.4
 
 Foundry V10 seems to load every esmodule rather than only when referenced from the main import module. This meant that a file from the PF1 game system was trying to be accessed in every world. The module has been changed to no longer do this.
