@@ -1757,9 +1757,9 @@ class RealmWorksImporter extends Application
 				// These come first
 				let alias;
 				if (node.getAttribute('is_true_name') === 'true')
-					alias = `<p class="trueName">${hemphasis(hlabel("True Name") + node.getAttribute('name'))}</p>`;
+					alias = `<p class="RWtrueName">${hemphasis(hlabel("True Name") + node.getAttribute('name'))}</p>`;
 				else
-					alias = `<p>${hemphasis(hlabel("Alias") + node.getAttribute('name'))}</p>`;
+					alias = `<p class="RWaliasName">${hemphasis(hlabel("Alias") + node.getAttribute('name'))}</p>`;
 				html += simplesection(section_context, node.hasAttribute('is_revealed'), alias);
 				break;
 			case 'section':
