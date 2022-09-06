@@ -24,30 +24,30 @@ export default class RWDND5EActor {
 		RWDND5EActor.once=true;
 
 		// Create look-up tables from the system's data tables
-		const skills = game.dnd5e.config.skills;
+		const skills = CONFIG.DND5E.skills;
 		for (const [key,value] of Object.entries(skills)) {
 			RWDND5EActor.skill_names[value.label] = key;
 		}
-		const schools = game.dnd5e.config.spellSchools;
+		const schools = CONFIG.DND5E.spellSchools;
 		for (const [key,value] of Object.entries(schools)) {
 			RWDND5EActor.spell_schools[value.toLowerCase()] = key;
 		}
-		const abilities = game.dnd5e.config.abilities;  // both "strength" and "str" are stored with "str" as the value
+		const abilities = CONFIG.DND5E.abilities;  // both "strength" and "str" are stored with "str" as the value
 		for (const [key,value] of Object.entries(abilities)) {
 			RWDND5EActor.ability_names[value.toLowerCase()] = key;
 			RWDND5EActor.ability_names[key] = key;
 		}
-		const tools = game.dnd5e.config.toolIds;
+		const tools = CONFIG.DND5E.toolIds;
 		let item_pack = await game.packs.find(p => p.metadata.name === 'items');
 		for (const [key,value] of Object.entries(tools)) {
 			// Find name from Items compendium
 			RWDND5EActor.tool_proficiencies[item_pack.index.get(value).name.toLowerCase()] = key;
 		}
-		const armorprofs = game.dnd5e.config.armorProficiencies;
+		const armorprofs = CONFIG.DND5E.armorProficiencies;
 		for (const [key,value] of Object.entries(armorprofs)) {
 			RWDND5EActor.armor_profs[value.toLowerCase()] = key;
 		}
-		const actorSizes = game.dnd5e.config.actorSizes;
+		const actorSizes = CONFIG.DND5E.actorSizes;
 		for (const [key,value] of Object.entries(actorSizes)) {
 			RWDND5EActor.actor_sizes[value] = key;  // not lower case
 		}
@@ -149,10 +149,10 @@ export default class RWDND5EActor {
 			return { value : values, custom : custom.join(';') }
 		}
 		actor.system.traits = {
-			di: resist(character.damageimmunities.text,      game.dnd5e.config.damageTypes),
-		    dr: resist(character.damageresistances.text,     game.dnd5e.config.damageTypes),
-			dv: resist(character.damagevulnerabilities.text, game.dnd5e.config.damageTypes),
-			ci: resist(character.conditionimmunities.text,   game.dnd5e.config.conditionTypes),
+			di: resist(character.damageimmunities.text,      CONFIG.DND5E.damageTypes),
+		    dr: resist(character.damageresistances.text,     CONFIG.DND5E.damageTypes),
+			dv: resist(character.damagevulnerabilities.text, CONFIG.DND5E.damageTypes),
+			ci: resist(character.conditionimmunities.text,   CONFIG.DND5E.conditionTypes),
 			size: RWDND5EActor.actor_sizes[character.size.name]
 		};
 		
@@ -204,7 +204,7 @@ export default class RWDND5EActor {
 			let name = lang.name.toLowerCase();
 			if (name === "deep speech")
 				actor.system.traits.languages.value.push("deep");
-			else if (game.dnd5e.config.languages[name])
+			else if (CONFIG.DND5E.languages[name])
 				actor.system.traits.languages.value.push(name);
 			else
 				lcust.push(lang.name);
@@ -281,7 +281,7 @@ export default class RWDND5EActor {
 					if (pos > 0) wpn = wpn.slice(pos+2) + ' ' + wpn.slice(0,pos);
 					
 					let min = wpn.toLowerCase().replaceAll(' ','');
-					if (game.dnd5e.config.weaponIds[min])
+					if (CONFIG.DND5E.weaponIds[min])
 						actor.system.traits.weaponProf.value.push(min);
 					else 
 						wcust.push(prof);
