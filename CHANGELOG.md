@@ -4,6 +4,7 @@
 
 - Change created link format to the V10 preferred format @UUID[type.id]
 - Replace hard-coded lookup tables for DND5E with tables constructed from the system's data tables.
+- Add RWtrueName and RWaliasName classes to style.css (only trueName has a defined style of underline).
 
 ## 2.4
 
