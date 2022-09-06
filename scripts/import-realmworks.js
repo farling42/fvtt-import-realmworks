@@ -115,7 +115,6 @@ const RW_editor_gm_options = {
 		},
 	]
 };
-const SUPPORTED_VIDEO_FORMATS = [ "webm", "mp4", "m4v" ];
 
 //
 // Register game settings
@@ -387,7 +386,7 @@ function escapeHTML(s) {
 	return s.replace( /[&"'<>]/g, c => lookup[c] );
 }
 
-let idnumber=0;
+let idnumber=0;  // we simply need a random-yet-unique id for each section (to work properly with Foundry's reveal/hide button)
 function startSection(section_context, classes) {
 	// Ignore setting "secret" if the context says to do so
 	// (which would be when the topic is NOT revealed and the user doesn't want it all marked as SECRET
@@ -424,7 +423,7 @@ function stripPara(original) {
 	return original;
 }
 // Remove the default class information from the RW formatting to reduce the size of the final HTML.
-function simplifyPara(original) { // UNUSED - is it worth keeping?
+function simplifyPara(original) {
 	// Too much effort to remove <span> and </span> tags, so just simplify.
 	// Replace <span class="RWSnippet">...</span> with just the ...
 	// Replace <span>...</span> with just the ...
@@ -439,10 +438,7 @@ function simplifyPara(original) { // UNUSED - is it worth keeping?
 		replaceAll(/<span class="RWSnippet" /g,'<span ').
 		replaceAll(/<span><sub>([^<]*)<\/sub><\/span>/g,'<sub>$1</sub>').
 		replaceAll(/<span><sup>([^<]*)<\/sup><\/span>/g,'<sup>$1</sup>').
-		replaceAll(/<p class="RWDefault">/g,'<p>').
-		replaceAll(/<p class="RWDefault" /g,'<p ').
-		replaceAll(/<p class="RWSnippet">/g,'<p>').
-		replaceAll(/<p class="RWSnippet" /g,'<p ').
+		replaceAll(/<(p|li) class="(RWDefault|RWSnippet)"(>| )/g,'<$1 $3').
 		replaceAll(/<p class="RWBullet">(.*?)<\/p>/g, '<ul><li>$1</li></ul>').
 		replaceAll(/<p class="RWEnumerated">(.*?)<\/p>/g, '<ol><li>$1</li></ol>').
 		replaceAll(/<\/ul><ul>/g,'').		// Two consecutive RWBullet, so merge into a single ul list
@@ -1761,7 +1757,7 @@ class RealmWorksImporter extends Application
 				// These come first
 				let alias;
 				if (node.getAttribute('is_true_name') === 'true')
-					alias = `<p style="text-decoration: underline">${hemphasis(hlabel("True Name") + node.getAttribute('name'))}</p>`;
+					alias = `<p class="trueName">${hemphasis(hlabel("True Name") + node.getAttribute('name'))}</p>`;
 				else
 					alias = `<p>${hemphasis(hlabel("Alias") + node.getAttribute('name'))}</p>`;
 				html += simplesection(section_context, node.hasAttribute('is_revealed'), alias);

@@ -61,3 +61,6 @@ section.RWgmDirections {
 	border: 2px solid #d2c5b5;
 	padding: 0px 3px;
 }
+p.trueName {
+	text-decoration: underline;
+}
