@@ -14,6 +14,7 @@
 - PF1: Try to guess the correct amount of temporary HP.
 - PF1: Include archetype in the class name.
 - PF1: Include the sourcetext (e.g. class) for each manually created Feature.
+- PF1: Fix attack bonuses for natural attacks.
 
 ## 2.4
 
