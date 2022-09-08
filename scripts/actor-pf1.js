@@ -45,6 +45,7 @@ const ITEM_TYPES = [
 ];
 
 let ItemAction;
+let ItemSpellPF;
 
 export default class RWPF1Actor {
 
@@ -174,8 +175,9 @@ export default class RWPF1Actor {
 	static async initModule() {
 		// Load ItemAction class
 		//import { ItemAction } from "../../../systems/pf1/pf1.js";
-		let { ItemAction:temp } = await import("../../../systems/pf1/pf1.js");
-		ItemAction = temp;
+		let { ItemAction:temp1, ItemSpellPF:temp2 } = await import("../../../systems/pf1/pf1.js");
+		ItemAction  = temp1;
+		ItemSpellPF = temp2;
 
 		// Get a list of the compendiums to search,
 		// using compendiums in the two support modules first (if loaded)
@@ -778,6 +780,33 @@ export default class RWPF1Actor {
 				(reversed && itemname === reversed) || 
 				(noparen  && itemname === noparen))
 
+			// Potions, Scrolls and Wands
+			if (!itemdata) {
+				let type;
+				if (lower.startsWith('potion of '))
+					type='potion';
+				else if (lower.startsWith('scroll of '))
+					type='scroll';
+				else if (lower.startsWith('wand of '))
+					type='wand';
+				if (type) {
+					let pos = lower.indexOf(' of ');
+					let spells = lower.slice(pos+4).split(', ');
+					for (const spellname of spells) {
+						let spelldata = await searchPacks(RWPF1Actor.item_packs, ['spell'], itemname => itemname == spellname);
+						if (!spelldata) {
+							console.error(`Failed to find spell '${spellname}' for item '${item.name}'`)
+						}
+						let itemdata = await ItemSpellPF.toConsumable(spelldata, type);
+						if (itemdata)
+							actor.items.push(itemdata);
+						else
+							console.error(`Failed to create ${type} for '${item.name}'`);
+					}
+				}
+				// Abort the rest of creation for this item
+				continue;
+			}
 			if (!itemdata) {
 				// Maybe this item contains a longer description, so look for an item whose name
 				// appears at the end of this item's name
