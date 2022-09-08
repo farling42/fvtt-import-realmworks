@@ -249,10 +249,11 @@ export default class RWPF1Actor {
 			return `<p>${string.replace(/\n/g,'</p><p>')}</p>`;
 		}
 		
-		// A HL file will have EITHER <xp> or <challengerating> & <xpaward>
+		// role="pc" is set on any character's in a PC's portfolio, including sidekicks and mounts.
+		// A better test is to check for type="Hero" to detect a proper PC.
 		let actor = {
 			name: character.name,
-			type: (character.role === 'pc') ? 'character' : 'npc',		// 'npc' or 'character'
+			type: (character.role === 'pc' && character.type === 'Hero') ? 'character' : 'npc',		// 'npc' or 'character'
 			relationship : character.relationship,
 			system: {
 				abilities: {},
@@ -282,7 +283,7 @@ export default class RWPF1Actor {
 		// system.attributes.woundThresholds.penalty/mod/level/override
 
 		// system.details.cr.base/total
-		if (actor.type == 'pc') {
+		if (actor.type === 'character') {
 			// system.details.xp.value/min/max
 			actor.system.details.xp = {
 				value: +character.xp.total,
@@ -320,7 +321,17 @@ export default class RWPF1Actor {
 		let races_hp  = (races_hd > 0) ? Math.round(remain_hp * races_hd / total_hd) : 0;
 		let classes_hp = remain_hp - races_hp;
 
-		if (actor.type !== 'pc') {
+		if (actor.type === 'character') {
+			// For PCs, we can determine temporary hit points = difference between hp_bonus and CON bonus
+			let con_bonus=0;
+			for (const attr of character.attributes.attribute) {
+				if (attr.name === 'Constitution') {
+					con_bonus = +attr.attrbonus.base * total_hd;
+					break;
+				}
+			}	
+			actor.system.attributes.hp.temp = hp_bonus - con_bonus;
+		} else {
 			actor.system.attributes.hd = { total: total_hd };  // TODO - not entirely correct!
 		}
 		//
@@ -366,7 +377,7 @@ export default class RWPF1Actor {
 				// class.hp needs setting to the amount of HP gained from levelling in this class.
 				// class.fc needs setting for the favoured class with information as to how the point was spent.
 				// Do all NPCs really get the HP favoured class bonus on their stats?
-				if (favclasses.includes(cclass.name) || character.role === 'npc') {
+				if (favclasses.includes(cclass.name) || actor.type === 'npc') {
 					// This is NOT a favoured class, so cancel any favoured class bonuses.
 					console.debug(`Setting favoured class for ${cclass.name}`);
 					classdata.system.fc.hp.value = 0;
@@ -670,7 +681,7 @@ export default class RWPF1Actor {
 					damage: 'str',
 				};
 				actiondata.attackNotes = (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [];
-				actiondata.range.units = 'melee';
+				actiondata.range.units = attack.categorytext.includes('Reach Weapon') ? 'reach' : 'melee';
 				actiondata.attackType = "natural";		// or weapon?
 				actiondata.nonlethal = (attack.damage.indexOf("nonlethal") != -1);
 
@@ -794,6 +805,7 @@ export default class RWPF1Actor {
 				else if (lower.startsWith('wand of '))
 					type='wand';
 				if (type) {
+					let found;
 					let pos = lower.indexOf(' of ');
 					let spells = lower.slice(pos+4).split(', ');
 					for (const spellname of spells) {
@@ -814,13 +826,14 @@ export default class RWPF1Actor {
 								}
 							}
 							actor.items.push(itemdata);
+							// Abort the rest of creation for this item
+							found=true;
 						}
 						else
 							console.error(`Failed to create ${type} for '${item.name}'`);
 					}
+					if (found) continue;
 				}
-				// Abort the rest of creation for this item
-				continue;
 			}
 			if (!itemdata) {
 				// Maybe this item contains a longer description, so look for an item whose name
@@ -847,6 +860,18 @@ export default class RWPF1Actor {
 				if (masterwork || enh || item.name.endsWith(')')) {
 					itemdata.name = item.name;
 					itemdata.system.identifiedName = item.name;
+				}
+				// Special modifier for armor
+				if (itemdata.type === 'equipment' &&
+				   itemdata.system.equipmentType === 'armor') {
+					if (lower.includes('mithral ')) {
+						// armor check penalty reduced by 3
+						// max dex increased by 2
+						// weight set to 50%
+						itemdata.system.armor.acp = (itemdata.system.armor.acp<3) ? 0 : (itemdata.system.armor.acp-3);
+						itemdata.system.armor.dex += 2;
+						itemdata.system.weight /= 2;
+					}
 				}
 				// See if need to remove the naturalAC that was added from the defenses section.
 				if (actor.system.attributes.naturalAC > 0 && itemdata.system.changes) {
@@ -902,25 +927,22 @@ export default class RWPF1Actor {
 				//cs:      (skill.classskill  === 'yes'),		// overridden by class definitions (if the creature has classes!)
 				// rt, acp, background
 			}
-			if (!value.ability) {
-				console.warn(`Failed to find an ability called '${skill.attrname}' for skill '${skill.name}' - SKIPPING`);
-				continue;
-			}
 			let baseskill = this.skill_mapping.get(skill.name);
+			if (!value.ability && value.rank===0) value.rank = +skill.value;
 			if (baseskill) {
 				actor.system.skills[baseskill] = value;
 			} else {
 				let paren = skill.name.indexOf(' (');
 				baseskill = paren ? this.skill_mapping.get(skill.name.slice(0,paren)) : undefined;
+				value.name = skill.name;
 				if (baseskill) {
-					value.name = skill.name;
 					if (!actor.system.skills[baseskill]) actor.system.skills[baseskill] = {subSkills : {}};
 					else if (!actor.system.skills[baseskill].subSkills) actor.system.skills[baseskill].subSkills = {};
 					actor.system.skills[baseskill].subSkills[`${baseskill}${++numsub[baseskill]}`] = value;
 				} else {
-					console.debug(`PF1 custom skill ${skill.name}`);
-					value.name = skill.name;
-					actor.system.skills[numcust++ ? `skill${numcust}` : 'skill'] = value;
+					console.debug(`PF1 custom skill '${skill.name}'`);
+					value.custom = true;
+					actor.system.skills[`customSkill${++numcust}`] = value;
 				}
 			}
 		}
@@ -1122,7 +1144,7 @@ export default class RWPF1Actor {
 					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						featType: (special?.sourcetext == 'Trait') ? 'trait' : (classnames.includes(special?.sourcetext)) ? 'classFeat' : 
-							character.role === 'pc' ? 'misc' : 'racial'
+							actor.type === 'character' ? 'misc' : 'racial'
 					}
 				}
 				// maybe add uses

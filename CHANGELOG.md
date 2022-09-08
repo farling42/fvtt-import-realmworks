@@ -5,7 +5,12 @@
 - Change created link format to the V10 preferred format @UUID[type.id]
 - Replace hard-coded lookup tables for DND5E with tables constructed from the system's data tables.
 - Add RWtrueName and RWaliasName classes to style.css (only trueName has a defined style of underline).
+- All Systems: Manually created Items[] are created with the HAZARD icon.
 - PF1: Add creation of Potions, Scrolls and Wands (including wand charges and used potions)
+- PF1: Fix inconsistent detection of whether to create a 'character' or an 'npc'.
+- PF1: Fix creation of custom skills.
+- PF1: Fix marking custom attacks as 'reach' when appropriate.
+- PF1: Mithral in the name of manually-created armour item will now modify ACP, DEX and weight.
 
 ## 2.4
 
