@@ -798,8 +798,18 @@ export default class RWPF1Actor {
 							console.error(`Failed to find spell '${spellname}' for item '${item.name}'`)
 						}
 						let itemdata = await ItemSpellPF.toConsumable(spelldata, type);
-						if (itemdata)
+						if (itemdata) {
+							// Check uses
+							for (const tracked of toArray(character.trackedresources?.trackedresource)) {
+								if (tracked.name.toLowerCase().startsWith(lower)) {
+									const left = +tracked.left;
+									if (type==='wand')
+										itemdata.system.uses.value = +tracked.left;
+									if (!left) itemdata.system.quantity = +tracked.left;
+								}
+							}
 							actor.items.push(itemdata);
+						}
 						else
 							console.error(`Failed to create ${type} for '${item.name}'`);
 					}

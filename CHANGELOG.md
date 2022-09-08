@@ -5,6 +5,7 @@
 - Change created link format to the V10 preferred format @UUID[type.id]
 - Replace hard-coded lookup tables for DND5E with tables constructed from the system's data tables.
 - Add RWtrueName and RWaliasName classes to style.css (only trueName has a defined style of underline).
+- PF1: Add creation of Potions, Scrolls and Wands (including wand charges and used potions)
 
 ## 2.4
 
