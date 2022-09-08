@@ -218,6 +218,21 @@ export default class RWPF1Actor {
 			items: []		// add items with :   items.push(new Item(itemdata).system)
 		};
 
+		// system.traits.size - fine|dim|tiny|med|lg|huge|grg|col
+		switch (character.size.name) {
+			case 'Fine':		actor.system.traits.size = 'fine';	break;
+			case 'Diminutive':	actor.system.traits.size = 'dim';		break;
+			case 'Tiny':		actor.system.traits.size = 'tiny';	break;
+			case 'Small':		actor.system.traits.size = 'sm';		break;
+			case 'Medium':		actor.system.traits.size = 'med';		break;
+			case 'Large':		actor.system.traits.size = 'lg';		break;
+			case 'Huge':		actor.system.traits.size = 'huge';	break;
+			case 'Gargantuan':	actor.system.traits.size = 'grg';		break;
+			case 'Colossal':	actor.system.traits.size = 'col';		break;
+			default:
+				console.warn(`Unknown actor size ${character.size.name}`);
+		}
+	
 		//
 		// SUMMARY tab
 		//
@@ -587,13 +602,15 @@ export default class RWPF1Actor {
 				actor.system.attributes.naturalAC = +armor.ac;
 			}
 		}
+		let attackrange = parseInt(character.attack.rangedattack);
+		let attackmelee = parseInt(character.attack.meleeattack);
 		for (const attack of toArray(character.melee?.weapon).concat(toArray(character.ranged?.weapon))) {
 			if (attack?.useradded === "no") {
 				// decode crit: either "x2" or "17-20/x2"
 				let x = attack.crit.indexOf("×");
 				let critrange = (x === 0) ? 20 : parseInt(attack.crit);
 				let critmult  = +attack.crit.slice(x+1);
-				let primaryAttack = (parseInt(attack.attack) >= (parseInt(attack.rangedattack) ? parseInt(character.attack.rangedattack) : parseInt(character.attack.meleeattack)));
+				let primaryAttack = parseInt(attack.attack) >= (attack.rangedattack ? attackrange : attackmelee);
 				
 				let itemdata = {
 					// item
@@ -616,7 +633,7 @@ export default class RWPF1Actor {
 				actiondata.duration   = { value: null, units: "inst" };
 				//actiondata.attackName = attack.name;
 				actiondata.actionType = (attack.rangedattack ? "rwak" : "mwak");		// eg "rwak" or "mwak"
-				actiondata.attackBonus = (parseInt(attack.attack) - parseInt(character.attack.attackbonus) + (primaryAttack?0:5)).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
+				actiondata.attackBonus = (parseInt(attack.attack) - +character.attack.baseattack + CONFIG.PF1.sizeSpecialMods[actor.system.traits.size]).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
 				let dmgparts = []; // convert 'B/P/S' to array of damage types
 				for (const part of attack.typetext.split('/')) {
 					switch (part) {
@@ -636,8 +653,8 @@ export default class RWPF1Actor {
 					damageMult: 1,
 					critRange: critrange,
 					critMult:  critmult,
-					attack: 'str',
-					damage: 'str',
+					attack: '',  // don't apply stat
+					damage: '',  // don't apply stat
 				};
 				actiondata.attackNotes = (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [];
 				actiondata.range.units = attack.categorytext.includes('Reach Weapon') ? 'reach' : 'melee';
@@ -1356,20 +1373,6 @@ export default class RWPF1Actor {
 		// STUFF TO BE PUT INTO THE CORRECT PLACE
 		//
 		
-		// system.traits.size - fine|dim|tiny|med|lg|huge|grg|col
-		switch (character.size.name) {
-		case 'Fine':		actor.system.traits.size = 'fine';	break;
-		case 'Diminutive':	actor.system.traits.size = 'dim';		break;
-		case 'Tiny':		actor.system.traits.size = 'tiny';	break;
-		case 'Small':		actor.system.traits.size = 'sm';		break;
-		case 'Medium':		actor.system.traits.size = 'med';		break;
-		case 'Large':		actor.system.traits.size = 'lg';		break;
-		case 'Huge':		actor.system.traits.size = 'huge';	break;
-		case 'Gargantuan':	actor.system.traits.size = 'grg';		break;
-		case 'Colossal':	actor.system.traits.size = 'col';		break;
-		default:
-			console.warn(`Unknown actor size ${character.size.name}`);
-		}
 		// system.traits.senses { dv, ts, bs, bse, ll { enabled, multiplier { dim, bright}}, sid, tr, si, sc, custom }
 		actor.system.traits.senses = {}
 		if (character.senses.special) {		
