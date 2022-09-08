@@ -376,6 +376,7 @@ export default class RWDND5EActor {
 					const itemdata = {
 						name: name,
 						type: 'loot',
+						img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 						system: {
 							// itemDescription template
 							description: {
@@ -418,6 +419,7 @@ export default class RWDND5EActor {
 					let itemdata = {
 						name: spell.name,
 						type: 'spell',
+						img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 						system: {
 							// itemDescription template
 							description: {
@@ -528,6 +530,7 @@ export default class RWDND5EActor {
 				let itemdata = {
 					name: ability.name,
 					type: 'feat',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// itemDescription template
 						description: {
@@ -595,6 +598,7 @@ export default class RWDND5EActor {
 				let itemdata = {
 					name: cls.name,
 					type: 'class',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// itemDescription template
 						description: {

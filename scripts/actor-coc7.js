@@ -166,6 +166,7 @@ export default class RWCoC7Actor {
 				skill = {
 					type: "skill",
 					name: skillname,
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						skillName: specname,
 						value: percentage,
@@ -235,6 +236,7 @@ export default class RWCoC7Actor {
 				weapon = {
 					type: "weapon",
 					name: weaponname,
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						skill: {
 							main : { name : skillname },	// maybe need ID here too?

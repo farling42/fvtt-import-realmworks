@@ -209,6 +209,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: skill.name,
 					type: 'skill',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// template itemDescription
 						description: toFormatted(skill.description["#text"]),
@@ -242,6 +243,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: edge.name,
 					type: 'edge',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// template itemDescription
 						description: toFormatted(edge.description["#text"]),
@@ -276,6 +278,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: hindrance.name,
 					type: 'hindrance',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// template itemDescription
 						description: toFormatted(hindrance.description["#text"]),
@@ -292,6 +295,7 @@ export default class RWSWADEActor {
 			let itemdata = {
 				name: drawback.name,
 				type: 'hindrance',
+				img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 				system: {
 					// template itemDescription
 					description: toFormatted(drawback.description["#text"]),
@@ -314,6 +318,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: item.name,
 					type: 'power',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// template itemDescription
 						description: toFormatted(item.description["#text"]),
@@ -352,6 +357,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: item.name,
 					type: 'power',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// template itemDescription
 						description: toFormatted(item.description["#text"]),
@@ -393,6 +399,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: gear.name,
 					type: 'gear',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// itemDescription template
 						description: toFormatted(gear.description["#text"]),
@@ -423,6 +430,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: gear.name,
 					type: 'gear',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// itemDescription template
 						description: toFormatted(magicitem.description["#text"]),
@@ -460,6 +468,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: attack.name,
 					type: 'weapon',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// itemDescription template
 						description: "", // HTML
@@ -506,6 +515,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: defense.name,
 					type: 'armor',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// itemDescription template
 						description: "", // HTML
@@ -540,6 +550,7 @@ export default class RWSWADEActor {
 				itemdata = {
 					name: defense.name,
 					type: 'shield',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// itemDescription template
 						description: "", // HTML

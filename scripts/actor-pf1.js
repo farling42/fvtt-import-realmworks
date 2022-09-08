@@ -402,6 +402,7 @@ export default class RWPF1Actor {
 				classdata = {
 					name: cclass.name,
 					type: 'class',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: { 
 						level : levels,
 						hp    : class_hp,
@@ -425,6 +426,7 @@ export default class RWPF1Actor {
 				name: character.race.name,
 				type: 'race',
 				creatureType: character.types?.type?.name,
+				img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 				//system: { description : { value : addParas(character.race.name['#text']) }}
 			};
 			actor.items.push(itemdata);
@@ -451,6 +453,7 @@ export default class RWPF1Actor {
 					type: 'class',
 					classType: 'racial',
 					hp : races_hp,
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					//system: { description : { value : addParas(character.racialhd.name['#text']) }}
 				};
 			}
@@ -627,6 +630,7 @@ export default class RWPF1Actor {
 					name: attack.name,
 					type: "attack",
 					hasAttack: true,
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// TEMPLATE: itemDescription
 						description: { value: attack.description["#text"], chat: "", unidentified: "" },
@@ -796,6 +800,7 @@ export default class RWPF1Actor {
 						let spelldata = await searchPacks(RWPF1Actor.item_packs, ['spell'], itemname => itemname == spellname);
 						if (!spelldata) {
 							console.error(`Failed to find spell '${spellname}' for item '${item.name}'`)
+							continue;
 						}
 						let itemdata = await ItemSpellPF.toConsumable(spelldata, type);
 						if (itemdata) {
@@ -864,6 +869,7 @@ export default class RWPF1Actor {
 				const itemdata = {
 					name: item.name,
 					type: item.name.includes(' lbs)') ? 'container' : 'loot',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						quantity: +item.quantity,
 						weight:   +item.weight.value,
@@ -1026,6 +1032,7 @@ export default class RWPF1Actor {
 				const itemdata = {
 					name: feat.name,
 					type: 'feat',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						description: {
 							value: addParas(feat.description['#text'])
@@ -1060,6 +1067,7 @@ export default class RWPF1Actor {
 				itemdata = {
 					name: trait.name,
 					type: 'feat',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
 						description: {
@@ -1111,6 +1119,7 @@ export default class RWPF1Actor {
 			if (!itemdata) {
 				itemdata = {
 					type: 'feat',
+					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						featType: (special?.sourcetext == 'Trait') ? 'trait' : (classnames.includes(special?.sourcetext)) ? 'classFeat' : 
 							character.role === 'pc' ? 'misc' : 'racial'
@@ -1244,6 +1253,7 @@ export default class RWPF1Actor {
 						itemdata = {
 							name: spell.shortname ?? spell.name,
 							type: 'spell',
+							img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 							system: {
 								uses: {}
 							},
