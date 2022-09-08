@@ -67,34 +67,6 @@ export default class RWPF1Actor {
 		[ "Class",                 "class" ],
 		[ "Spell",                 "spell" ],
 	]);
-
-	static ability_names = {
-		"strength" : "str",
-		"dexterity" : "dex",
-		"constitution" : "con",
-		"intelligence" : "int",
-		"wisdom" : "wis",
-		"charisma" : "cha",
-		// Just so that we don't have to have conditional code to check if it is long or short name
-		"str" : "str",
-		"dex" : "dex",
-		"con" : "con",
-		"int" : "int",
-		"wis" : "wis",
-		"cha" : "cha"
-	};
-
-	static spellschool_names = {
-		"abjuration": "abj",
-		"conjuration": "con",
-		"divination": "div",
-		"enchantment": "enc",
-		"evocation": "evo",
-		"illusion": "ill",
-		"necromancy": "nec",
-		"transmutation": "trs",
-		"universal": "uni",
-	};
 	
 	// Items whose name doesn't fit into one of the pattern matches.
 	static item_name_mapping = new Map([
@@ -114,45 +86,10 @@ export default class RWPF1Actor {
 		[ "Armor Proficiency (Heavy)",  "Armor Proficiency, Heavy" ],
 	]);
 
-	static skill_mapping = new Map([
-		[ "Acrobatics", "acr" ],
-		[ "Appraise", "apr" ],
-		[ "Artistry", "art" ],
-		[ "Bluff", "blf" ],
-		[ "Climb", "clm" ],
-		[ "Craft", "crf" ],
-		[ "Diplomacy", "dip" ],
-		[ "Disguise", "dis" ],
-		[ "Disable Device", "dev" ],
-		[ "Escape Artist", "esc" ],
-		[ "Fly", "fly" ],
-		[ "Handle Animal", "han" ],
-		[ "Heal", "hea" ],
-		[ "Intimidate", "int" ],
-		[ "Knowledge (arcana)", "kar" ],
-		[ "Knowledge (dungeoneering)", "kdu" ],
-		[ "Knowledge (engineering)", "ken" ],
-		[ "Knowledge (geography)", "kge" ],
-		[ "Knowledge (history)", "khi" ],
-		[ "Knowledge (local)", "klo" ],
-		[ "Knowledge (nature)", "kna" ],
-		[ "Knowledge (nobility)", "kno" ],
-		[ "Knowledge (planes)", "kpl" ],
-		[ "Knowledge (religion)", "kre" ],
-		[ "Linguistics", "lin" ],
-		[ "Lore", "lor" ],
-		[ "Perception", "per" ],
-		[ "Perform", "prf" ],
-		[ "Profession", "pro" ],
-		[ "Ride", "rid" ],
-		[ "Sense Motive", "sen" ],
-		[ "Sleight of Hand", "slt" ],
-		[ "Spellcraft", "spl" ],
-		[ "Stealth", "ste" ],
-		[ "Survival", "sur" ],
-		[ "Swim", "swm" ],
-		[ "Use Magic Device", "umd" ],
-	]);
+	static once;
+	static skill_mapping = {};
+	static spellschool_names = {};
+	static ability_names = {}
 
 	static alignment_mapping = {
 		'Lawful Good' : 'lg',
@@ -227,6 +164,22 @@ export default class RWPF1Actor {
 		//RWPF1Actor.item_packs = items.modules.concat(items.core);
 		//RWPF1Actor.feat_packs = feats.modules.concat(feats.core);
 		//RWPF1Actor.classability_packs = classfeats.modules.concat(classfeats.core);
+
+		if (RWPF1Actor.once) return;
+		RWPF1Actor.once=true;
+
+		RWPF1Actor.skill_mapping = new Map();
+		for (const [key,value] of Object.entries(CONFIG.PF1.skills)) {
+			RWPF1Actor.skill_mapping[value.toLowerCase()] = key;
+		}
+		for (const [key,value] of Object.entries(CONFIG.PF1.spellSchools)) {
+			RWPF1Actor.spellschool_names[value.toLowerCase()] = key;
+		}
+		// both "strength" and "str" are stored with "str" as the value
+		for (const [key,value] of Object.entries(CONFIG.PF1.abilities)) {
+			RWPF1Actor.ability_names[value.toLowerCase()] = key;
+			RWPF1Actor.ability_names[key] = key;
+		}
 	}
 	
 	static async createActorData(character) {
@@ -303,7 +256,7 @@ export default class RWPF1Actor {
 		actor.system.details.deity = character?.deity?.name;
 		actor.system.details.age = character.personal.age;
 
-		const hitpoints = +character.health.hitpoints;
+		const hitpoints = +character.health.hitpoints;  // does NOT include temp hit points
 		// Ignore any possible "12 HD;" prefix, putting just the second half into justdice
 		// Calculate total number of HD for the character
 		const hitdice = character.health.hitdice;		// either "9d8+16" or "12 HD; 7d6+5d10+67" or just "7d6+5d10+67"
@@ -331,6 +284,10 @@ export default class RWPF1Actor {
 				}
 			}	
 			actor.system.attributes.hp.temp = hp_bonus - con_bonus;
+			if (classes_hp>0)
+				classes_hp += actor.system.attributes.hp.temp;
+			else
+				races_hp += actor.system.attributes.hp.temp;
 		} else {
 			actor.system.attributes.hd = { total: total_hd };  // TODO - not entirely correct!
 		}
@@ -927,13 +884,13 @@ export default class RWPF1Actor {
 				//cs:      (skill.classskill  === 'yes'),		// overridden by class definitions (if the creature has classes!)
 				// rt, acp, background
 			}
-			let baseskill = this.skill_mapping.get(skill.name);
+			let baseskill = this.skill_mapping[skill.name.toLowerCase()];
 			if (!value.ability && value.rank===0) value.rank = +skill.value;
 			if (baseskill) {
 				actor.system.skills[baseskill] = value;
 			} else {
 				let paren = skill.name.indexOf(' (');
-				baseskill = paren ? this.skill_mapping.get(skill.name.slice(0,paren)) : undefined;
+				baseskill = paren ? this.skill_mapping[skill.name.slice(0,paren).toLowerCase()] : undefined;
 				value.name = skill.name;
 				if (baseskill) {
 					if (!actor.system.skills[baseskill]) actor.system.skills[baseskill] = {subSkills : {}};
@@ -1001,14 +958,14 @@ export default class RWPF1Actor {
 					let skillname = feat.name.slice(p1+2,p2).replace('[','(').replace(']',')');
 					// Find any descendent of actor.system.skills with a .name that matches the skill
 					let skill;
-					let baseskill = this.skill_mapping.get(skillname);
+					let baseskill = this.skill_mapping[skillname.toLowerCase()];
 					if (baseskill) {
 						ranks = actor.system.skills[baseskill].rank;
 						skill = 'skill.' + baseskill;
 					} else {
 						// Check for a subskill
 						let paren = skillname.indexOf(' (');
-						skill = paren ? this.skill_mapping.get(skillname.slice(0,paren)) : undefined;
+						skill = paren ? this.skill_mapping[skillname.slice(0,paren).toLowerCase()] : undefined;
 						if (skill) {
 							for (const skl2 of Object.keys(actor.system.skills[skill].subSkills)) {
 								if (actor.system.skills[skill].subSkills[skl2].name == skillname) {
