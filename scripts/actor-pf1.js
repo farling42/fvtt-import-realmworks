@@ -346,6 +346,8 @@ export default class RWPF1Actor {
 				// Start by adding the class item with the correct number of levels & HP
 				classdata.system.level = levels;
 				classdata.system.hp = class_hp;		// how do we work this out?
+				// Use the name from HL, since it might include the archetype (specialisation)
+				classdata.name = cclass.name;
 				actor.items.push(classdata);
 					
 				// Now add all the class features up to the level of the class.
@@ -1104,6 +1106,7 @@ export default class RWPF1Actor {
 							actor.type === 'character' ? 'misc' : 'racial'
 					}
 				}
+				if (special.sourcetext) itemdata.system.associations = {classes: [[special.sourcetext]]};
 				// maybe add uses
 				let uses = specname.match(/ \((\d+)\/([\w]+)\)/);
 				if (uses) {

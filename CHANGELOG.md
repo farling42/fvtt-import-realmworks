@@ -12,6 +12,8 @@
 - PF1: Fix marking custom attacks as 'reach' when appropriate.
 - PF1: Mithral in the name of manually-created armour item will now modify ACP, DEX and weight.
 - PF1: Try to guess the correct amount of temporary HP.
+- PF1: Include archetype in the class name.
+- PF1: Include the sourcetext (e.g. class) for each manually created Feature.
 
 ## 2.4
 
