@@ -1943,7 +1943,7 @@ class RealmWorksImporter extends Application
 				name: topic_document.name,
 				type: "text",
 				text: {
-					format  : 1,
+					format  : CONST.JOURNAL_ENTRY_PAGE_FORMATS.HTML,
 					content : body.html
 				},
 			});
