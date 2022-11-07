@@ -1016,17 +1016,27 @@ class RealmWorksImporter extends Application
 
 		if (data)
 		{
-			let file = new File([data], this.validfilename(filename));
+			let validname = this.validfilename(filename);
+			let parts = validname.split('.');
+			let ext = parts[parts.length-1];
+			if (CONST.UPLOADABLE_FILE_EXTENSIONS[ext]) {
+				let file = new File([data], validname);
 
-			await DirectoryPicker.uploadToPath(this.asset_directory, file)
-				.then(console.debug(`Uploaded file '${filename}'`))
-				.catch(e => console.warn(`Failed to upload '${filename}': ${e}`));
+				await DirectoryPicker.uploadToPath(this.asset_directory, file)
+					.then(console.debug(`Uploaded file '${filename}'`))
+					.catch(e => console.warn(`Failed to upload '${filename}': ${e}`));
+			} else {
+				if (filename === validname)
+					console.warn(`Unable to upload '${filename}' since it does not have a supported file extension (see CONST.UPLOADABLE_FILE_EXTENSIONS)`)
+				else
+					console.warn(`Unable to upload '${filename}' as '${validname}' since it does not have a supported file extension (see CONST.UPLOADABLE_FILE_EXTENSIONS)`)
+			}
 		}
 	}
 
 	// Convert a string in base64 format into binary and upload to this.asset_directory,
 	async uploadFile(filename, base64) {
-		return await this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
+		return this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
 	// Insert line breaks so that no line is longer than "max"
@@ -2027,7 +2037,7 @@ class RealmWorksImporter extends Application
 	// @return an array containing 0 or more ActorData
 	//
 	async formatActors(topic) {
-		console.debug(`Formatting actor for topic '${this.title_of_topic.get(topic.getAttribute("topic_id"))}'`);
+		console.debug(`Formatting actors for topic '${this.title_of_topic.get(topic.getAttribute("topic_id"))}'`);
 		let result = [];
 		const topicname = topic.getAttribute('public_name');
 		const uuid = topic.getAttribute("original_uuid");
@@ -2035,9 +2045,10 @@ class RealmWorksImporter extends Application
 		
 		// Since we can't "update" actors in a safe way, always delete if required.
 		if (this.overwriteExisting) {
-			for (let actor of game.actors.filter(a => a.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid))
-			{
-				await actor.delete();
+			let todelete = game.actors.filter(a => a.getFlag(GS_MODULE_NAME,GS_FLAGS_UUID) === uuid).map(actor => actor.id);
+			if (todelete.length > 0) {
+				console.debug(`Deleting ${todelete.length} pre-existing actors for '${topicname}'`);
+				await Actor.deleteDocuments(todelete);
 			}
 		}
 
@@ -2250,12 +2261,12 @@ class RealmWorksImporter extends Application
 				if (existing) {
 					await existing.update(playlist)
 						.then(p => console.debug(`Updated existing Playlist ${p.id}`))
-						.catch(e => console.warn(`Failed to update playlist '${name}' due to ${e}`));
+						.catch(e => console.warn(`Failed to update playlist '${playlist.name}' due to ${e}`));
 					continue;
 				}
 			}
 			await Playlist.create(playlist)
-				.catch(e => console.warn(`Failed to create playlist '${name}' due to ${e}`));
+				.catch(e => console.warn(`Failed to create playlist '${playlist.name}' due to ${e}`));
 		}
 	}
 	
