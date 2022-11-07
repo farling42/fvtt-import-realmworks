@@ -846,7 +846,7 @@ export default class RWPF1Actor {
 						// weight set to 50%
 						itemdata.system.armor.acp = (itemdata.system.armor.acp<3) ? 0 : (itemdata.system.armor.acp-3);
 						itemdata.system.armor.dex += 2;
-						itemdata.system.weight /= 2;
+						itemdata.system.weight.value /= 2;
 					}
 				}
 				// See if need to remove the naturalAC that was added from the defenses section.
@@ -873,7 +873,7 @@ export default class RWPF1Actor {
 					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						quantity: +item.quantity,
-						weight:   +item.weight.value,
+						weight:   { value: +item.weight.value },
 						price:    +item.cost.value,
 						description: {
 							value: addParas(item.description['#text'])
