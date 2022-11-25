@@ -17,6 +17,7 @@
 	"esmodules": [
 		"scripts/libwrapper-shim.js",
 		"scripts/import-realmworks.js",
+		"scripts/editor-styles.js",
 		"scripts/actor-pf1.js",
 		"scripts/actor-dnd5e.js",
 		"scripts/actor-swade.js",

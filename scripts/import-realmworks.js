@@ -50,71 +50,6 @@ const GS_FLAGS_UUID = "uuid";
 const PIN_ICON_REVEALED = 'icons/svg/circle.svg';
 const PIN_ICON_NOT_REVEALED = 'icons/svg/blind.svg';
 
-const RW_editor_player_options = {
-	title: "RW Players",
-	items : [
-		{
-			title: "Style: Callout",
-			block: 'section',
-			classes: 'RWCallout',
-			wrapper: true
-		},
-		{
-			title: "Style: Handout",
-			block: 'section',
-			classes: 'RWHandout',
-			wrapper: true
-		},
-		{
-			title: "Style: Flavor",
-			block: 'section',
-			classes: 'RWFlavor',
-			wrapper: true
-		},
-		{
-			title: "Style: Read Aloud",
-			block: 'section',
-			classes: 'RWRead_Aloud',
-			wrapper: true
-		},
-	]
-};
-const RW_editor_gm_options = {
-	title: "RW GM Only",
-	items : [
-		{
-			title: "Veracity: Partial Truth",
-			block: 'section',
-			classes: 'RWveracity-Partial',
-			wrapper: true
-		},
-		{
-			title: "Veracity: Lie",
-			block: 'section',
-			classes: 'RWveracity-Lie',
-			wrapper: true
-		},
-		{
-			title: "GM Directions & Contents",
-			block: 'section',
-			classes: 'RWgmDirAndContents',
-			wrapper: true,
-			//exact:   true   /* Prevent removal of other nested sections */
-		},	
-		{
-			title: "GM Directions (secret)",
-			block: 'section',
-			classes: 'RWgmDirections secret',
-			wrapper: true
-		},
-		{
-			title: "GM Directions (not secret)",
-			block: 'section',
-			classes: 'RWgmDirections',
-			wrapper: true
-		},
-	]
-};
 
 //
 // Register game settings
@@ -316,18 +251,7 @@ Hooks.once('init', () => {
 	
 	// Add additional Note icons/svg/blind
 	CONFIG.JournalEntry.noteIcons["Boxed Circle"] = PIN_ICON_REVEALED;
-	CONFIG.JournalEntry.noteIcons["Crossed Eye"]  = PIN_ICON_NOT_REVEALED;
-	
-	// New sections for the editor
-	CONFIG.TinyMCE.style_formats.push(RW_editor_player_options);
-	CONFIG.TinyMCE.style_formats.push(RW_editor_gm_options);
-	CONFIG.TinyMCE.content_css.push('/modules/realm-works-import/styles/style.css');
-	
-	// From World Smiths Toolkit
-	//CONFIG.TinyMCE.plugins += " searchreplace visualchars visualblocks textpattern preview template";
-    //CONFIG.TinyMCE.toolbar += " | searchreplace template";
-    //CONFIG.TinyMCE.visualchars_default_state = true;
-    //CONFIG.TinyMCE.visualblocks_default_state = true;
+	CONFIG.JournalEntry.noteIcons["Crossed Eye"]  = PIN_ICON_NOT_REVEALED;	
 })
 
 
@@ -390,7 +314,7 @@ let idnumber=0;  // we simply need a random-yet-unique id for each section (to w
 function startSection(section_context, classes) {
 	// Ignore setting "secret" if the context says to do so
 	// (which would be when the topic is NOT revealed and the user doesn't want it all marked as SECRET
-	if (section_context.ignore_secret && classes.includes('secret'))
+	if (!section_context.allow_secret && classes.includes('secret'))
 		classes = classes.replace(/[ ]*secret/, '');	// secret will always be last
 	if (section_context.classes === classes) return "";
 	let result = "";
@@ -966,13 +890,12 @@ class RealmWorksImporter extends Application
 			}
 		}
 		
-		let link_type = this.topic_item_type.has(topic_id) ? 'Item' : 'JournalEntry';
-		
-		const id = this.document_for_topic.get(topic_id)?._id;
-		if (id)
-			return `${prefix}@UUID[${link_type}.${id}]{${link_text}}${suffix}`;
+		const doc = this.document_for_topic.get(topic_id);
+		if (doc)
+			return `${prefix}@UUID[${doc.uuid}]{${link_text}}${suffix}`;
 		else
-			return `${prefix}@UUID[${link_type}.${link_text}]${suffix}`;
+			// Can't use @UUID since we have to use the link text instead of the real link.
+			return `${prefix}@${this.topic_item_type.has(topic_id) ? 'Item' : 'JournalEntry'}[${link_text}]${suffix}`;
 	}
 	
 	// Some image files are changed to .png (from .bmp .gif .tif .tiff)
@@ -1186,7 +1109,7 @@ class RealmWorksImporter extends Application
 		
 		this.ui_message.val(`Created scene '${scenename}' with ${notes.length} notes`);
 		console.debug(`Created scene '${scenename}' with ${notes.length} notes`);
-		return scene.id;
+		return scene;
 	}
 		
 	// base64 is the base64 string containing the .por file
@@ -1455,7 +1378,7 @@ class RealmWorksImporter extends Application
 				table = await RollTable.create(tabledata).catch(e => console.warn(`Failed to create roll table '${tabledata.name}' due to ${e}`));
 			}
 			// Add the new table to the HTML to be returned
-			result += hpara(`@UUID[RollTable.${table.id}]{${table.name}}`);
+			result += hpara(table.link);
 		}
 		
 		return result;
@@ -1680,9 +1603,9 @@ class RealmWorksImporter extends Application
 						await this.uploadFile(map_filename, map_contents.textContent);
 						result += hpara(`<img src='${this.imageFilename(map_filename)}'></img>`);
 
-						// Create the scene now
+						// Create the scene now: the link should only have the base name, not including the TOPIC name.
 						await this.createScene(topic, smart_image, topic.getAttribute('is_revealed') && is_revealed)
-							.then(sceneid => result += hpara(`@UUID[Scene.${sceneid}]{${smart_image.getAttribute('name')}}`))
+							.then(scene => result += hpara(`@UUID[${scene.uuid}]{${smart_image.getAttribute('name')}}`))
 							.catch(e => console.warn(`Failed to create scene for ${topic.getAttribute("topic_id")} due to ${e}`));
 					}
 					break;
@@ -1748,7 +1671,7 @@ class RealmWorksImporter extends Application
 		let html = labelledField("Category", this.category_of_topic.get(topic_id));
 
 		let section_context = {
-			ignore_secret : !this.unrevealed_topics_secret && !topic.getAttribute('is_revealed')
+			allow_secret : topic.getAttribute('is_revealed') || this.unrevealed_topics_secret
 		};
 		
 		// Put PARENT information into the topic (if required)
@@ -1824,7 +1747,7 @@ class RealmWorksImporter extends Application
 					if (annotation) text += '<br\>' + hemphasis(annotation.textContent.replaceAll('&#xd;\n','<br\>'));
 					
 					connections.push({cname, text});
-					if (!section_context.ignore_secret && node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))
+					if (section_context.allow_secret && node.hasAttribute('is_revealed') && this.revealed_topics.has(target_id))
 						revealed_connections.push({cname, text});
 				}
 				break;
@@ -1883,7 +1806,7 @@ class RealmWorksImporter extends Application
 				for (const target_id of targets) {
 					if (target_id.startsWith('Plot_')) continue;
 					unique_ids.add(target_id);
-					if (!section_context.ignore_secret && this.revealed_topics.has(target_id))
+					if (section_context.allow_secret && this.revealed_topics.has(target_id))
 						revealed_unique_ids.add(target_id);
 				}
 				if (unique_ids.size > 0) html += contentlinks('In',
@@ -1901,7 +1824,7 @@ class RealmWorksImporter extends Application
 					let target_id = link.getAttribute("target_id");
 					if (target_id.startsWith('Plot_')) continue;
 					unique_ids.add(target_id);
-					if (!section_context.ignore_secret && this.revealed_topics.has(target_id) && this.linkIsRevealed(link))
+					if (section_context.allow_secret && this.revealed_topics.has(target_id) && this.linkIsRevealed(link))
 						revealed_unique_ids.add(target_id);
 				}
 				if (unique_ids.size > 0) html += contentlinks('Out',

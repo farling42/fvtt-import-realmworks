@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2.6
+
+- Improve generation of links to scenes.
+- Move TinyMCE editor configuration into a separate source file.
+- Ensure the module setting "Use 'secret' in Unrevealed Topics" works properly when NOT selected.
+
 ## 2.5
 
 - Change created link format to the V10 preferred format @UUID[type.id]
