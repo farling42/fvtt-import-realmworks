@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2.6.1
+- Remove "compatibility.maximum" flag from module.json so that it will work in Foundry 11
+
 ## 2.6
 
 - Improve generation of links to scenes.
