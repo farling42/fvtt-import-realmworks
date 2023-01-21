@@ -68,6 +68,12 @@ If "secret" was manually removed from the GM Directions, then a warning is displ
 
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
 
+## Store Foundry data inside Realm Works
+
+Now you can store your scene wall data (and any other Foundry settings) inside Realm Works, so that those settings are restored on future imports.
+
+If you want to store additional Foundry settings within Realm Works, then you can use the "Export Data" menu function within Foundry to create some `fvtt-<doctype>-<objname>.json` files. You can then store these files inside Realm Works as foreign object files.  When you next generate an RWexport file from Realm Works and import it into Foundry, then those embedded `fvtt-<doctype>-<objname>.json` files will be loaded after the objects have been created. NOTE: The name inside the `fvtt*json` file must match the name of the object in Foundry in order for the import to work (it does NOT use the `objname` part of the filename).
+
 ## Libraries
 
 This module uses the following libraries from other sources:
