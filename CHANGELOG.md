@@ -1,6 +1,11 @@
 # CHANGELOG
 
+## 2.7
+
+- Allow storage of FVTT export files in Realm Works in Foreign Object Snippets. These files will automatically be imported to Foundry after all other import has finished. The filename must remain unchanged (i.e. using the format "fvtt-<collectionmame>-<docname>.json") (During import from Realm Works, the name of the object in the FVTT export file must match the name of the thing in Foundry, since the "docname" part of the filename might not match the slugified name of the Foundry object.)
+
 ## 2.6.1
+
 - Remove "compatibility.maximum" flag from module.json so that it will work in Foundry 11
 
 ## 2.6

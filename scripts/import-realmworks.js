@@ -1567,18 +1567,33 @@ class RealmWorksImporter extends Application
 								image: { caption: annotation ? stripHtml(annotation) : undefined }
 							});
 						} else {
-							// Add <a> reference to the external object
-							await this.uploadFile(bin_filename, bin_contents.textContent);
-							result += hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
+							// Check for FVTT JSON import file
+							const match = /^fvtt-(.*?)-(.*).json$/.exec(bin_filename);
+							if (match?.length > 1) {
+								if (!this.json_to_import) this.json_to_import = [];
+								// get name from inside JSON:
+								const jsontext = atob(bin_contents.textContent);
+								const obj = JSON.parse(jsontext);
+								this.json_to_import.push({
+									filename   : bin_filename,
+									collection : match[1],
+									name       : obj.name,  // avoids problems with slugify() not returning truly matching string (e.g. scene name has ":" in it)
+									jsontext   : jsontext,
+								});
+							} else {
+								// Add <a> reference to the external object
+								await this.uploadFile(bin_filename, bin_contents.textContent);
+								result += hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
 
-							if (sntype === 'PDF' || (sntype === 'Video' && CONST.VIDEO_FILE_EXTENSIONS[fileext])) {
-								// No place to put annotation.
-								// For video, supported formats are .webm, .mp4, and .m4v
-								pages.push({
-									type: sntype.toLowerCase(),
-									name: bin_ext_object.getAttribute('name'),
-									src: this.imageFilename(bin_filename)
-								})
+								if (sntype === 'PDF' || (sntype === 'Video' && CONST.VIDEO_FILE_EXTENSIONS[fileext])) {
+									// No place to put annotation.
+									// For video, supported formats are .webm, .mp4, and .m4v
+									pages.push({
+										type: sntype.toLowerCase(),
+										name: bin_ext_object.getAttribute('name'),
+										src: this.imageFilename(bin_filename)
+									})
+								}
 							}
 						}
 					}
@@ -2453,6 +2468,26 @@ class RealmWorksImporter extends Application
 		}));
 		
 		//
+		// Load any JSON imports which were found
+		//
+
+		if (this.json_to_import) {
+			for (const entry of this.json_to_import) {
+				// see Foundry:exportToJSON, const filename = `fvtt-${this.documentName}-${this.name.slugify()}.json`;
+				// key   = filename with "fvtt-" prefix and ".json" suffix already removed.
+				// value = JSON data string
+
+				// Find object which matches the filename.
+				// slugify() allows special characters like ":" into the filename, but these are actually replaced by "_"
+				const doc = game.collections.get(entry.collection)?.getName(entry.name);
+				if (doc) 
+					await doc.importFromJSON(entry.jsontext);
+				else
+					console.error(`Failed to find object for JSON import: ${entry.filename}`);
+			}
+		}
+
+		//
 		// HL PORTFOLIOS => ACTORS
 		//
 
@@ -2499,6 +2534,7 @@ class RealmWorksImporter extends Application
 		delete this.document_for_topic;
 		delete this.existing_docs;
 		delete this.category_of_topic;
+		delete this.json_to_import;
 		if (this.addInboundLinks) delete this.links_in;
 	}
 } // class

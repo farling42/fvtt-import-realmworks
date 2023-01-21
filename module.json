@@ -4,13 +4,13 @@
 	"title": "Realm Works® Importer",
 	"description": "Imports files from Realm Works® campaign management tool",
 	"author" : "Farling",
-	"version": "2.2",
+	"version": "2.7",
 
 	"minimumCoreVersion": "10",
 	"compatibleCoreVersion": "10",
 	"compatibility": {
 		"minimum" : "10",
-		"verified": "10.284"
+		"verified": "10.291"
 	},
 
 	"esmodules": [
