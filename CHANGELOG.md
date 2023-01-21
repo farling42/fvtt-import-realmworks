@@ -2,7 +2,9 @@
 
 ## 2.7
 
-- Allow storage of FVTT export files in Realm Works in Foreign Object Snippets. These files will automatically be imported to Foundry after all other import has finished. The filename must remain unchanged (i.e. using the format "fvtt-<collectionmame>-<docname>.json") (During import from Realm Works, the name of the object in the FVTT export file must match the name of the thing in Foundry, since the "docname" part of the filename might not match the slugified name of the Foundry object.)
+- Allow storage of FVTT export files in Realm Works in Foreign Object Snippets. These files will automatically be imported to Foundry after all other import has finished. The filename must remain unchanged (i.e. using the format "fvtt-\<collectionmame>-\<docname>.json") (During import from Realm Works, the name of the object in the FVTT export file must match the name of the thing in Foundry, since the "docname" part of the filename might not match the slugified name of the Foundry object.)
+- Change folder detection to use new way of determining folder parentage in Foundry V10.
+- Use Buffer.from(base64).toString('utf8') instead of atob and local utf-8 conversion routine.
 
 ## 2.6.1
 

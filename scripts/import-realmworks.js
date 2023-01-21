@@ -397,36 +397,7 @@ function getChild(node,name) {
 // Convert Utf8Array to UTF-8 string
 //
 function Utf8ArrayToStr(array) {
-	let out, i, len, c;
-	let char2, char3;
-
-	out = "";
-	len = array.length;
-	i = 0;
-	while(i < len) {
-		c = array[i++];
-		switch(c >> 4)
-		{ 
-		case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
-			// 0xxxxxxx
-			out += String.fromCharCode(c);
-			break;
-		case 12: case 13:
-			// 110x xxxx   10xx xxxx
-			char2 = array[i++];
-			out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
-			break;
-		case 14:
-			// 1110 xxxx  10xx xxxx  10xx xxxx
-			char2 = array[i++];
-			char3 = array[i++];
-			out += String.fromCharCode(((c & 0x0F) << 12) |
-						((char2 & 0x3F) << 6) |
-						((char3 & 0x3F) << 0));
-			break;
-		}
-	}
-	return out;
+	return Buffer.from(array).toString('utf8');
 }
 
 function getOwnership(revealed) {
@@ -860,7 +831,8 @@ class RealmWorksImporter extends Application
 	}
 
 	async getFolder(folderName, type, parentid=null) {
-		const found = game.folders.find(e => e.type === type && e.name === folderName && e.parent === parentid);
+		// More complicated find for Foundry V10, since .parent doesn't exist
+		const found = game.folders.find(e => e.type === type && e.name === folderName && (parentid ? (e.ancestors.length>0 && e.ancestors[0].id == parentid) : (e.ancestors.length === 0)));
 		if (found) return found;
 		return Folder.create({name: folderName, type: type, parent: parentid, sorting: "m"});
 	}
@@ -955,11 +927,6 @@ class RealmWorksImporter extends Application
 					console.warn(`Unable to upload '${filename}' as '${validname}' since it does not have a supported file extension (see CONST.UPLOADABLE_FILE_EXTENSIONS)`)
 			}
 		}
-	}
-
-	// Convert a string in base64 format into binary and upload to this.asset_directory,
-	async uploadFile(filename, base64) {
-		return this.uploadBinaryFile(filename, Uint8Array.from(atob(base64), c => c.charCodeAt(0)) );
 	}
 
 	// Insert line breaks so that no line is longer than "max"
@@ -1113,11 +1080,11 @@ class RealmWorksImporter extends Application
 	}
 		
 	// base64 is the base64 string containing the .por file
-	// format is one of the character formats in the .por file: 'html', 'text', 'xml' (need to do Utf8ArrayToStr to get to string)
+	// format is one of the character formats in the .por file: 'html', 'text', 'xml' (need to do Buffer(base64).toString('utf8') to get to string)
 	// Returns an array of [ name , data ] for each character/minion in the portfolio.
 	
 	readPortfolio(data) {
-		const buf = (data instanceof Uint8Array) ? data : Uint8Array.from(atob(data), c => c.charCodeAt(0));
+		const buf = (typeof data === "string") ? Buffer.from(data, 'base64') : data;
 		const files = UZIP.parse(buf);
 		// Now have an object with "key : property" pairs  (key = filename [String]; property = file data [Uint8Array])
 
@@ -1521,7 +1488,7 @@ class RealmWorksImporter extends Application
 					sectionHeader(portfolio);
 					if (portfolio) {
 						// for test purposes, extract all .por files!
-						// await this.uploadFile(portasset.getAttribute('filename'), portfolio.textContent);
+						// await this.uploadBinaryFile(portasset.getAttribute('filename'), Buffer.from(portfolio.textContent, 'base64'));
 						let first=true;
 						for (const [charname, character] of this.readPortfolio(portfolio.textContent)) {
 							if (first) { result += '<hr>'; first=false }
@@ -1547,19 +1514,22 @@ class RealmWorksImporter extends Application
 					// <contents>
 					const bin_ext_object = getChild(child,          'ext_object');  
 					const bin_asset      = getChild(bin_ext_object, 'asset');       
-					const bin_contents   = getChild(bin_asset,      'contents');    
+					const bin_contents   = getChild(bin_asset,      'contents');
 					sectionHeader(bin_contents);
 					if (bin_contents) {
-						result += header(numbering.length+1, bin_ext_object.getAttribute('name'));
+						// convert bin_contents from base64 to binary
+						const bindata = Buffer.from(bin_contents.textContent, 'base64');
+						// Don't put objheader in result if we find a foreign object containing FVTT JSON data
+						const objheader = header(numbering.length+1, bin_ext_object.getAttribute('name'));
 						const bin_filename = bin_asset.getAttribute('filename');
 						const fileext = bin_filename.split('.').pop();	// extra suffix from asset filename
 						if (fileext === 'html' || fileext === 'htm' || fileext === "rtf") {
 							// Put the HTML/RTF inline
-							result += atob(bin_contents.textContent);
+							result += objheader + bindata.toString('utf8');
 						} else if (sntype === "Picture") {
 							// Add <img> tag for the picture
-							await this.uploadFile(bin_filename, bin_contents.textContent);
-							result += hpara(`<img src='${this.imageFilename(bin_filename)}'></img>`);
+							await this.uploadBinaryFile(bin_filename, bindata);
+							result += objheader + hpara(`<img src='${this.imageFilename(bin_filename)}'></img>`);
 							pages.push({
 								type: "image",
 								name: bin_ext_object.getAttribute('name'),
@@ -1571,8 +1541,7 @@ class RealmWorksImporter extends Application
 							const match = /^fvtt-(.*?)-(.*).json$/.exec(bin_filename);
 							if (match?.length > 1) {
 								if (!this.json_to_import) this.json_to_import = [];
-								// get name from inside JSON:
-								const jsontext = atob(bin_contents.textContent);
+								const jsontext = bindata.toString('utf8');
 								const obj = JSON.parse(jsontext);
 								this.json_to_import.push({
 									filename   : bin_filename,
@@ -1582,8 +1551,8 @@ class RealmWorksImporter extends Application
 								});
 							} else {
 								// Add <a> reference to the external object
-								await this.uploadFile(bin_filename, bin_contents.textContent);
-								result += hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
+								await this.uploadBinaryFile(bin_filename, bindata);
+								result += objheader + hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
 
 								if (sntype === 'PDF' || (sntype === 'Video' && CONST.VIDEO_FILE_EXTENSIONS[fileext])) {
 									// No place to put annotation.
@@ -1615,7 +1584,7 @@ class RealmWorksImporter extends Application
 					sectionHeader(map_format && map_contents);
 					if (map_format && map_contents) {
 						result += header(numbering.length+1, smart_image.getAttribute('name'));
-						await this.uploadFile(map_filename, map_contents.textContent);
+						await this.uploadBinaryFile(map_filename, Buffer.from(map_contents.textContent, 'base64'));
 						result += hpara(`<img src='${this.imageFilename(map_filename)}'></img>`);
 
 						// Create the scene now: the link should only have the base name, not including the TOPIC name.
@@ -2037,7 +2006,7 @@ class RealmWorksImporter extends Application
 					continue;
 				}
 				//console.debug(`formatActors for '${topicname}': reading statblock from ${filename}`);
-				statblock = atob(contents.textContent);
+				statblock = Buffer.from(contents.textContent, 'base64').toString('utf8');
 			}
 			
 			// Call the ACTOR creator for the specific GAME SYSTEM that is installed
@@ -2110,8 +2079,7 @@ class RealmWorksImporter extends Application
 		// or the name of the actor does NOT match the name of the topic,
 		// then put the actors in a sub-folder named after the topic.
 		if (result.length === 0) return result;
-		let topic_name = topic.getAttribute('public_name');
-		let folderid = (result.length === 1 && result[0].name === topic_name) ? this.actor_folder.id : (await this.getFolder(topic_name, 'Actor', this.actor_folder.id)).id;
+		const folderid = (result.length === 1 && result[0].name === topicname) ? this.actor_folder.id : (await this.getFolder(topicname, 'Actor', this.actor_folder.id)).id;
 
 		// Set the folder for each actor.
 		for (let i=0; i<result.length; i++)
@@ -2237,7 +2205,7 @@ class RealmWorksImporter extends Application
 		await DirectoryPicker.verifyPath(DirectoryPicker.parse(this.asset_directory));
 
 		if (!this.parser) this.parser = new DOMParser();
-		const portfolio = this.readPortfolio(new Uint8Array(data));
+		const portfolio = this.readPortfolio(Buffer.from(data));
 		let actors = [];
 		// Upload images (if any)
 		for (const [charname, character] of portfolio) {
@@ -2506,14 +2474,14 @@ class RealmWorksImporter extends Application
 		await Promise.allSettled(actor_topics.map(async(topic_node) => {
 			let uuid = topic_node.getAttribute("original_uuid");
 			if (!(this.importOnlyNew && this.existing_docs.has(uuid)))
-				await this.formatActors(topic_node)
+				return this.formatActors(topic_node)
 				.then(async(actors) => {
 					for (let actor of actors) actor.flags = { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }}
 					
-					await Actor.create(actors)
+					return Actor.create(actors)
 					.then( async(new_actors) => { 
 						if (this.post_create_actors)
-							await this.post_create_actors(new_actors)
+							return this.post_create_actors(new_actors)
 					})
 				})
 				.catch(error => console.warn(`formatActors for topic '${topic_node.getAttribute("public_name")}': ${error}`))
