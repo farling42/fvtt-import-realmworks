@@ -914,7 +914,7 @@ class RealmWorksImporter extends Application
 			let validname = this.validfilename(filename);
 			let parts = validname.split('.');
 			let ext = parts[parts.length-1];
-			if (CONST.UPLOADABLE_FILE_EXTENSIONS[ext]) {
+			if (CONST.UPLOADABLE_FILE_EXTENSIONS[ext.toLowerCase()]) {
 				let file = new File([data], validname);
 
 				await DirectoryPicker.uploadToPath(this.asset_directory, file)
@@ -1554,7 +1554,7 @@ class RealmWorksImporter extends Application
 								await this.uploadBinaryFile(bin_filename, bindata);
 								result += objheader + hpara(`<a href='${this.imageFilename(bin_filename)}'></a>`);
 
-								if (sntype === 'PDF' || (sntype === 'Video' && CONST.VIDEO_FILE_EXTENSIONS[fileext])) {
+								if (sntype === 'PDF' || (sntype === 'Video' && CONST.VIDEO_FILE_EXTENSIONS[fileext.toLowerCase()])) {
 									// No place to put annotation.
 									// For video, supported formats are .webm, .mp4, and .m4v
 									pages.push({
