@@ -3,9 +3,6 @@
 ## 2.8.0
 
 - PF1: Look for Items in WORLD compendiums before looking in the SYSTEM and then MODULE compendiums.
-
-## 2.7.1
-
 - Ignore case of file extension when checking for valid file extensions.
 
 ## 2.7
