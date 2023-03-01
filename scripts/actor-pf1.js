@@ -111,17 +111,21 @@ export default class RWPF1Actor {
 
 	static async initModule() {
 		// Load ItemAction class
-		//import { ItemAction } from "../../../systems/pf1/pf1.js";
 		let { ItemAction:temp1, ItemSpellPF:temp2 } = await import("../../../systems/pf1/pf1.js");
 		ItemAction  = temp1;
 		ItemSpellPF = temp2;
 
+		// Delete any previous stored data first.
+		RWPF1Actor.item_packs = [];
+		RWPF1Actor.feat_packs = [];
+		RWPF1Actor.classability_packs = [];
+
 		// Get a list of the compendiums to search,
 		// using compendiums in the two support modules first (if loaded)
-		RWPF1Actor.item_packs = [];
 		let items = { core: [], modules: []};
 		let feats = { core: [], modules: []};
 		let classfeats = { core: [], modules: []};
+		let worldpacks = [];
 		for (const pack of game.packs) {
 			if (pack.metadata.type === 'Item')
 			{
@@ -143,7 +147,10 @@ export default class RWPF1Actor {
 				else if (pack.metadata.name.includes('class-abilities'))
 					stuff = classfeats;
 
-				if (pack.metadata.packageType === 'system')
+				if (pack.metadata.packageType === 'world') {
+					// We can't be sure what is actually in a WORLD compendium, so use the pack for all three types of things.
+					worldpacks.push(pack);
+				} else if (pack.metadata.packageType === 'system')
 					stuff.core.push(pack);
 				else if (
 					pack.metadata.packageName === 'pf-content' ||
@@ -155,15 +162,10 @@ export default class RWPF1Actor {
 		// Always put the core packs last - i.e. prefer contents from modules before core
 		// so that the module compendiums are searched first.
 
-		// CORE COMPENDIUMS FIRST
-		RWPF1Actor.item_packs = items.core.concat(items.modules);
-		RWPF1Actor.feat_packs = feats.core.concat(feats.modules);
-		RWPF1Actor.classability_packs = classfeats.core.concat(classfeats.modules);
-
-		// CORE COMPENDIUMS LAST
-		//RWPF1Actor.item_packs = items.modules.concat(items.core);
-		//RWPF1Actor.feat_packs = feats.modules.concat(feats.core);
-		//RWPF1Actor.classability_packs = classfeats.modules.concat(classfeats.core);
+		// WORLD compendiums first, then SYSTEM compendiums, then MODULE compendiums
+		RWPF1Actor.item_packs = [].concat(worldpacks, items.core, items.modules);
+		RWPF1Actor.feat_packs = [].concat(worldpacks, feats.core, feats.modules);
+		RWPF1Actor.classability_packs = [].concat(worldpacks, classfeats.core, classfeats.modules);
 
 		if (RWPF1Actor.once) return;
 		RWPF1Actor.once=true;
