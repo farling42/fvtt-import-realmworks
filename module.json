@@ -10,7 +10,7 @@
 	"compatibleCoreVersion": "10",
 	"compatibility": {
 		"minimum" : "10",
-		"verified": "10.291"
+		"verified": "11.299"
 	},
 
 	"esmodules": [
@@ -58,7 +58,7 @@
 			"name": "Farling",
 			"url": "https://github.com/farling42",
 			"email": "foundryvtt@amusingtime.uk",
-			"discord": "Farling#9579",
+			"discord": "farling",
 			"ko-fi": "farling",
 			"patreon": "amusingtime",
 			"twitter": "@shambles42"

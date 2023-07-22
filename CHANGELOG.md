@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.8.1
+
+- Mark compatible with Foundry 11 (299)
+
 ## 2.8.0
 
 - PF1: Look for Items in WORLD compendiums before looking in the SYSTEM and then MODULE compendiums.
