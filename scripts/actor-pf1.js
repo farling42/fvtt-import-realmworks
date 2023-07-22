@@ -1441,7 +1441,7 @@ export default class RWPF1Actor {
 					cset.push(item.shortname);
 			}
 			actor.system.traits.eres = {value: [], custom: eset.join(',')};
-			actor.system.traits.cres = {value: [], custom: cset.join(',')};
+			actor.system.traits.cres = cset.join(',');
 			if (spellres) actor.system.attributes.sr = {formula: spellres, total: +spellres};
 		}
 
