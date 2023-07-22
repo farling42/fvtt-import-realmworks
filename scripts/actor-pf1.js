@@ -375,10 +375,7 @@ export default class RWPF1Actor {
 				});
 
 				for (const co of classAssociations) {
-					const collection = co.id.split(".").slice(0, 2).join(".");
-					const itemId = co.id.split(".")[2];
-					const pack = game.packs.get(collection);
-					const itemData = (await pack.getDocument(itemId)).toObject();
+					const itemData = (await fromUuid(co.uuid)).toObject();
 						
 					// No record on each classFeature as to which class and level added it.
 					//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
@@ -618,13 +615,14 @@ export default class RWPF1Actor {
 					// item
 					name: attack.name,
 					type: "attack",
+					//subType: "weapon",
 					hasAttack: true,
 					img:  'icons/svg/hazard.svg',   // make it clear that we created it manually
 					system: {
 						// TEMPLATE: itemDescription
 						description: { value: attack.description["#text"], chat: "", unidentified: "" },
 						attackNotes: (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [],
-						attackType: "natural",		// or weapon?
+						subType: "natural",		// or weapon?
 						primaryAttack: primaryAttack,	// TODO : very coarse (if false, then -5 to attack)
 					}
 				}
@@ -692,6 +690,7 @@ export default class RWPF1Actor {
 			let atkdata = {
 				name: "Special Attack: " + miscatk.shortname,
 				type: "attack",
+				//subType: "misc",  // ability, item, misc, natural, racialAbility, weapon
 				img:  "systems/pf1/icons/skills/yellow_36.jpg",
 				system: {
 					description: {
@@ -699,7 +698,7 @@ export default class RWPF1Actor {
 						chat: "",
 						unidentified: ""
 					},
-					attackType: "misc",
+					subType: "misc",
 				},
 			};
 			actor.items.push(atkdata);
