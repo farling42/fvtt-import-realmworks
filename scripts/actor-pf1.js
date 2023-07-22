@@ -44,8 +44,6 @@ const ITEM_TYPES = [
 	'weapon'
 ];
 
-let ItemSpellPF;
-
 export default class RWPF1Actor {
 
 	// Do we need the translated name for these categories?
@@ -109,10 +107,6 @@ export default class RWPF1Actor {
 	static classability_packs;
 
 	static async initModule() {
-		// Load ItemAction class
-		let { ItemAction:temp1, ItemSpellPF:temp2 } = await import("../../../systems/pf1/pf1.js");
-		ItemSpellPF = temp2;
-
 		// Delete any previous stored data first.
 		RWPF1Actor.item_packs = [];
 		RWPF1Actor.feat_packs = [];
@@ -789,7 +783,7 @@ export default class RWPF1Actor {
 							console.error(`Failed to find spell '${spellname}' for item '${item.name}'`)
 							continue;
 						}
-						let itemdata = await ItemSpellPF.toConsumable(spelldata, type);
+						let itemdata = await CONFIG.Item.documentClasses.spell.toConsumable(spelldata, type);
 						if (itemdata) {
 							// Check uses
 							for (const tracked of toArray(character.trackedresources?.trackedresource)) {
