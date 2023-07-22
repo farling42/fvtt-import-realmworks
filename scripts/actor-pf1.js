@@ -163,14 +163,14 @@ export default class RWPF1Actor {
 		RWPF1Actor.once=true;
 
 		RWPF1Actor.skill_mapping = new Map();
-		for (const [key,value] of Object.entries(CONFIG.PF1.skills)) {
+		for (const [key,value] of Object.entries(pf1.config.skills)) {
 			RWPF1Actor.skill_mapping[value.toLowerCase()] = key;
 		}
-		for (const [key,value] of Object.entries(CONFIG.PF1.spellSchools)) {
+		for (const [key,value] of Object.entries(pf1.config.spellSchools)) {
 			RWPF1Actor.spellschool_names[value.toLowerCase()] = key;
 		}
 		// both "strength" and "str" are stored with "str" as the value
-		for (const [key,value] of Object.entries(CONFIG.PF1.abilities)) {
+		for (const [key,value] of Object.entries(pf1.config.abilities)) {
 			RWPF1Actor.ability_names[value.toLowerCase()] = key;
 			RWPF1Actor.ability_names[key] = key;
 		}
@@ -625,7 +625,7 @@ export default class RWPF1Actor {
 				actiondata.duration   = { value: null, units: "inst" };
 				//actiondata.attackName = attack.name;
 				actiondata.actionType = (attack.rangedattack ? "rwak" : "mwak");		// eg "rwak" or "mwak"
-				actiondata.attackBonus = (parseInt(attack.attack) - +character.attack.baseattack + CONFIG.PF1.sizeSpecialMods[actor.system.traits.size]).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
+				actiondata.attackBonus = (parseInt(attack.attack) - +character.attack.baseattack + pf1.config.sizeSpecialMods[actor.system.traits.size]).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
 				let dmgparts = []; // convert 'B/P/S' to array of damage types
 				for (const part of attack.typetext.split('/')) {
 					switch (part) {
@@ -1452,9 +1452,9 @@ export default class RWPF1Actor {
 
 			for (const item of toArray(character.immunities.special)) {
 				let name = item.shortname;
-				if (CONFIG.PF1.damageTypes[name])
+				if (pf1.registry.damageTypes.get(name))
 					actor.system.traits.di.value.push(name);
-				else if (CONFIG.PF1.conditionTypes[name])
+				else if (pf1.config.conditionTypes[name])
 					actor.system.traits.ci.value.push(name);
 				else
 					custom.push(name);
