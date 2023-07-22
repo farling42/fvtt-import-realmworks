@@ -44,7 +44,6 @@ const ITEM_TYPES = [
 	'weapon'
 ];
 
-let ItemAction;
 let ItemSpellPF;
 
 export default class RWPF1Actor {
@@ -112,7 +111,6 @@ export default class RWPF1Actor {
 	static async initModule() {
 		// Load ItemAction class
 		let { ItemAction:temp1, ItemSpellPF:temp2 } = await import("../../../systems/pf1/pf1.js");
-		ItemAction  = temp1;
 		ItemSpellPF = temp2;
 
 		// Delete any previous stored data first.
@@ -628,7 +626,7 @@ export default class RWPF1Actor {
 				}
 
 				// Build the actual attack action
-				let actiondata = ItemAction.defaultData;
+				let actiondata = pf1.components.ItemAction.defaultData;
 				actiondata.activation = { cost: 1, type: "attack" };
 				actiondata.duration   = { value: null, units: "inst" };
 				//actiondata.attackName = attack.name;
