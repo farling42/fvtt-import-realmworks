@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.9.0
+
+- Fix import of PF1 portfolio files in Foundry 11
+
 ## 2.8.1
 
 - Mark compatible with Foundry 11 (299)
