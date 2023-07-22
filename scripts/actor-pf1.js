@@ -1430,7 +1430,7 @@ export default class RWPF1Actor {
 			for (const item of toArray(character.damagereduction.special)) {
 				set.push(item.shortname);
 			}
-			actor.system.traits.dr = set.join(',');
+			actor.system.traits.dr = { value: [], custom: set.join(',')};
 		}
 		if (character.resistances.special) {
 			let eset = [];
@@ -1446,14 +1446,14 @@ export default class RWPF1Actor {
 				} else
 					cset.push(item.shortname);
 			}
-			actor.system.traits.eres = eset.join(',');
-			actor.system.traits.cres = cset.join(',');
+			actor.system.traits.eres = {value: [], custom: eset.join(',')};
+			actor.system.traits.cres = {value: [], custom: cset.join(',')};
 			if (spellres) actor.system.attributes.sr = {formula: spellres, total: +spellres};
 		}
 
 		if (character.immunities.special) {
-			actor.system.traits.di = {value: []};
-			actor.system.traits.ci = {value: []};
+			actor.system.traits.di = {value: [], custom: ''};
+			actor.system.traits.ci = {value: [], custom: ''};
 			let custom = [];
 
 			for (const item of toArray(character.immunities.special)) {
