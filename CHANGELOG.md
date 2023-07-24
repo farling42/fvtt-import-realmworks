@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2.9.1
+
+- PF1: Improve decoding of resistances
+- PF1: Use ";" as separator in the custom field for traits.
+
 ## 2.9.0
 
 - Fix import of PF1 portfolio files in Foundry 11
