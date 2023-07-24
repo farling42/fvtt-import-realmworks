@@ -1425,7 +1425,7 @@ export default class RWPF1Actor {
 			if (match?.length == 3)
 				trait.value.push({amount: +match[2], operator: true, types: [ shrinktrait(match[1]), ""]});
 			else {
-				if (trait.custom.length>0) trait.custom += ',';
+				if (trait.custom.length>0) trait.custom += ';';
 				trait.custom += string;
 			}
 		}
@@ -1449,7 +1449,7 @@ export default class RWPF1Actor {
 				} else
 					cset.push(item.shortname);
 			}
-			actor.system.traits.cres = cset.join(',');
+			actor.system.traits.cres = cset.join(';');
 			if (spellres) actor.system.attributes.sr = {formula: spellres, total: +spellres};
 		}
 
@@ -1467,7 +1467,7 @@ export default class RWPF1Actor {
 				else
 					custom.push(name);
 			}
-			actor.system.traits.di.custom = custom.join(',');
+			actor.system.traits.di.custom = custom.join(';');
 		}
 		// system.traits.regen
 		// system.traits.fastHealing
@@ -1489,7 +1489,7 @@ export default class RWPF1Actor {
 			for (const lang of toArray(character.languages.special)) {
 				spec.push(lang.name.toLowerCase());
 			}
-			actor.system.traits.languages.custom = spec.join(',');
+			actor.system.traits.languages.custom = spec.join(';');
 		}
 
 		// system.traits.perception.
