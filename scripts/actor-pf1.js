@@ -1392,23 +1392,19 @@ export default class RWPF1Actor {
 			let mysenses = toArray(character.senses.special);
 			let myspellike = toArray(character.spelllike.special);
 			actor.system.traits.senses = {
-				dv:  senseNumber(mysenses,'Darkvision'),
-				ts:  senseNumber(mysenses,'Tremorsense'),
 				bs:  senseNumber(mysenses,'Blindsight'),
 				bse: senseNumber(mysenses,'Blindsense'),
+				custom: "",
+				dv:  senseNumber(mysenses,'Darkvision'),
+				ll:  {enabled:false, multiplier: { bright: 2, dim: 2 }},  // default values
+				sc:  sensePresent(mysenses,'Scent'),
+				si:  sensePresent(myspellike,'See Invisibility (Constant)'),  // spelllike.special.name="See Invisibility (Constant)"
 				sid: sensePresent(mysenses,'See in Darkness'),
 				tr:  sensePresent(myspellike,'True Seeing (Constant)'),
-				si:  sensePresent(myspellike,'See Invisibility (Constant)'),  // spelllike.special.name="See Invisibility (Constant)"
-				sc:  sensePresent(mysenses,'Scent'),
+				ts:  senseNumber(mysenses,'Tremorsense'),
 			}
 			if (sensePresent(mysenses,"Low-Light Vision")) {
-				actor.system.traits.senses.ll =  {
-					enabled: true,
-					multiplier: {
-						dim:    2,
-						bright: 2,
-					}
-				}
+				actor.system.traits.senses.ll.enabled = true;
 			}
 		}
 		
@@ -1418,29 +1414,41 @@ export default class RWPF1Actor {
 		// system.traits.di.value[]/custom	- Damage Immunities
 		// system.traits.dv.value[]/custom	- Damage Vulnerabilities
 		// system.traits.ci.value[]/custom	- Condition Immunities
+		function shrinktrait(string) {
+			if (string === 'electricity') return 'electric';
+			return string;
+		}
+		function trait(trait, string) {
+			// try to find number at end of string:
+			// RW "electricity" | PF1 "electric"
+			let match = string.match(/(.*?) (\d+)/);
+			if (match?.length == 3)
+				trait.value.push({amount: +match[2], operator: true, types: [ shrinktrait(match[1]), ""]});
+			else {
+				if (trait.custom.length>0) trait.custom += ',';
+				trait.custom += string;
+			}
+		}
 
 		if (character.damagereduction.special) {
-			let set = [];
+			actor.system.traits.dr = { value: [], custom: ''};
 			for (const item of toArray(character.damagereduction.special)) {
-				set.push(item.shortname);
+				trait(actor.system.traits.dr, item.shortname);
 			}
-			actor.system.traits.dr = { value: [], custom: set.join(',')};
 		}
 		if (character.resistances.special) {
-			let eset = [];
+			actor.system.traits.eres = {value: [], custom: ''};
 			let cset = [];
-			let sset = [];
 			let spellres;
 			for (const item of toArray(character.resistances.special)) {
-				if (item.name.startsWith('Energy Resistance'))
-					eset.push(item.shortname);
-				else if (item.name.startsWith('Spell Resistance')) {
+				if (item.name.startsWith('Energy Resistance')) {
+					trait(actor.system.traits.eres, item.shortname);
+				} else if (item.name.startsWith('Spell Resistance')) {
 					let match = item.shortname.match(numberpattern);
 					if (match) spellres = match[0];  // need string version for sr.formula
 				} else
 					cset.push(item.shortname);
 			}
-			actor.system.traits.eres = {value: [], custom: eset.join(',')};
 			actor.system.traits.cres = cset.join(',');
 			if (spellres) actor.system.attributes.sr = {formula: spellres, total: +spellres};
 		}
