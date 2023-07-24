@@ -4,6 +4,7 @@
 
 - PF1: Improve decoding of resistances
 - PF1: Use ";" as separator in the custom field for traits.
+- Add link to github for users to report bugs.
 
 ## 2.9.0
 
