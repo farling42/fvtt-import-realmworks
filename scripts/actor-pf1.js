@@ -454,11 +454,11 @@ export default class RWPF1Actor {
 		// race.system.changes []
 		//    modifier = "racial"
 		//    formula  = "2" or "-2"
-		//    target   = "ability"
-		//    subTarget = "dex" | "int" | "con"
+		//    target   = "ability"  (missing in PF1 v9.5)
+		//    subTarget = "dex" | "int" | "con"  (or "skill.<name>")
 		if (racedata) {
 			for (const change of racedata.system.changes) {
-				if (change.modifier == 'racial' && change.target == 'ability' && change.operator == 'add') {
+				if (change.modifier == 'racial' && change.subTarget.length === 3) {
 					console.log(`Removing racial ability modifier: ${change.subTarget} = ${change.formula} `);
 					actor.system.abilities[change.subTarget].value = actor.system.abilities[change.subTarget].value - (+change.formula);
 				}
