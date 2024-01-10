@@ -6,7 +6,7 @@
 
 const GS_MODULE_NAME = "realm-works-import";
 
-export class DirectoryPicker extends FilePicker {
+export class RWDirectoryPicker extends FilePicker {
   constructor(options = {}) {
     super(options);
   }
@@ -16,7 +16,7 @@ export class DirectoryPicker extends FilePicker {
     const path = event.target.target.value;
     const activeSource = this.activeSource;
     const bucket = event.target.bucket ? event.target.bucket.value : null;
-    this.field.value = DirectoryPicker.format({
+    this.field.value = RWDirectoryPicker.format({
       activeSource,
       bucket,
       path,
@@ -25,7 +25,7 @@ export class DirectoryPicker extends FilePicker {
   }
 
   static async uploadToPath(path, file) {
-    const options = DirectoryPicker.parse(path);
+    const options = RWDirectoryPicker.parse(path);
     return FilePicker.upload(options.activeSource, options.current, file, { bucket: options.bucket });
   }
 
@@ -80,9 +80,9 @@ export class DirectoryPicker extends FilePicker {
 
         // if there is no button next to this input element yet, we add it
         if (!$(element).next().length) {
-          let picker = new DirectoryPicker({
+          let picker = new RWDirectoryPicker({
             field: $(element)[0],
-            ...DirectoryPicker.parse($(element).val()),
+            ...RWDirectoryPicker.parse($(element).val()),
           });
           let pickerButton = $(
             '<button type="button" class="file-picker" data-type="imagevideo" data-target="img" title="Pick directory"><i class="fas fa-file-import fa-fw"></i></button>'
@@ -123,7 +123,7 @@ export class DirectoryPicker extends FilePicker {
       throw new Error("No directory name provided");
     }
     if (typeof ForgeVTT !== "undefined" && ForgeVTT?.usingTheForge) {
-      return DirectoryPicker.forgeCreateDirectory(target);
+      return RWDirectoryPicker.forgeCreateDirectory(target);
     }
     return FilePicker.createDirectory(source, target, options);
   }
@@ -146,7 +146,7 @@ export class DirectoryPicker extends FilePicker {
             currentSource = `${currentSource}/${paths[i]}`;
           }
           // eslint-disable-next-line no-await-in-loop
-          await DirectoryPicker.createDirectory(parsedPath.activeSource, `${currentSource}`, { bucket: parsedPath.bucket });
+          await RWDirectoryPicker.createDirectory(parsedPath.activeSource, `${currentSource}`, { bucket: parsedPath.bucket });
 
         } catch (err) {
           if (!err.message.startsWith("EEXIST") && !err.message.startsWith("The S3 key")) console.info(`Error trying to verify path [${parsedPath.activeSource}], ${parsedPath.current}`, err);
@@ -163,5 +163,5 @@ export class DirectoryPicker extends FilePicker {
 // this s hooked in, we don't use all the data, so lets stop eslint complaining
 // eslint-disable-next-line no-unused-vars
 Hooks.on("renderSettingsConfig", (app, html, user) => {
-  DirectoryPicker.processHtml(html);
+  RWDirectoryPicker.processHtml(html);
 });

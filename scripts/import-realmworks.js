@@ -20,7 +20,7 @@
 
 import "./UZIP.js";
 import "./jimp.js";
-import { DirectoryPicker } from "./DirectoryPicker.js";
+import { RWDirectoryPicker } from "./DirectoryPicker.js";
 
 const GS_MODULE_NAME = "realm-works-import";
 
@@ -73,7 +73,7 @@ Hooks.once('init', () => {
 		name: "Location of Extracted Assets",
 		hint: "Folder within [User Data] area where assets (e.g. sounds, PDFs, videos) embedded in the RWexport file will be placed.",
 		scope: "world",
-		type:  DirectoryPicker.Directory,
+		type:  RWDirectoryPicker.Directory,
 		default: `[data] worlds/${game.world.id}/realmworksimport`,
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
 		config: true,
@@ -699,7 +699,7 @@ class RealmWorksImporter extends Application
 			
 			// Where image files should be stored...
 			this.asset_directory = game.settings.get(GS_MODULE_NAME, GS_ASSETS_LOCATION);		// no trailing "/"
-			const options = DirectoryPicker.parse(this.asset_directory);
+			const options = RWDirectoryPicker.parse(this.asset_directory);
 			// Create the prefix when referencing the location of uploaded files
 			if (options.activeSource === 's3')
 				this.asset_url = game.data.files.s3.endpoint.protocol + '//' + options.bucket + '.' +
@@ -917,7 +917,7 @@ class RealmWorksImporter extends Application
 			if (CONST.UPLOADABLE_FILE_EXTENSIONS[ext.toLowerCase()]) {
 				let file = new File([data], validname);
 
-				await DirectoryPicker.uploadToPath(this.asset_directory, file)
+				await RWDirectoryPicker.uploadToPath(this.asset_directory, file)
 					.then(console.debug(`Uploaded file '${filename}'`))
 					.catch(e => console.warn(`Failed to upload '${filename}': ${e}`));
 			} else {
@@ -2202,7 +2202,7 @@ class RealmWorksImporter extends Application
 		let actor_folder_id = (await this.getFolder(this.folderName, 'Actor')).id;
 		
 		// Create the image folder if it doesn't already exist.
-		await DirectoryPicker.verifyPath(DirectoryPicker.parse(this.asset_directory));
+		await RWDirectoryPicker.verifyPath(RWDirectoryPicker.parse(this.asset_directory));
 
 		if (!this.parser) this.parser = new DOMParser();
 		const portfolio = this.readPortfolio(Buffer.from(data));
@@ -2314,7 +2314,7 @@ class RealmWorksImporter extends Application
 		this.scene_folder     = await this.getFolder(this.folderName, 'Scene');
 		this.playlist_folder  = await this.getFolder(this.folderName, 'Playlist');
 		this.rolltable_folder = await this.getFolder(this.folderName, 'RollTable');
-		await DirectoryPicker.verifyPath(DirectoryPicker.parse(this.asset_directory));
+		await RWDirectoryPicker.verifyPath(RWDirectoryPicker.parse(this.asset_directory));
 		
 		// Create a mapping to indicate which topics link INTO each topic
 		if (this.addInboundLinks) {
