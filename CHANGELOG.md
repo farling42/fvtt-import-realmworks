@@ -1,8 +1,9 @@
 # CHANGELOG
 
-## 2.9.3
+## 2.9.4
 
-- Ensure that the embedded DirectoryPicker class only works for THIS module's settings in Foundry's Configure Settings window.
+- Rename the provided DirectoryPicker to RWDirectoryPicker so that it doesn't conflict with a similar class name in other modules (such as ddb-importer).
+- Ensure that the embedded RWDirectoryPicker class only works for THIS module's settings in Foundry's Configure Settings window.
 
 ## 2.9.2
 
