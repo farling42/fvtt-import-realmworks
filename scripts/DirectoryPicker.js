@@ -4,6 +4,8 @@
 
 //import logger from "../logger.js";
 
+const GS_MODULE_NAME = "realm-works-import";
+
 export class DirectoryPicker extends FilePicker {
   constructor(options = {}) {
     super(options);
@@ -71,7 +73,7 @@ export class DirectoryPicker extends FilePicker {
   // Adds a FilePicker-Simulator-Button next to the input fields
   static processHtml(html) {
     $(html)
-      .find(`input[data-dtype="Directory"]`)
+      .find(`section[data-tab="${GS_MODULE_NAME}"] input[data-dtype="Directory"]`)
       .each((index, element) => {
         // disable the input field raw editing
         $(element).prop("readonly", true);
