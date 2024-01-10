@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2.9.3
+
+- Ensure that the embedded DirectoryPicker class only works for THIS module's settings in Foundry's Configure Settings window.
+
+## 2.9.2
+
+- This fixes a bug in processing HL portfolios for PF1 version 9.x where the ability scores were not being corrected for the race of the imported creature.
+
 ## 2.9.1
 
 - PF1: Improve decoding of resistances
