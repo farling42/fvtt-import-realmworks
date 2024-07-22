@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2.10.0
+
+- Get the core Importer to work in Foundry V12 as well as V11 (journals, scenes, playlists, etc.).
+- Support for creation of Actors and Items in specific game systems might not be working at this point.
+
 ## 2.9.4
 
 - Rename the provided DirectoryPicker to RWDirectoryPicker so that it doesn't conflict with a similar class name in other modules (such as ddb-importer).

@@ -30,11 +30,11 @@ export default class RWDND5EActor {
 		}
 		const schools = CONFIG.DND5E.spellSchools;
 		for (const [key,value] of Object.entries(schools)) {
-			RWDND5EActor.spell_schools[value.toLowerCase()] = key;
+			RWDND5EActor.spell_schools[value.fullKey] = key;
 		}
 		const abilities = CONFIG.DND5E.abilities;  // both "strength" and "str" are stored with "str" as the value
 		for (const [key,value] of Object.entries(abilities)) {
-			RWDND5EActor.ability_names[value.toLowerCase()] = key;
+			RWDND5EActor.ability_names[value.fullKey] = key;
 			RWDND5EActor.ability_names[key] = key;
 		}
 		const tools = CONFIG.DND5E.toolIds;
@@ -49,7 +49,7 @@ export default class RWDND5EActor {
 		}
 		const actorSizes = CONFIG.DND5E.actorSizes;
 		for (const [key,value] of Object.entries(actorSizes)) {
-			RWDND5EActor.actor_sizes[value] = key;  // not lower case
+			RWDND5EActor.actor_sizes[value.label] = key;  // not lower case
 		}
 	}
 

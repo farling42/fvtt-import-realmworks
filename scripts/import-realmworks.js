@@ -57,7 +57,7 @@ const PIN_ICON_NOT_REVEALED = 'icons/svg/blind.svg';
 Hooks.once('init', () => {
 
 	// 0.8.9 has game.system.entityTypes; 0.9 has game.system.documentTypes
-	let dtypes = game.system.documentTypes || game.system.entityTypes;
+  const dtypes = (game.release.generation < 12) ? game.system.documentTypes : game.documentTypes;
 	
 	let actors = {};
 	for (const label of dtypes.Actor) {
@@ -830,11 +830,10 @@ class RealmWorksImporter extends Application
 		});
 	}
 
-	async getFolder(folderName, type, parentid=null) {
-		// More complicated find for Foundry V10, since .parent doesn't exist
-		const found = game.folders.find(e => e.type === type && e.name === folderName && (parentid ? (e.ancestors.length>0 && e.ancestors[0].id == parentid) : (e.ancestors.length === 0)));
+	async getFolder(folderName, type, parentfolder=null) {
+		const found = game.folders.find(e => e.type === type && e.name === folderName && e.folder === parentfolder);
 		if (found) return found;
-		return Folder.create({name: folderName, type: type, parent: parentid, sorting: "m"});
+		return Folder.create({name: folderName, type: type, folder: parentfolder, sorting: "m"});
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
@@ -2079,7 +2078,7 @@ class RealmWorksImporter extends Application
 		// or the name of the actor does NOT match the name of the topic,
 		// then put the actors in a sub-folder named after the topic.
 		if (result.length === 0) return result;
-		const folderid = (result.length === 1 && result[0].name === topicname) ? this.actor_folder.id : (await this.getFolder(topicname, 'Actor', this.actor_folder.id)).id;
+		const folderid = (result.length === 1 && result[0].name === topicname) ? this.actor_folder.id : (await this.getFolder(topicname, 'Actor', this.actor_folder)).id;
 
 		// Set the folder for each actor.
 		for (let i=0; i<result.length; i++)
@@ -2199,7 +2198,7 @@ class RealmWorksImporter extends Application
 			}
 		}
 
-		let actor_folder_id = (await this.getFolder(this.folderName, 'Actor')).id;
+		let actor_folder_id = await this.getFolder(this.folderName, 'Actor');
 		
 		// Create the image folder if it doesn't already exist.
 		await RWDirectoryPicker.verifyPath(RWDirectoryPicker.parse(this.asset_directory));
@@ -2360,13 +2359,13 @@ class RealmWorksImporter extends Application
 			
 			if (this.topic_item_type.has(topic.getAttribute('topic_id'))) {
 				if (!item_folders.has(category_id)) {
-					if (!item_parent) item_parent = (await this.getFolder(this.folderName, 'Item')).id;
+					if (!item_parent) item_parent = await this.getFolder(this.folderName, 'Item');
 					await this.getFolder(this.structure.categories.get(category_id), 'Item', item_parent)
 					.then(f => item_folders.set(category_id, f.id));
 				}
 			} else {
 				if (!journal_folders.has(category_id)) {
-					if (!journal_parent) journal_parent = (await this.getFolder(this.folderName, 'JournalEntry')).id;
+					if (!journal_parent) journal_parent = await this.getFolder(this.folderName, 'JournalEntry');
 					await this.getFolder(this.structure.categories.get(category_id), 'JournalEntry', journal_parent)
 					.then(f => journal_folders.set(category_id, f.id));
 				}

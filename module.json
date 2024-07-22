@@ -1,17 +1,12 @@
 {
 	"id"   : "realm-works-import",
-	"name" : "realm-works-import",
 	"title": "Realm Works® Importer",
 	"description": "Imports files from Realm Works® campaign management tool",
-	"author" : "Farling",
 	"version": "2.7",
-
-	"minimumCoreVersion": "11",
 	"compatibility": {
 		"minimum" : "11",
-		"verified": "11.306"
+		"verified": "12.329"
 	},
-
 	"esmodules": [
 		"scripts/libwrapper-shim.js",
 		"scripts/import-realmworks.js",
