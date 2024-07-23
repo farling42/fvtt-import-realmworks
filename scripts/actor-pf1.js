@@ -208,6 +208,8 @@ export default class RWPF1Actor {
 				details: {},
 				skills: {},
 				traits: {},
+        currency: {},
+        altCurrency: {}
 			},
 			items: []		// add items with :   items.push(new Item(itemdata).system)
 		};
@@ -447,7 +449,7 @@ export default class RWPF1Actor {
 		// attrvalue.modified includes bonuses
 		for (const attr of character.attributes.attribute) {
 			actor.system.abilities[RWPF1Actor.ability_names[attr.name.toLowerCase()]] = {
-				value: (attr.attrvalue.text=='-') ? 0 : +attr.attrvalue.base,
+				value: (attr.attrvalue.text=='-') ? null : +attr.attrvalue.base,
 			}
 		}
 		// Remove racial bonuses (if any)
@@ -460,7 +462,7 @@ export default class RWPF1Actor {
 			for (const change of racedata.system.changes) {
 				if (change.modifier == 'racial' && change.subTarget.length === 3) {
 					console.log(`Removing racial ability modifier: ${change.subTarget} = ${change.formula} `);
-					actor.system.abilities[change.subTarget].value = actor.system.abilities[change.subTarget].value - (+change.formula);
+					actor.system.abilities[change.subTarget].value = (actor.system.abilities[change.subTarget].value??0) - (+change.formula);
 				}
 			}
 		}
@@ -635,7 +637,13 @@ export default class RWPF1Actor {
 					}
 				}
 				dmgparts.push(attack.typetext);
-				actiondata.damage.parts = [ [ attack.damage.split(' ')[0] , { values: dmgparts, custom: ""} ] ],			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ],
+				actiondata.damage.parts = [ {
+          formula: attack.damage.split(' ')[0],
+          type: { 
+            values: dmgparts,
+            custom: ""
+          } 
+        } ],			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ],
 				actiondata.enh = { override: false, value: 0};
 				actiondata.name = 'Attack';
 				actiondata.ability = {
@@ -1411,9 +1419,9 @@ export default class RWPF1Actor {
 		// system.traits.dr		// damage reduction		(character.damagereduction)
 		// system.traits.eres		// energy resistance	(character.resistances)
 		// system.traits.cres		// condition resistance	(character.resistances)
-		// system.traits.di.value[]/custom	- Damage Immunities
-		// system.traits.dv.value[]/custom	- Damage Vulnerabilities
-		// system.traits.ci.value[]/custom	- Condition Immunities
+		// system.traits.di.value[]/custom[]	- Damage Immunities
+		// system.traits.dv.value[]/custom[]	- Damage Vulnerabilities
+		// system.traits.ci.value[]/custom[]	- Condition Immunities
 		function shrinktrait(string) {
 			if (string === 'electricity') return 'electric';
 			return string;
@@ -1425,8 +1433,12 @@ export default class RWPF1Actor {
 			if (match?.length == 3)
 				trait.value.push({amount: +match[2], operator: true, types: [ shrinktrait(match[1]), ""]});
 			else {
-				if (trait.custom.length>0) trait.custom += ';';
-				trait.custom += string;
+        if (Array.isArray(trait.custom))
+          trait.custom.push(string);
+        else {
+				  if (trait.custom.length>0) trait.custom += ';';
+  				trait.custom += string;
+        }
 			}
 		}
 
@@ -1454,9 +1466,8 @@ export default class RWPF1Actor {
 		}
 
 		if (character.immunities.special) {
-			actor.system.traits.di = {value: [], custom: ''};
-			actor.system.traits.ci = {value: [], custom: ''};
-			let custom = [];
+			actor.system.traits.di = {value: [], custom: []};
+			actor.system.traits.ci = {value: [], custom: []};
 
 			for (const item of toArray(character.immunities.special)) {
 				let name = item.shortname;
@@ -1465,31 +1476,24 @@ export default class RWPF1Actor {
 				else if (pf1.config.conditionTypes[name])
 					actor.system.traits.ci.value.push(name);
 				else
-					custom.push(name);
+          actor.system.traits.di.custom.push(name);
 			}
-			actor.system.traits.di.custom = custom.join(';');
 		}
 		// system.traits.regen
 		// system.traits.fastHealing
 		// system.traits.languages.value[]/custom
 		if (character.languages.language) {
-			actor.system.traits.languages = {
-				value: []
-			};
+			actor.system.traits.languages = { value: [], custom: [] };
 			for (const lang of toArray(character.languages.language)) {
 				actor.system.traits.languages.value.push(lang.name.toLowerCase());
 			}
 		}
 		if (character.languages.special) {
 			if (!actor.system.traits.languages)
-				actor.system.traits.languages = {
-					value: []
-				};
-			let spec = [];
+				actor.system.traits.languages = { value: [], custom: [] };
 			for (const lang of toArray(character.languages.special)) {
-				spec.push(lang.name.toLowerCase());
+				actor.system.traits.languages.custom.push(lang.name.toLowerCase());
 			}
-			actor.system.traits.languages.custom = spec.join(';');
 		}
 
 		// system.traits.perception.

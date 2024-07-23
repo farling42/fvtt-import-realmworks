@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.10.1
+
+- Update PF1 importer to work with pf1 version 10.4
+
 ## 2.10.0
 
 - Get the core Importer to work in Foundry V12 as well as V11 (journals, scenes, playlists, etc.).
