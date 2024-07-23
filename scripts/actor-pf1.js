@@ -236,7 +236,7 @@ export default class RWPF1Actor {
 		// system.attributes.hp.value/base/max/temp/nonlethal
 		//let hp = +character.health.hitpoints;
 		actor.system.attributes.hp = {
-			value: +character.health.currenthp,
+			value: +character.health.currenthp,  // value is NOT used by PF1
 			//base:  +character.health.hitpoints,		// This screws up PF1E if automatic HP calculation is enabled
 			min:   0,
 			max:   +character.health.hitpoints,

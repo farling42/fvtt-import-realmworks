@@ -440,7 +440,7 @@ export default class RWDND5EActor {
 							},
 							duration:   { value: null, units: "" },
 							target:     { value: null, width: null, units: "", type: "" },
-							range:      { value: spell.range, "long": null, units: "" },
+							range:      { value: parseInt(spell.range), "long": null, units: "" },
 							uses:       { value: 0, max: 0, per: null },
 							consume:    { type: "", target: null, amount: null },
 							
@@ -462,7 +462,7 @@ export default class RWDND5EActor {
 							},
 							
 							// 'spell' item type
-							level:  parseInt(spell.level),
+							level:  parseInt(spell.level || 0),  // no level field on cantrips
 							school: RWDND5EActor.spell_schools[spell.schooltext.toLowerCase()],
 							components: {
 								value:    "",
