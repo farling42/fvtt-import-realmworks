@@ -2,7 +2,8 @@
 
 ## 2.10.1
 
-- Update PF1 importer to work with pf1 version 10.4
+- PF1: Update importer to work with pf1 version 10.4
+- DND5E: Fix importing of spell range and level for DND5E 3.3.x (where DataModel was rejecting a number in a string)
 
 ## 2.10.0
 
