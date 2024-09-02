@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 2.11
+## 2.11.0
 
 - Provide the option to import Items and Journal Entries directly into Compendiums (choose open compendiums in the module settings).
 
