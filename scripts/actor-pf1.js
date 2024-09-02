@@ -1108,7 +1108,7 @@ export default class RWPF1Actor {
 				}
 			}
 			if (found) {
-				console.log(`ignoring ${special.name} since it was already exists in items[]`);
+				console.log(`ignoring ${special.name} since it already exists in items[]`);
 				continue;
 			}
 
