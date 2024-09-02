@@ -44,12 +44,25 @@ const GS_SCENE_TOKEN_VISION = "sceneTokenVision";
 const GS_UNREVEALED_TOPICS_SECRET = "unrevealedTopicsSecret";
 const GS_NOTE_LINE_LENGTH = "noteLineLength";
 const GS_NOTE_TEXT_SIZE = "noteTextSize";
+const GS_ITEM_COMPENDIUM = "itemCompendium";
+const GS_JOURNAL_COMPENDIUM = "journalCompendium";
+
 
 const GS_FLAGS_UUID = "uuid";
 
 const PIN_ICON_REVEALED = 'icons/svg/circle.svg';
 const PIN_ICON_NOT_REVEALED = 'icons/svg/blind.svg';
 
+const NO_PACK = "none";
+
+function compendiumsOfType(type) {
+  let result = {};
+  result[NO_PACK] = "";
+  for (const pack of game.packs.filter(pack => !pack.locked && pack.metadata.type === type)) {
+    result[pack.metadata.id] = pack.metadata.label;
+  }
+  return result;
+}
 
 //
 // Register game settings
@@ -77,6 +90,22 @@ Hooks.once('init', () => {
 		default: `[data] worlds/${game.world.id}/realmworksimport`,
 		//filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
 		config: true,
+	});
+	game.settings.register(GS_MODULE_NAME, GS_ITEM_COMPENDIUM, {
+		name: "Compendium for Items",
+		hint: "Optionally choose a compendium into which all Items will be imported",
+		scope: "world",
+		type:  String,
+		config: true,
+    choices: () => compendiumsOfType("Item"),  // called when window opened
+	});
+	game.settings.register(GS_MODULE_NAME, GS_JOURNAL_COMPENDIUM, {
+		name: "Compendium for Journal Entries",
+		hint: "Optionally choose a compendium into which all Journals will be imported",
+		scope: "world",
+		type:  String,
+		config: true,
+    choices: () => compendiumsOfType("JournalEntry"),  // called when window opened
 	});
 	// Get the list of Actor choices Actor.types[] system/template.json
     game.settings.register(GS_MODULE_NAME, GS_ACTOR_TYPE, {
@@ -346,6 +375,7 @@ function stripPara(original) {
 	}
 	return original;
 }
+
 // Remove the default class information from the RW formatting to reduce the size of the final HTML.
 function simplifyPara(original) {
 	// Too much effort to remove <span> and </span> tags, so just simplify.
@@ -382,6 +412,7 @@ function hasRevealed(section) {
 	}
 	return false;
 }
+
 // getChild: Returns the named direct child of node.  node can be undefined, failure to find will return undefined.
 function getChild(node,name) {
 	if (node) {
@@ -393,6 +424,7 @@ function getChild(node,name) {
 	}
 	return undefined;
 }
+
 //
 // Convert Utf8Array to UTF-8 string
 //
@@ -413,7 +445,6 @@ function firstImage(pages) {
 	return undefined;
 }
 
-
 const convertToWebp = src => new Promise((resolve, reject) =>
 	{
 		const image = new Image();
@@ -427,8 +458,7 @@ const convertToWebp = src => new Promise((resolve, reject) =>
 		image.onerror = reject;
 		image.src = src;
 	});
-
-
+  
 class RealmWorksImporter extends Application
 {
 	// document_for_topic is a map: key = topic_id, value = JournalEntry
