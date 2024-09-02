@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.11
+
+- Provide the option to import Items and Journal Entries directly into Compendiums (choose open compendiums in the module settings).
+
 ## 2.10.1
 
 - PF1: Update importer to work with pf1 version 10.4

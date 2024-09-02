@@ -68,6 +68,8 @@ If "secret" was manually removed from the GM Directions, then a warning is displ
 
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
 
+- Created Items and Journals can be placed directly into Compendiums by specifying the relevant unlocked compendium in the module's settings.
+
 ## Store Foundry data inside Realm Works
 
 Now you can store your scene wall data (and any other Foundry settings) inside Realm Works, so that those settings are restored on future imports.
