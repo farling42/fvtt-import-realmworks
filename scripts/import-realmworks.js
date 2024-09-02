@@ -619,6 +619,10 @@ class RealmWorksImporter extends Application
 			this.unrevealed_topics_secret  = game.settings.get(GS_MODULE_NAME, GS_UNREVEALED_TOPICS_SECRET);
 			this.note_line_length          = game.settings.get(GS_MODULE_NAME, GS_NOTE_LINE_LENGTH);
 			this.note_text_size            = game.settings.get(GS_MODULE_NAME, GS_NOTE_TEXT_SIZE);
+      this.item_pack                 = game.settings.get(GS_MODULE_NAME, GS_ITEM_COMPENDIUM);
+      this.journal_pack              = game.settings.get(GS_MODULE_NAME, GS_JOURNAL_COMPENDIUM);
+      if (this.journal_pack === NO_PACK) this.journal_pack = undefined;
+      if (this.item_pack    === NO_PACK) this.item_pack = undefined;
 			if (this.scene_grid < 50) {
 				console.warn(`CONFIGURED SCENE GRID SIZE IS TOO SMALL (${this.scene_grid}), USING 50`);
 				this.scene_grid = 50;
@@ -861,9 +865,16 @@ class RealmWorksImporter extends Application
 	}
 
 	async getFolder(folderName, type, parentfolder=null) {
-		const found = game.folders.find(e => e.type === type && e.name === folderName && e.folder === parentfolder);
+    const pack = (type === "Item") ? this.item_pack : (type === "JournalEntry") ? this.journal_pack : undefined;
+    const folders = pack ? pack.folders : game.folders;
+		const found = folders?.find(e => e.type === type && e.name === folderName && e.folder === parentfolder);
 		if (found) return found;
-		return Folder.create({name: folderName, type: type, folder: parentfolder, sorting: "m"});
+		return Folder.create({
+      name: folderName, 
+      type, 
+      folder: parentfolder, 
+      sorting: "m"},
+      { pack });
 	}
 	
 	// Generic routine to create any type of inter-topic link (remote_link can be undefined)
@@ -2329,7 +2340,11 @@ class RealmWorksImporter extends Application
 		// Maybe delete the old folders before creating a new one?
 		if (this.deleteOldFolders) {
 			// Delete folders with the given name.
-			for (let folder of game.folders.filter(e => e.name === this.folderName)) {
+      let folders = game.folders.filter(e => e.name === this.folderName);
+      if (this.item_pack) folders.push(...game.packs.get(this.item_pack).folders.filter(e => e.name === this.folderName));
+      if (this.journal_pack) folders.push(...game.packs.get(this.journal_pack).folders.filter(e => e.name === this.folderName));
+
+			for (let folder of folders) {
 				await folder.delete({
 					deleteSubfolders: true,
 					deleteContents: true
@@ -2379,6 +2394,7 @@ class RealmWorksImporter extends Application
 		let item_parent;
 		let journal_folders = new Map();
 		let item_folders    = new Map();
+
 		for (const topic of topics) {
 			// If the topic exists, then we don't need to worry about which folder it is in.
 			if (this.overwriteExisting || this.importOnlyNew) {
@@ -2431,13 +2447,15 @@ class RealmWorksImporter extends Application
 					folder: item_folders.get(topic.getAttribute('category_id')),
 					flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
 					system:   {},
-				}).catch(e => console.error(`Failed to create ITEM '${this.title_of_topic.get(topic_id)}':\n${e}`));
+				},
+        { pack: this.item_pack }).catch(e => console.error(`Failed to create ITEM '${this.title_of_topic.get(topic_id)}':\n${e}`));
 			} else {
 				topic_doc = await JournalEntry.create({
 					name:   this.title_of_topic.get(topic_id),
 					folder: journal_folders.get(topic.getAttribute('category_id')),
 					flags: { [GS_MODULE_NAME] : { [GS_FLAGS_UUID] : uuid }},
-				}).catch(e => console.error(`Failed to create JOURNAL ENTRY '${this.title_of_topic.get(topic_id)}':\n${e}`));
+				},
+        { pack: this.journal_pack }).catch(e => console.error(`Failed to create JOURNAL ENTRY '${this.title_of_topic.get(topic_id)}':\n${e}`));
 			}
 			return { topic_id : topic_id, topic : topic_doc };
 		}))
