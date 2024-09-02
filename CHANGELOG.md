@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.11.1
+
+- Improve RollTable creation, reducing number of tables wrongly being created when they aren't really rollable tables.
+
 ## 2.11.0
 
 - Provide the option to import Items and Journal Entries directly into Compendiums (choose open compendiums in the module settings).

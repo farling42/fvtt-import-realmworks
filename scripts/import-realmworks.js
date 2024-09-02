@@ -1295,32 +1295,33 @@ class RealmWorksImporter extends Application {
           // e.g. 1d20  or d12 + d8
         } else {
           // check for a number, or a range of numbers
-          const numbers = cell1.match(/\d+/g);
-          if (!numbers || numbers.length == 0 || numbers.length > 2) {
+          const numberreg = RegExp("^(-?\\d+)(?:([-,])(-?\\d+))?$");
+          let numbers = cell1.match(numberreg);
+          if (!numbers) {
             valid = false;
             break;
           }
           let details = rownode.cells[datacolumn].innerHTML.replace(details1_regexp, '$1').replace(details2_regexp, '$1').replace(dice_regexp, '[[$1]]');
 
           let pos;
-          if (numbers.length == 1) {
+          if (numbers.length === 1 || !numbers[2]) {
             // single number
-            const num = +numbers[0];
+            const num = Number(numbers[1]);
             setLimit(num);
             rolltable.push({ range: [num, num], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details });
-          } else if ((pos = cell1.indexOf('-')) > 0) {
-            const low = parseInt(cell1.slice(0, pos));
-            const high = parseInt00(cell1.slice(pos + 1));
+          } else if (numbers[2] === "-") {
+            const low  = Number(numbers[1]);
+            const high = Number(numbers[3]);
             setLimit(low);
             setLimit(high);
             rolltable.push({ range: [low, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details });
             // valid
-          } else if ((pos = cell1.indexOf(',')) > 0) {
-            const low = parseInt(cell1.slice(0, pos));
-            const high = parseInt00(cell1.slice(pos + 1));
+          } else if (numbers[2] === ",") {
+            const low  = Number(numbers[1]);
+            const high = Number(numbers[3]);
             setLimit(low);
             setLimit(high);
-            if (low + 1 == high)
+            if (low + 1 === high)
               // consecutive numbers, so one entry
               rolltable.push({ range: [low, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details });
             else {
@@ -1346,13 +1347,14 @@ class RealmWorksImporter extends Application {
       // weight: 1
       // range : [ low, high ]
       // drawn : boolean
-      let name = this.title_of_topic.get(topic.getAttribute("topic_id"));
+      const topic_id = topic.getAttribute("topic_id");
+      let name = this.title_of_topic.get(topic_id);
       console.debug(`Creating a RollTable with ${rolltable.length} rows for '${name}'`);
       name += " : " + (tablenode.caption ? tablenode.caption.captiontext : section_name);
       let tabledata = {
         name: name,
         //img:         string,
-        //description: "Imported from Realm Works",  // This appears on every roll in the chat!
+        description: `From ${this.formatLink(topic_id)}`,  // This appears on every roll in the chat!
         results: rolltable,	// Collection.<BaseTableResult>
         formula: formula ? formula : (min == 1) ? `1d${max}` : `1d${max - min + 1}+${min - 1}`,
         replacement: true,
