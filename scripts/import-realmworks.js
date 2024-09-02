@@ -862,7 +862,7 @@ class RealmWorksImporter extends Application {
 
   async getFolder(folderName, type, parentfolder = null) {
     const pack = (type === "Item") ? this.item_pack : (type === "JournalEntry") ? this.journal_pack : undefined;
-    const folders = pack ? pack.folders : game.folders;
+    const folders = pack ? game.packs.get(pack).folders : game.folders;
     const found = folders?.find(e => e.type === type && e.name === folderName && e.folder === parentfolder);
     if (found) return found;
     return Folder.create({
@@ -2367,14 +2367,32 @@ class RealmWorksImporter extends Application {
     }
     if (this.importOnlyNew || this.overwriteExisting) {
       this.existing_docs = new Map();
-      for (const je of game.journal) {
-        let uuid = je.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
-        if (uuid) this.existing_docs.set(uuid, je);
-      }
-      for (const item of game.items) {
-        let uuid = item.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
-        if (uuid) this.existing_docs.set(uuid, item);
-      }
+      if (this.journal_pack) {
+        const pack = game.packs.get(this.journal_pack);
+        for (const entry of pack.index) {
+          const je = await pack.getDocument(entry._id);
+          let uuid = je.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
+          if (uuid) this.existing_docs.set(uuid, je);
+        }
+      } else
+        for (const je of game.journal) {
+          let uuid = je.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
+          if (uuid) this.existing_docs.set(uuid, je);
+        }
+
+      if (this.item_pack) {
+        const pack = game.packs.get(this.item_pack);
+        for (const entry of pack.index) {
+          const item = await pack.getDocument(entry._id);
+          let uuid = item.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
+          if (uuid) this.existing_docs.set(uuid, item);
+        }
+      } else
+        for (const item of game.items) {
+          let uuid = item.getFlag(GS_MODULE_NAME, GS_FLAGS_UUID);
+          if (uuid) this.existing_docs.set(uuid, item);
+        }
+
       console.debug(`Found '${GS_FLAGS_UUID}' flag on ${this.existing_docs.size} journal entries/items`);
     }
 
@@ -2427,24 +2445,30 @@ class RealmWorksImporter extends Application {
           }
         }
       }
-      let topic_doc;
 
+      let topic_doc;
       if (this.topic_item_type.has(topic_id)) {
-        topic_doc = await Item.create({
-          name: this.title_of_topic.get(topic_id),
-          type: await this.get_item_type(this.structure, topic, this.topic_item_type.get(topic_id)),
-          folder: item_folders.get(topic.getAttribute('category_id')),
-          flags: { [GS_MODULE_NAME]: { [GS_FLAGS_UUID]: uuid } },
-          system: {},
-        },
-          { pack: this.item_pack }).catch(e => console.error(`Failed to create ITEM '${this.title_of_topic.get(topic_id)}':\n${e}`));
+        topic_doc = await Item.create(
+          {
+            name: this.title_of_topic.get(topic_id),
+            type: await this.get_item_type(this.structure, topic, this.topic_item_type.get(topic_id)),
+            folder: item_folders.get(topic.getAttribute('category_id')),
+            flags: { [GS_MODULE_NAME]: { [GS_FLAGS_UUID]: uuid } },
+            system: {},
+          },
+          {
+            pack: this.item_pack
+          }).catch(e => console.error(`Failed to create ITEM '${this.title_of_topic.get(topic_id)}':\n${e}`));
       } else {
-        topic_doc = await JournalEntry.create({
-          name: this.title_of_topic.get(topic_id),
-          folder: journal_folders.get(topic.getAttribute('category_id')),
-          flags: { [GS_MODULE_NAME]: { [GS_FLAGS_UUID]: uuid } },
-        },
-          { pack: this.journal_pack }).catch(e => console.error(`Failed to create JOURNAL ENTRY '${this.title_of_topic.get(topic_id)}':\n${e}`));
+        topic_doc = await JournalEntry.create(
+          {
+            name: this.title_of_topic.get(topic_id),
+            folder: journal_folders.get(topic.getAttribute('category_id')),
+            flags: { [GS_MODULE_NAME]: { [GS_FLAGS_UUID]: uuid } },
+          },
+          {
+            pack: this.journal_pack
+          }).catch(e => console.error(`Failed to create JOURNAL ENTRY '${this.title_of_topic.get(topic_id)}':\n${e}`));
       }
       return { topic_id: topic_id, topic: topic_doc };
     }))
@@ -2539,6 +2563,8 @@ class RealmWorksImporter extends Application {
     delete this.existing_docs;
     delete this.category_of_topic;
     delete this.json_to_import;
+    delete this.journal_pack;
+    delete this.item_pack;
     if (this.addInboundLinks) delete this.links_in;
   }
 } // class
