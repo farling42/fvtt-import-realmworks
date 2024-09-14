@@ -635,8 +635,8 @@ class RealmWorksImporter extends Application {
 
       switch (game.system.id) {
         case 'pf1':
-          this.actor_data_func = function (html) { return { details: { notes: { value: html } } } };
           let { default: RWPF1Actor } = await import("./actor-pf1.js");
+          this.actor_data_func = RWPF1Actor.parseStatblock;
           this.init_actors = RWPF1Actor.initModule;
           this.create_actor_data = RWPF1Actor.createActorData;
           this.post_create_actors = RWPF1Actor.postCreateActors;

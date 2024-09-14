@@ -35,7 +35,9 @@ const ITEM_TYPES = [
 	//'attack',
 	//'buff',
 	//'class',
-	//'feat',
+	//'feat', (feature)
+  //'implant'
+  //'race'
 	//'spell',
 	'consumable',
 	'container',
@@ -105,12 +107,17 @@ export default class RWPF1Actor {
 	static item_packs;
 	static feat_packs;
 	static classability_packs;
+  static bestiary_packs;
+  static parser;
 
 	static async initModule() {
 		// Delete any previous stored data first.
 		RWPF1Actor.item_packs = [];
 		RWPF1Actor.feat_packs = [];
 		RWPF1Actor.classability_packs = [];
+		RWPF1Actor.bestiary_packs = [];
+
+    const bestiary = game.modules.find(m => m.id === 'statblock-library');
 
 		// Get a list of the compendiums to search,
 		// using compendiums in the two support modules first (if loaded)
@@ -148,7 +155,9 @@ export default class RWPF1Actor {
 					pack.metadata.packageName === 'pf-content' ||
 					pack.metadata.packageName === 'pf1-archetypes')
 					stuff.modules.push (pack);
-			}
+			} else if (pack.metadata.packageName === 'statblock-library') {
+        RWPF1Actor.bestiary_packs.push (pack);
+      }
 		}
 		// Core packs have better modifiers in them, so use them first.
 		// Always put the core packs last - i.e. prefer contents from modules before core
@@ -175,7 +184,35 @@ export default class RWPF1Actor {
 			RWPF1Actor.ability_names[key] = key;
 		}
 	}
-	
+
+  static async parseStatblock(html) {
+    // Ideally we would see if SBC can parse the statblock.
+
+    // Look for bestiary entries for each creature in the statblock:
+    // Each creature name line is of the form:
+    //   the creature name CR x
+    if (RWPF1Actor.bestiary_packs) {
+      if (!RWPF1Actor.parser) RWPF1Actor.parser = new DOMParser();
+      const doc = RWPF1Actor.parser.parseFromString(html, "text/xml");
+      const htmltext = doc.body?.querySelector('p')?.innerText;
+      const match = htmltext?.match(/(.+?) CR \d+/);
+      if (match) {
+        // strip leading "<p>"
+        const name = match[1].trim();
+        const lowername = name.toLowerCase();
+        for (const pack of RWPF1Actor.bestiary_packs) {
+          const found = pack.index.find(doc => doc.name.toLowerCase().startsWith(lowername));
+          if (found) {
+            html = html.replace(name, `@UUID[${found.uuid}]{${name}}`)
+            break;
+          }
+        }      
+      }
+    }
+
+    return { details: { notes: { value: html } } }
+  };
+
 	static async createActorData(character) {
 		// The main character
 		let result = [ await RWPF1Actor.createOneActorData(character) ];
