@@ -1306,19 +1306,19 @@ class RealmWorksImporter extends Application {
           let pos;
           if (numbers.length === 1 || !numbers[2]) {
             // single number
-            const num = Number(numbers[1]);
+            const num = (numbers[1] === "00") ? 100 : Number(numbers[1]);
             setLimit(num);
             rolltable.push({ range: [num, num], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details });
           } else if (numbers[2] === "-") {
             const low  = Number(numbers[1]);
-            const high = Number(numbers[3]);
+            const high = (numbers[3] === '00') ? 100 : Number(numbers[3]);
             setLimit(low);
             setLimit(high);
             rolltable.push({ range: [low, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details });
             // valid
           } else if (numbers[2] === ",") {
             const low  = Number(numbers[1]);
-            const high = Number(numbers[3]);
+            const high = (numbers[3] === '00') ? 100 : Number(numbers[3]);
             setLimit(low);
             setLimit(high);
             if (low + 1 === high)
@@ -1376,7 +1376,8 @@ class RealmWorksImporter extends Application {
         }
       }
       if (!table) {
-        table = await RollTable.create(tabledata).catch(e => console.warn(`Failed to create roll table '${tabledata.name}' due to ${e}`));
+        table = await RollTable.create(tabledata)
+          .catch(e => console.warn(`Failed to create roll table '${tabledata.name}' due to ${e}`, tabledata, tablenode.outerHTML()));
       }
       // Add the new table to the HTML to be returned
       result += hpara(table.link);

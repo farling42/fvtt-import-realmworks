@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.11.2
+
+- Treat "00" as the high (or single) value in table ranges as "100" (assuming it is a percentage roll).
+
 ## 2.11.1
 
 - Improve RollTable creation, reducing number of tables wrongly being created when they aren't really rollable tables.
