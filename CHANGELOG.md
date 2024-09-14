@@ -1,9 +1,9 @@
 # CHANGELOG
 
-## 2.11.1
+## 2.12.0
 
-- Treat "00" as the high (or single) value in table ranges as "100" (assuming it is a percentage roll).
 - PF1: When the statblock-library module is enabled, the name of the creature in the statblock in the Actor's Notes tab will be a link to the matching compendium entry.
+- Treat "00" as the high (or single) value in table ranges as "100" (assuming it is a percentage roll).
 - Improve RollTable creation, reducing number of tables wrongly being created when they aren't really rollable tables.
 
 ## 2.11.0
