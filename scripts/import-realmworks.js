@@ -63,6 +63,12 @@ function compendiumsOfType(type) {
   }
   return result;
 }
+function itemCompendiums() {
+  return compendiumsOfType("Item");
+}
+function journalCompendiums() {
+  return compendiumsOfType("JournalEntry");
+}
 
 //
 // Register game settings
@@ -91,22 +97,46 @@ Hooks.once('init', () => {
     //filePicker: true,		// 0.8.x onwards, but doesn't let us read FilePicker#source so we can't put it in S3 if chosen
     config: true,
   });
-  game.settings.register(GS_MODULE_NAME, GS_ITEM_COMPENDIUM, {
-    name: "Compendium for Items",
-    hint: "Optionally choose a compendium into which all Items will be imported",
-    scope: "world",
-    type: String,
-    config: true,
-    choices: () => compendiumsOfType("Item"),  // called when window opened
-  });
-  game.settings.register(GS_MODULE_NAME, GS_JOURNAL_COMPENDIUM, {
-    name: "Compendium for Journal Entries",
-    hint: "Optionally choose a compendium into which all Journals will be imported",
-    scope: "world",
-    type: String,
-    config: true,
-    choices: () => compendiumsOfType("JournalEntry"),  // called when window opened
-  });
+
+  if (game.release.generation > 11) {
+    // Foundry V12+ doesn't allow choices to be a function
+    game.settings.register(GS_MODULE_NAME, GS_ITEM_COMPENDIUM, {
+      name: "Compendium for Items",
+      hint: "Optionally choose a compendium into which all Items will be imported",
+      scope: "world",
+      type: new foundry.data.fields.StringField({ choices: itemCompendiums }), // called when window opened
+      default: "",
+      config: true
+    });
+    game.settings.register(GS_MODULE_NAME, GS_JOURNAL_COMPENDIUM, {
+      name: "Compendium for Journal Entries",
+      hint: "Optionally choose a compendium into which all Journals will be imported",
+      scope: "world",
+      type: new foundry.data.fields.StringField({ choices: journalCompendiums }), // called when window opened
+      default: "",
+      config: true
+    });
+  } else {
+    // Foundry V11 doesn't allow type to be a StringField
+    game.settings.register(GS_MODULE_NAME, GS_ITEM_COMPENDIUM, {
+      name: "Compendium for Items",
+      hint: "Optionally choose a compendium into which all Items will be imported",
+      scope: "world",
+      type: String,
+      default: "",
+      config: true,
+      choices: itemCompendiums // called when window opened
+    });
+    game.settings.register(GS_MODULE_NAME, GS_JOURNAL_COMPENDIUM, {
+      name: "Compendium for Journal Entries",
+      hint: "Optionally choose a compendium into which all Journals will be imported",
+      scope: "world",
+      type: String,
+      default: "",
+      config: true,
+      choices: journalCompendiums // called when window opened
+    });
+  }
   // Get the list of Actor choices Actor.types[] system/template.json
   game.settings.register(GS_MODULE_NAME, GS_ACTOR_TYPE, {
     name: "Default Actor Type",
@@ -1310,14 +1340,14 @@ class RealmWorksImporter extends Application {
             setLimit(num);
             rolltable.push({ range: [num, num], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details });
           } else if (numbers[2] === "-") {
-            const low  = Number(numbers[1]);
+            const low = Number(numbers[1]);
             const high = (numbers[3] === '00') ? 100 : Number(numbers[3]);
             setLimit(low);
             setLimit(high);
             rolltable.push({ range: [low, high], type: CONST.TABLE_RESULT_TYPES.TEXT, text: details });
             // valid
           } else if (numbers[2] === ",") {
-            const low  = Number(numbers[1]);
+            const low = Number(numbers[1]);
             const high = (numbers[3] === '00') ? 100 : Number(numbers[3]);
             setLimit(low);
             setLimit(high);

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.12.1
+
+- Get drop-down menus working on Foundry V12 for choosing Item/Journal compendiums.
+
 ## 2.12.0
 
 - PF1: When the statblock-library module is enabled, the name of the creature in the statblock in the Actor's Notes tab will be a link to the matching compendium entry.
