@@ -1,5 +1,9 @@
 # CHANGELOG
 
+# 2.12.2
+
+- Fix scene background image not being set.
+
 ## 2.12.1
 
 - Get drop-down menus working on Foundry V12 for choosing Item/Journal compendiums.

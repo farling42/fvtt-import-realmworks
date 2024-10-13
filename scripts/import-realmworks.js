@@ -1046,7 +1046,9 @@ class RealmWorksImporter extends Application {
     const tex = await loadTexture(imagename);	// when previously uploaded, bmp/tif/tiff files were converted to png.
     let scenedata = {
       name: scenename,
-      img: imagename,
+      background: {
+        src: imagename,
+      },
       folder: this.scene_folder.id,
       active: false,
       // Ensure navigation is true or false, and not null or undefined
