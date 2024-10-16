@@ -110,7 +110,7 @@ Hooks.once('init', () => {
     });
     game.settings.register(GS_MODULE_NAME, GS_JOURNAL_COMPENDIUM, {
       name: "Compendium for Journal Entries",
-      hint: "Optionally choose a compendium into which all Journals will be imported",
+      hint: "Optionally choose a compendium into which all Journals will be imported (NOTE: Foundry does not allow Map Notes to link to journals in Compendiums, so links on RW Smart Images won't link to journal entries)",
       scope: "world",
       type: new foundry.data.fields.StringField({ choices: journalCompendiums }), // called when window opened
       default: "",
