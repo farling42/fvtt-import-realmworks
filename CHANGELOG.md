@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.12.3
+
+- Since Foundry doesn't allow creating Scene Notes directly to journals stored in Compendiums, add support in Foundry 12+ to create a local journal entry that has an `@Embed` of the compendium journal entry. (This isn't available in Foundry 11.)
+
 # 2.12.2
 
 - Fix scene background image not being set.

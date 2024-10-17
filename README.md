@@ -68,7 +68,7 @@ If "secret" was manually removed from the GM Directions, then a warning is displ
 
 ![Text Editor](https://github.com/farling42/fvtt-import-realmworks/blob/master/screen-capture.png)
 
-- Created Items and Journals can be placed directly into Compendiums by specifying the relevant unlocked compendium in the module's settings. (**NOTE**: Foundry does not allow Scene Notes to be linked to journals stored in compendiums!)
+- Created Items and Journals can be placed directly into Compendiums by specifying the relevant unlocked compendium in the module's settings. (**NOTE**: Foundry doesn't allow directly linking scene notes to Compendiums, so in Foundry 12+ a local journal entry containing an `@Embed` will be created for each scene note that links to the full journal entry stored in the Compendium.)
 
 ## Store Foundry data inside Realm Works
 

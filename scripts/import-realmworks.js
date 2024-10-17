@@ -890,8 +890,8 @@ class RealmWorksImporter extends Application {
     });
   }
 
-  async getFolder(folderName, type, parentfolder = null) {
-    const pack = (type === "Item") ? this.item_pack : (type === "JournalEntry") ? this.journal_pack : undefined;
+  async getFolder(folderName, type, parentfolder = null, usepack = true) {
+    const pack = usepack ? (type === "Item") ? this.item_pack : (type === "JournalEntry") ? this.journal_pack : undefined : undefined;
     const folders = pack ? game.packs.get(pack).folders : game.folders;
     const found = folders?.find(e => e.type === type && e.name === folderName && e.folder === parentfolder);
     if (found) return found;
@@ -1085,7 +1085,6 @@ class RealmWorksImporter extends Application {
 
     // Add some notes
     let notes = [];
-    let pinnum = 0;
     // X,Y padding for pin positions are offset by the scene padding, which is scaled to the nearest larger number of grid squares.
     let x_pad = this.scene_grid * Math.ceil((scenedata.width * scenedata.padding) / this.scene_grid);
     let y_pad = this.scene_grid * Math.ceil((scenedata.height * scenedata.padding) / this.scene_grid);
@@ -1097,12 +1096,33 @@ class RealmWorksImporter extends Application {
       //let pin_is_revealed = pin.hasAttribute('is_revealed') && (!pin_topic_id || this.revealed_topics.has(pin_topic_id));
 
       const pinname = pin.getAttribute('pin_name') ?? (pin_topic_id ? this.title_of_topic.get(pin_topic_id) : 'Unnamed');
-      let entryid = this.document_for_topic.get(pin_topic_id)?._id;
+      let journal = this.document_for_topic.get(pin_topic_id);
+      let entryid = journal?._id;
       let desc = getChild(pin, 'description')?.textContent?.replaceAll('&#xd;\n', '\n');
       let gmdir = getChild(pin, 'gm_directions')?.textContent?.replaceAll('&#xd;\n', '\n');
 
       if (desc) desc = this.breakLines(desc);
       if (gmdir) gmdir = this.breakLines(gmdir);
+
+      if (journal?.compendium && game.release.version > 11) {
+        // See if there's already a created sidenote (two Notes to the same journal)
+        let sidejournal = this.scenenotes.find(n => n.journal === journal)?.note;
+        if (!sidejournal) {
+          // Create a local journal entry
+          sidejournal = await JournalEntry.create({
+            name: journal.name,
+            folder: this.notefolder,
+            uuid: topic.getAttribute("original_uuid"),
+            ownership: getOwnership(this.revealed_topics.has(topic.id)),
+          });
+          // Save created JournalEntry so that we can link to the specific page which will be created later.
+          this.scenenotes.push({
+            note: sidejournal,
+            journal: journal
+          })
+        }
+        entryid = sidejournal.id;
+      }
 
       let notedata = {
         name: pinname,
@@ -1144,6 +1164,26 @@ class RealmWorksImporter extends Application {
     return scene;
   }
 
+  async patchSceneNotes() {
+    for (const entry of this.scenenotes) {
+      let page = entry.journal.pages.find(p => p.type === 'text');
+      if (!page) {
+        console.log(`Failed to find a text page in [${entry.journal.uuid}]{${entry.journal.name}}`)
+        continue;
+      }
+      entry.note.update({
+        pages: [{
+          name: page.name,
+          type: "text",
+          text: { 
+            format: CONST.JOURNAL_ENTRY_PAGE_FORMATS.HTML,
+            // Need to embed to a specific page (which might not have been created yet!)
+            content: `<p>@Embed[${page.uuid} inline]</p>`
+          }
+        }]
+      })
+    }
+  }
   // base64 is the base64 string containing the .por file
   // format is one of the character formats in the .por file: 'html', 'text', 'xml' (need to do Buffer(base64).toString('utf8') to get to string)
   // Returns an array of [ name , data ] for each character/minion in the portfolio.
@@ -2459,6 +2499,11 @@ class RealmWorksImporter extends Application {
         }
       }
     }
+    // When journals are being placed in Compendiums,
+    // create a Sidebar journal folder to hold the Scene Notes.
+    if (this.journal_pack) {
+      this.notefolder = await this.getFolder(this.folderName, 'JournalEntry', null, /*usepack*/ false);
+    }
 
     //
     // TOPICS => JOURNAL ENTRIES
@@ -2468,6 +2513,7 @@ class RealmWorksImporter extends Application {
     console.info(`Creating ${topics.length} empty items and journal entries`);
 
     this.document_for_topic = new Map();
+    this.scenenotes = [];
     await Promise.allSettled(topics.map(async (topic) => {
       const topic_id = topic.getAttribute("topic_id");
       let uuid = topic.getAttribute("original_uuid");
@@ -2529,6 +2575,12 @@ class RealmWorksImporter extends Application {
         }
       }
     }));
+
+    // Maybe need to create embed journals for Scene Notes
+    if (this.scenenotes.length > 0) {
+      this.patchSceneNotes();
+      this.scenenotes.length = 0;
+    }
 
     //
     // Load any JSON imports which were found
