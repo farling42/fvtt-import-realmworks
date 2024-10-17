@@ -1104,7 +1104,7 @@ class RealmWorksImporter extends Application {
       if (desc) desc = this.breakLines(desc);
       if (gmdir) gmdir = this.breakLines(gmdir);
 
-      if (journal?.compendium && game.release.version > 11) {
+      if (journal?.compendium && game.release.generation > 11) {
         // See if there's already a created sidenote (two Notes to the same journal)
         let sidejournal = this.scenenotes.find(n => n.journal === journal)?.note;
         if (!sidejournal) {
