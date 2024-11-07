@@ -396,7 +396,7 @@ function simplesection(section_context, revealed, body) {
 function labelledField(label, content, annotation = null) {
   let body = hlabel(label);
   if (content) body += content;
-  if (annotation) body += hemphasis('; ' + stripHtml(annotation));	// single line in RW file
+  if (annotation) body += hemphasis((content && '; ') + stripHtml(annotation));	// single line in RW file
   return hpara(body);
 }
 function stripPara(original) {
@@ -1492,7 +1492,7 @@ class RealmWorksImporter extends Application {
 
         let need_close_section = false;
         function sectionHeader(normalheader) {
-          if (normalheader) {
+          if (normalheader || annotation) {
             let classes = [];
             if (gmdir) classes.push("RWgmDirAndContents");
             if (veracity) classes.push(`RWveracity-${veracity}`);
@@ -1522,16 +1522,16 @@ class RealmWorksImporter extends Application {
             break;
           case "Labeled_Text":
             sectionHeader(contents);
-            if (contents) {
+            if (contents || annotation) {
               // contents child (it will already be in encoded-HTML)
-              result += labelledField(label, stripPara(simplifyPara(this.replaceLinks(contents.textContent, links))), annotation);
+              result += labelledField(label, contents && stripPara(simplifyPara(this.replaceLinks(contents.textContent, links))), annotation);
             }
             break;
           case "Numeric":
             sectionHeader(contents);
-            if (contents) {
+            if (contents || annotation) {
               // contents will hold just a number
-              result += labelledField(label, this.replaceLinks(contents.textContent, links), annotation);
+              result += labelledField(label, contents && this.replaceLinks(contents.textContent, links), annotation);
             }
             break;
           case "Tag_Standard":
@@ -1545,7 +1545,7 @@ class RealmWorksImporter extends Application {
             }
             let dotags = tags.length > 0;
             sectionHeader(dotags);
-            if (dotags) {
+            if (dotags || annotation) {
               result += labelledField(label, tags.join(', '), annotation);
             }
             break;
@@ -1567,7 +1567,7 @@ class RealmWorksImporter extends Application {
             }
             let domultitag = tagmulti.length > 0;
             sectionHeader(domultitag);
-            if (domultitag) {
+            if (domultitag || annotation) {
               result += labelledField(label, tagmulti.join('; '), annotation);
             }
             break;
@@ -1575,15 +1575,15 @@ class RealmWorksImporter extends Application {
           case "Date_Game":
             let dategame = getChild(child, 'game_date');
             sectionHeader(dategame);
-            if (dategame) {
-              result += labelledField(label, dategame.getAttribute("gregorian"), annotation);
+            if (dategame || annotation) {
+              result += labelledField(label, dategame?.getAttribute("gregorian"), annotation);
             }
             break;
           case "Date_Range":
             let daterange = getChild(child, 'date_range');
             sectionHeader(daterange);
-            if (daterange) {
-              result += labelledField(label, `${daterange.getAttribute("gregorian_start")} to ${daterange.getAttribute("gregorian_end")}`, annotation);
+            if (daterange || annotation) {
+              result += labelledField(label, daterange && `${daterange.getAttribute("gregorian_start")} to ${daterange.getAttribute("gregorian_end")}`, annotation);
             }
             break;
           case "Portfolio":

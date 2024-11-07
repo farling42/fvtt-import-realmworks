@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.12.4
+
+- Ensure that the import includes fields which contain only annotation data (e.g. tag fields without a selected tag).
+
 ## 2.12.3
 
 - Since Foundry doesn't allow creating Scene Notes directly to journals stored in Compendiums, add support in Foundry 12+ to create a local journal entry that has an `@Embed` of the compendium journal entry. (This isn't available in Foundry 11.)
