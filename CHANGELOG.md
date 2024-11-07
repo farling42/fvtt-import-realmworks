@@ -3,6 +3,7 @@
 ## 2.12.4
 
 - Ensure that the import includes fields which contain only annotation data (e.g. tag fields without a selected tag).
+- PF1: Allow partial matching of class names.
 
 ## 2.12.3
 
