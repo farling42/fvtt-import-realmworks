@@ -375,7 +375,7 @@ export default class RWPF1Actor {
 			//console.debug(`Looking for class called '${name}'`);
 			// Strip trailing (...)  from class.name
 			let lowername=name.toLowerCase();
-			let classdata = await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => itemname === lowername);
+			let classdata = await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => itemname.includes(lowername) || lowername.includes(itemname));
 			if (classdata) {
 				//console.debug(`Class ${entry.name} at level ${cclass.levels}`);
 
