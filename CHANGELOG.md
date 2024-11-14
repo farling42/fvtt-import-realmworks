@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.12.5
+
+- SWADE: Ensure that all NPCs are correctly marked as NOT wildcard actors.
+
 ## 2.12.4
 
 - Ensure that the import includes fields which contain only annotation data (e.g. tag fields without a selected tag).

@@ -104,9 +104,9 @@ export default class RWSWADEActor {
 			items: [],
 		};
 		if (actor.type === 'npc') {
-			actor.wildcard = false;
-			actor.bennies = { value: 2, max: 2 };
-			actor.wounds  = { max : 0 };
+			actor.system.wildcard = false;
+			actor.system.bennies = { value: 2, max: 2 };
+			actor.system.wounds  = { value: 0, max: 0, ignored: 0 };
 		}
 		
 		// attributes
