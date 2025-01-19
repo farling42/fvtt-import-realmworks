@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.12.6
+
+- Change `system.uses.max` to a string for Items created on Actors, so that migration to DND5e v4.1.x proceeds correctly.
+
 ## 2.12.5
 
 - SWADE: Ensure that all NPCs are correctly marked as NOT wildcard actors.
