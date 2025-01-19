@@ -441,7 +441,7 @@ export default class RWDND5EActor {
 							duration:   { value: null, units: "" },
 							target:     { value: null, width: null, units: "", type: "" },
 							range:      { value: parseInt(spell.range), "long": null, units: "" },
-							uses:       { value: 0, max: 0, per: null },
+							uses:       { value: 0, max: "0", per: null },
 							consume:    { type: "", target: null, amount: null },
 							
 							// action Template
@@ -549,7 +549,7 @@ export default class RWDND5EActor {
 						duration:   { value: null, units: "" },
 						target:     { value: null, width: null, units: "", type: "" },
 						range:      { value: null, "long": null, units: "" },
-						uses:       { value: 0, max: 0, per: null },
+						uses:       { value: 0, max: "0", per: null },
 						consume:    { type: "", target: null, amount: null },
 							
 						// action Template
