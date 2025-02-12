@@ -359,6 +359,7 @@ export default class RWPF1Actor {
 			}
 		}
 		let classnames = [];
+    let classbab = 0;
 		for (const cclass of toArray(character.classes?.["class"])) {
 			// Calculate how many class HP belong to this class; and remove from the pool.
 			let levels = +cclass.level;
@@ -404,6 +405,21 @@ export default class RWPF1Actor {
 					o.__index = index;
 					return o.level <= levels;
 				});
+
+        // Reduce core BAB by the BAB of each class (ItemClassPF.prepareDerivedData)
+        let bab = classdata.system.bab;
+        if (bab) {
+          const babFormulas = /*useFractional ? pf1.config.classFractionalBABFormulas :*/ pf1.config.classBABFormulas;
+          const babType = classdata.system.bab;
+          let formula;
+          if (babType === "custom") {
+            formula = classdata.system.babFormula || "0";
+          } else {
+            formula = babFormulas[babType] || "0";
+          }
+          let babBase = RollPF.safeRollSync(formula, { level: classdata.system.level, hitDice: classdata.system.level }).total;
+          classbab += babBase;
+        }
 
 				for (const co of classAssociations) {
 					const itemData = (await fromUuid(co.uuid)).toObject();
@@ -589,7 +605,7 @@ export default class RWPF1Actor {
 		};
 
 		actor.system.attributes.bab = {
-			value: +character.attack.baseattack,
+			value: +character.attack.baseattack - classbab,
 			total: +character.attack.baseattack
 		};
 		actor.system.attributes.cmd = {
@@ -642,6 +658,7 @@ export default class RWPF1Actor {
 				let critmult  = +attack.crit.slice(x+1);
 				let primaryAttack = parseInt(attack.attack) >= (attack.rangedattack ? attackrange : attackmelee);
 				
+        console.debug(`ATTACK: ${character.name} - ${attack.name} - ${attack.typetext}`)
 				let itemdata = {
 					// item
 					name: attack.name,
@@ -657,51 +674,6 @@ export default class RWPF1Actor {
 						primaryAttack: primaryAttack,	// TODO : very coarse (if false, then -5 to attack)
 					}
 				}
-
-				// Build the actual attack action
-				let actiondata = pf1.components.ItemAction.defaultData;
-				actiondata.activation = { cost: 1, type: "attack" };
-				actiondata.duration   = { value: null, units: "inst" };
-				//actiondata.attackName = attack.name;
-				actiondata.actionType = (attack.rangedattack ? "rwak" : "mwak");		// eg "rwak" or "mwak"
-				actiondata.attackBonus = (parseInt(attack.attack) - +character.attack.baseattack + pf1.config.sizeSpecialMods[actor.system.traits.size]).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
-				let dmgparts = []; // convert 'B/P/S' to array of damage types
-				for (const part of attack.typetext.split('/')) {
-					switch (part) {
-						case 'B': dmgparts.push('bludgeoning'); break;
-						case 'P': dmgparts.push('piercing'); break;
-						case 'S': dmgparts.push('slashing'); break;
-					}
-				}
-				dmgparts.push(attack.typetext);
-				actiondata.damage.parts = [ {
-          formula: attack.damage.split(' ')[0],
-          type: { 
-            values: dmgparts,
-            custom: ""
-          } 
-        } ],			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ],
-				actiondata.enh = { override: false, value: 0};
-				actiondata.name = 'Attack';
-				actiondata.ability = {
-					// attackBonus and damage already include attackBonus/damage.parts above, so don't let FVTT-PF1 add it again
-					//attack: (attack.rangedattack ? "dex" : "str"),		// "str" or "dex"
-					//damage: (attack.rangedattack ? null  : "str"),		// "str" or "dex" or null (ranged weapons might always have null)
-					damageMult: 1,
-					critRange: critrange,
-					critMult:  critmult,
-					attack: '',  // don't apply stat
-					damage: '',  // don't apply stat
-				};
-				actiondata.attackNotes = (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [];
-				actiondata.range.units = attack.categorytext.includes('Reach Weapon') ? 'reach' : 'melee';
-				actiondata.attackType = "natural";		// or weapon?
-				actiondata.nonlethal = (attack.damage.indexOf("nonlethal") != -1);
-
-				itemdata.system.actions = [actiondata];
-				//itemdata.actions = new Map();
-				//itemdata.actions.set(actiondata._id, actiondata);
-
 				if (attack.rangedattack) {
 					itemdata.system.range = { 
 						value: attack.rangedattack.rangeinctext,
@@ -719,13 +691,71 @@ export default class RWPF1Actor {
 						//minUnits: "",
 					};
 				}
+
+				// Build the actual attack action
+				let atkdata = {};
+				atkdata.activation = { cost: 1, type: "attack" };
+				atkdata.duration   = { value: null, units: "inst" };
+				atkdata.attackName = game.i18n.localize("PF1.Attack");
+				atkdata.actionType = (attack.rangedattack ? "rwak" : "mwak");		// eg "rwak" or "mwak"
+				atkdata.attackBonus = (parseInt(attack.attack) - +character.attack.baseattack + pf1.config.sizeSpecialMods[actor.system.traits.size]).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
+				let dmgparts = []; // convert 'B/P/S' to array of damage types
+				for (const part of attack.typetext.split('/')) {
+					switch (part) {
+						case 'B': dmgparts.push('bludgeoning'); break;
+						case 'P': dmgparts.push('piercing'); break;
+						case 'S': dmgparts.push('slashing'); break;
+					}
+				}
+				if (attack.typetext) dmgparts.push(attack.typetext);
+				atkdata.damage = {
+          parts: [ {  // array of DamagePartModel
+            formula: attack.damage.split(' ')[0],
+            types: dmgparts,
+            type: {
+              custom: "",
+              values: dmgparts
+            }
+          } ]
+        };			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ]
+				atkdata.enh = { override: false, value: 0};
+				atkdata.attackName = 'Attack';
+				atkdata.ability = {
+					// attackBonus and damage already include attackBonus/damage.parts above, so don't let FVTT-PF1 add it again
+					//attack: (attack.rangedattack ? "dex" : "str"),		// "str" or "dex"
+					//damage: (attack.rangedattack ? null  : "str"),		// "str" or "dex" or null (ranged weapons might always have null)
+					attack: '',  // don't apply stat
+					damage: '',  // don't apply stat
+          // max: '',
+					damageMult: 1,
+					critRange: critrange,
+					critMult:  critmult,
+				};
+				atkdata.attackNotes = (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [];
+        if (!atkdata.range) atkdata.range = {};
+				atkdata.range = {
+          units: attack.categorytext.includes('Reach Weapon') ? 'reach' : 'melee'
+        };
+				atkdata.attackType = "natural";		// or weapon?
+				atkdata.nonlethal = (attack.damage.indexOf("nonlethal") != -1);
+
+        /*atkdata.save = {
+          dc: "25",
+          description: "",
+          harmless: false,
+          type: "fort"
+        }*/
+				itemdata.system.actions = [ new pf1.components.ItemAction(atkdata).toObject() ];
+				//itemdata.actions = new Map();
+				//itemdata.actions.set(actiondata._id, actiondata);
+
 				actor.items.push(itemdata);
 			}
 		}
 		// COMBAT - MISCELLANEOUS
 		for (const miscatk of toArray(character.attack.special)) {
 			let atkdata = {
-				name: "Special Attack: " + miscatk.shortname,
+				name: "Special Attack: " + miscatk.name,
 				type: "attack",
 				//subType: "misc",  // ability, item, misc, natural, racialAbility, weapon
 				img:  "systems/pf1/icons/skills/yellow_36.jpg",
