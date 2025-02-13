@@ -4,7 +4,7 @@
 	"description": "Imports files from Realm Works® campaign management tool",
 	"version": "2.7",
 	"compatibility": {
-		"minimum" : "11",
+		"minimum" : "12",
 		"verified": "12.331"
 	},
 	"esmodules": [
