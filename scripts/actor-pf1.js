@@ -155,7 +155,7 @@ export default class RWPF1Actor {
 					pack.metadata.packageName === 'pf-content' ||
 					pack.metadata.packageName === 'pf1-archetypes')
 					stuff.modules.push (pack);
-			} else if (pack.metadata.packageName === 'statblock-library') {
+			} else if (pack.metadata.type === 'Actor') {
         RWPF1Actor.bestiary_packs.push (pack);
       }
 		}
@@ -184,6 +184,15 @@ export default class RWPF1Actor {
 			RWPF1Actor.ability_names[key] = key;
 		}
 	}
+
+  // See PF1E: ItemSheetPF._createSpellbook (on class sheet)
+  //   await this.item.actor.createSpellbook({ ...this.item.system.casting, class: this.item.system.tag });
+
+  static create_spellbook(actordata, classitem) {
+    return pf1.documents.actor.ActorPF.prototype.createSpellbook.call(actordata, 
+      { ...classitem.system.casting, class: classitem.system.tag }, 
+      { commit: false })
+  }
 
   static async parseStatblock(html) {
     // Ideally we would see if SBC can parse the statblock.
@@ -360,6 +369,15 @@ export default class RWPF1Actor {
 		}
 		let classnames = [];
     let classbab = 0;
+		let spellmaps = new Map();
+    actor.system.attributes.spells = {
+      spellbooks: {
+        primary: { label: game.i18n.localize("PF1.SpellBookPrimary") },
+        secondary: { label: game.i18n.localize("PF1.SpellBookSecondary") },
+        tertiary: { label: game.i18n.localize("PF1.SpellBookTertiary") },
+        spelllike: { label: game.i18n.localize("PF1.SpellBookSpelllike") },
+      }
+    };
 		for (const cclass of toArray(character.classes?.["class"])) {
 			// Calculate how many class HP belong to this class; and remove from the pool.
 			let levels = +cclass.level;
@@ -428,6 +446,14 @@ export default class RWPF1Actor {
 					//classUpdateData[`flags.pf1.links.classAssociations.${itemData.id}`] = co.level;	// itemData.id isn't valid yet!
 					actor.items.push(itemData);
 				}
+
+        // Maybe add spellcasting too
+        if (classdata.system.casting) {
+          let casting = RWPF1Actor.create_spellbook(actor, classdata);
+          foundry.utils.mergeObject(actor, casting);
+          const key = Object.keys(casting)[0].split(".");
+          spellmaps.set(classdata.system.tag, key[key.length-1]);
+        }
 			} else {
 				// Create our own placemarker class.
 				classdata = {
@@ -1237,6 +1263,7 @@ export default class RWPF1Actor {
 		//			<spellschool>Void Elemental</spellschool>
 		//			<spellsubschool>Figment</spellsubschool>
 		//		</spell>
+    /*
 		let spellbooks = [ 'primary', 'secondary', 'tertiary' ];
 		let spellmaps = new Map();
 
@@ -1263,8 +1290,11 @@ export default class RWPF1Actor {
 				class: classname.toLowerCase()
 			}
 			spellmaps.set(classname, book);
+      // The class might have a subclass, so add the base class to spellmaps too.
+      const ppos = classname.indexOf(" (");
+      if (ppos > 0) spellmaps.set(classname.slice(0,ppos), book);
 		}
-		
+		*/
 		async function addSpells(nodes, memorized=undefined) {
 			if (!nodes) return false;
 			
@@ -1293,7 +1323,7 @@ export default class RWPF1Actor {
 						autoSpellLevelCalculation: false,
 						spellPreparationMode: "prepared"
 					}
-				} else if (!spellmaps.has(sclass)) {
+				} else if (!spellmaps.has(sclass.toLowerCase())) {
 					// Get next available spell book
 					if (spellbooks.length == 0) {
 						console.warn('Not enough spellbooks to support all the required spell-casting classes')
@@ -1308,9 +1338,9 @@ export default class RWPF1Actor {
 						//casterType: high,
 						"class": sclass.toLowerCase()
 					}
-					spellmaps.set(sclass,book);
+					spellmaps.set(sclass.toLowerCase(),book);
 				}
-				let book = fixedbook || spellmaps.get(sclass);
+				let book = fixedbook || spellmaps.get(sclass.toLowerCase());
 				
 				let itemdata = await searchPacks(RWPF1Actor.item_packs, ['spell'], itemname => itemname == shortname);
 				if (!itemdata) {
