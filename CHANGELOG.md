@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 2.13.0
+## 12.0.0
 
 - Change minimum supported version to Foundry V12.
 - PF1: Update PF1 decoding to work better with PF1e v11.
