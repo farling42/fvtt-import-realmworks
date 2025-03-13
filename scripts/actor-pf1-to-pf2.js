@@ -33,12 +33,18 @@ function noType(name) {
 const FEAT_IGNORE = [   // partial strings
   "Armor Proficiency",
   "Skill Focus",
-  "Weapon Proficiency"
+  "Weapon Proficiency",
+  "Shield Proficiency",
 ]
 function ignoredFeat(feat) {
   for (const entry of FEAT_IGNORE)
     if (feat.includes(entry)) return true;
   return false;
+}
+
+function trimParam(value) {
+  const shortpos = value.indexOf(' (');
+  return (shortpos > 0) ? value.slice(0, shortpos) : value;
 }
 
 // The types of Item which appear on the Inventory tab of Actors
@@ -56,6 +62,51 @@ const ITEM_TYPES = [
   'treasure',
   'weapon'
 ];
+
+const CASTER_CLASS = {
+  arcanist   : { tradition: "arcane", ability : "int", prepared: "prepared" },
+  bard       : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
+  sorcerer   : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
+  wizard     : { tradition: "arcane", ability : "int", prepared: "prepared" },
+  alchemist  : { tradition: "arcane", ability : "int", prepared: "prepared" },
+  summoner   : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
+  bloodrager : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
+  skald      : { tradition: "arcane", ability : "int", prepared: "spontaneous" },
+  investigator  : { tradition: "arcane", ability : "int", prepared: "prepared" },
+  witch   : { tradition: "arcane", ability : "int", prepared: "prepared" },
+
+  cleric  : { tradition: "divine", ability : "wis", prepared: "prepared" },
+  hunter  : { tradition: "divine", ability : "wis", prepared: "spontaneous" },
+  oracle  : { tradition: "divine", ability : "wis", prepared: "spontaneous" },
+  paladin : { tradition: "divine", ability : "wis", prepared: "prepared" },
+  shaman  : { tradition: "divine", ability : "wis", prepared: "prepared" },
+  inquisitor : { tradition: "divine", ability : "wis", prepared: "prepared" },
+  warpriest  : { tradition: "divine", ability : "wis", prepared: "prepared" },
+
+  druid  : { tradition: "primal", ability : "wis", prepared: "prepared" },
+  ranger : { tradition: "primal", ability : "wis", prepared: "prepared" },
+
+  // Innate spells
+  innate : { tradition: "arcane", ability: "cha", prepared: "innate" },
+}
+function classTradition(cls) {
+  const data = CASTER_CLASS[cls];
+  if (data) return data.tradition;
+  console.info(`No known spellcasting tradition for '${cls}'`)
+  return "arcane";
+}
+function spellAbility(cls) {
+  const data = CASTER_CLASS[cls];
+  if (data) return data.ability;
+  console.info(`No known spellcasting ability for '${cls}'`)
+  return "cha";
+}
+function spellPrepared(cls) {
+  const data = CASTER_CLASS[cls];
+  if (data) return data.prepared;
+  console.info(`No known spellcasting prepared for '${cls}'`)
+  return "innate";
+}
 
 const REMASTERED_LANGUAGES = {
   ["abyssal"]: "chthonian",
@@ -476,16 +527,7 @@ export default class RWPF1to2Actor {
     //		<favoredclass name="Rogue (Unchained)"/>  <-- to set fc.hp.value, fc.skill.value, fc.alt.value/notes
     //	</favoredclasses>
     let classnames = [];
-    let classbab = 0;
     let spellmaps = new Map();
-    actor.system.attributes.spells = {
-      spellbooks: {
-        primary: { label: game.i18n.localize("PF1.SpellBookPrimary") },
-        secondary: { label: game.i18n.localize("PF1.SpellBookSecondary") },
-        tertiary: { label: game.i18n.localize("PF1.SpellBookTertiary") },
-        spelllike: { label: game.i18n.localize("PF1.SpellBookSpelllike") },
-      }
-    };
 
     // <types><type name="Humanoid" active="yes"/>
     // <subtypes><subtype name="Human"/>
@@ -590,7 +632,7 @@ export default class RWPF1to2Actor {
           let atkdata = {};
           atkdata.activation = { cost: 1, type: "weapon" };
           atkdata.duration = { value: null, units: "inst" };
-          atkdata.attackName = game.i18n.localize("PF1.Attack");
+          atkdata.attackName = game.i18n.localize("PF2.Attack");
           atkdata.actionType = (attack.rangedattack ? "rwak" : "mwak");		// eg "rwak" or "mwak"
           atkdata.attackBonus = (parseInt(attack.attack) - +character.attack.baseattack).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
           let dmgparts = []; // convert 'B/P/S' to array of damage types
@@ -1050,6 +1092,31 @@ export default class RWPF1to2Actor {
     // Add SpellPF2e for each spell
     //    location: { value : "uuid-of-spellcastingentry" }
 
+    function addSpellcasting(spellclass, slots={}, memorized=undefined) {
+      const lowersc = spellclass.toLowerCase();
+      const bookid = foundry.utils.randomID();
+
+      actor.items.push({
+        _id: bookid,
+        type: "spellcastingEntry",
+        name: spellclass,
+        img: "systems/pf2e/icons/default-icons/spellcastingEntry.svg",
+        // prepared.flexible ?
+        system: {
+          prepared: {   // Spellcasting Type
+            value: memorized ?? spellPrepared(lowersc),
+            flexible: false,
+          },
+          slots: slots,
+          showSlotlessLevels: { value: false },
+          tradition: { value: classTradition(lowersc) }, // Magic Tradition
+          ability:   { value: spellAbility(lowersc)   }, // Key Attribute
+          //autoHeightenLevel : { value : null }, // Auto Heighten Rank [null = default]
+        }
+      });
+      spellmaps.set(lowersc, bookid);
+    }
+
     async function addSpells(nodes, memorized = undefined) {
       if (!nodes) return false; // TODO
 
@@ -1060,28 +1127,13 @@ export default class RWPF1to2Actor {
       for (const spell of toArray(nodes)) {
         const spellname = REMASTERED_SPELLS[spell.name] || spell.name;
         const lowername = spellname.toLowerCase();
-        const shortpos = lowername.indexOf(' (');
-        const shortname = (shortpos > 0) ? lowername.slice(0, shortpos) : lowername;
+        const shortname = trimParam(lowername);
 
-        // Manage spellbooks
-        let spellclass = spell['class'] || "memorized";   // class is a JS reserved word
+        // SPELLCASTING ENTRY
+        let spellclass = spell['class'] || "Innate";   // class is a JS reserved word
         let lowersc = spellclass.toLowerCase();
         if (!spellmaps.has(lowersc)) {
-          // Get the next available spellbook for the Actor
-          let bookid = foundry.utils.randomID();
-
-          actor.items.push({
-            _id: bookid,
-            type: "spellcastingEntry",
-            name: spellclass,
-            img: "systems/pf2e/icons/default-icons/spellcastingEntry.svg",
-            // prepared.flexible ?
-            prepared: { flexible: false, value: (typeof memorized === 'string') ? "prepared" : "innate" },  // Spellcasting Type
-            //tradition: { value : "occult" }, // Magic Tradition
-            //ability: { value: "cha" }, // Key Attribute
-            //autoHeightenLevel : { value : null }, // Auto Heighten Rank [null = default]
-          });
-          spellmaps.set(lowersc, bookid);
+          addSpellcasting(spellclass)
         }
         const bookid = spellmaps.get(lowersc);
 
@@ -1091,7 +1143,7 @@ export default class RWPF1to2Actor {
           console.debug(`Manually creating spell '${shortname}'`);
           try {
             itemdata = {
-              name: spell.shortname ?? spellname,
+              name: spellname,
               type: 'spell',
               img: 'systems/pf2e/icons/default-icons/spell.svg',   // make it clear that we created it manually
               system: {
@@ -1119,9 +1171,9 @@ export default class RWPF1to2Actor {
               if (comps.includes('Somatic')) itemdata.system.traits.value.push("concentrate");
               if (comps.includes('Material')) itemdata.system.traits.value.push("manipulate");
 
-              itemdata.system.time = { value: spell.casttime };
+              itemdata.system.time   = { value: spell.casttime };
               itemdata.system.target = { value: spell.effect };
-              itemdata.system.area = { value: spell.area };
+              itemdata.system.area   = { value: spell.area };
               itemdata.system.duration = (spell.duration === "Concentration") ?
                 { value: "sustained", sustained: true } : { value: spell.duration };
 
@@ -1152,7 +1204,6 @@ export default class RWPF1to2Actor {
             spontaneousPrepared: false
           };
         }*/
-        if (shortpos >= 0) itemdata.name = spellname;	// full name has extra details
         itemdata.slug = itemdata.name.slugify();
         //if (lowername.indexOf('at will)') >= 0) itemdata.system.atWill = true;
         const perday = lowername.match(/([\d]+)\/day/);
@@ -1172,12 +1223,24 @@ export default class RWPF1to2Actor {
       return true;
     }
 
+    // One spellbook available with known slots per level
+    const caster = character.spellclasses.spellclass;
+    if (caster?.spelllevel) {
+      // Collect slot information
+      //  slots: { slot0: { prepared: array (spells), value: 0, max: 5 } }
+      let slots={};
+      for (const level of caster.spelllevel) {
+        slots[`slot${level.level}`] = { value: Number(level.maxcasts), max: Number(level.maxcasts) }
+      }
+      // Remove any trailing subtype from the spellcasting name
+      addSpellcasting(trimParam(caster.name), slots, (caster.spells === "Memorized") ? "prepared" : "spontaneous");
+    }
+
     // Technically, we should process spellsmemorized to mark which spells in spellbook are prepared
     let memorized;
     for (const spell of toArray(character.spellsmemorized?.spell)) {
       const lowername = spell.name.toLowerCase();
       const shortpos = lowername.indexOf(' (');
-      const shortname = (shortpos > 0) ? lowername.slice(0, shortpos) : lowername;
       let count = 1;
       if (shortpos > 0 && shortpos + 4 < lowername.length && lowername.at(shortpos + 2) == 'x') {
         let matches = lowername.slice(shortpos).match(numberpattern);
@@ -1185,17 +1248,21 @@ export default class RWPF1to2Actor {
       }
       // need to store the (x2) to know how many times it was memorized
       if (!memorized) memorized = new Map();
-      memorized.set(shortname, count);
+      memorized.set(trimParam(lowername), count);
     }
-    await addSpells(character.spellbook.spell, memorized);		// e.g. Wizard (spellsmemorized contains spells actually prepared from the spellbook)
-    await addSpells(character.spellsknown.spell); 				// e.g. Bard, Summoner
-    if (!character.spellbook.spell)
-      await addSpells(character.spellsmemorized.spell);  			// e.g. Ranger
+    if (character.spellbook.spell)
+      await addSpells(character.spellbook.spell, memorized);		// e.g. Wizard (spellsmemorized contains spells actually prepared from the spellbook)
+    else if (character.spellsmemorized.spell)
+      await addSpells(character.spellsmemorized.spell);  			// e.g. Cleric, Ranger
+
+    if (character.spellsknown.spell)
+      await addSpells(character.spellsknown.spell); 				// e.g. Bard, Summoner
 
     // <special name="Disguise Self (humanoid form only, At will)" shortname="Disguise Self">
     // <special name="Blur (1/day)" shortname="Blur">
     // <special name="Serpentfriend (At will) (Ex)" shortname="Serpentfriend (At will)" type="Extraordinary Ability" sourcetext="Sorcerer">
-    await addSpells(character.spelllike.special, "spelllike");  // force into the book 'spelllike'
+    if (character.spelllike.special)
+      await addSpells(character.spelllike.special, "spelllike");  // force into the book 'spelllike'
 
     //
     // NOTES tab
