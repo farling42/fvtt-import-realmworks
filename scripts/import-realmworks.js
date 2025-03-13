@@ -690,7 +690,11 @@ class RealmWorksImporter extends Application {
           break;
 
         case 'pf2e':
-          this.actor_data_func = function (html) { return { details: { biography: { value: html } } } };
+          let { default: RWPF1to2Actor } = await import("./actor-pf1-to-pf2.js");
+          this.init_actors = RWPF1to2Actor.initModule;
+          this.create_actor_data = RWPF1to2Actor.createActorData;
+          this.actor_data_func = function (html) { return { details: { privateNotes: html } } };
+          this.item_data_func  = function (html) { return { description: { value: html } } };
           break;
 
         case 'wfrp4e':
