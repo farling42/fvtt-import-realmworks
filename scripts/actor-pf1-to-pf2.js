@@ -50,6 +50,9 @@ function trimParam(value) {
   const shortpos = value.indexOf(' (');
   return (shortpos > 0) ? value.slice(0, shortpos) : value;
 }
+function trimPerDay(value) {
+  return value.replace(/ \(\d+\/day\)/, "");
+}
 
 // The types of Item which appear on the Inventory tab of Actors
 const ITEM_TYPES = [
@@ -77,34 +80,50 @@ const SPELL_DC = [
 ]
 
 const CASTER_CLASS = {
+
+  // Arcane spellcaster
   arcanist: { tradition: "arcane", ability: "int", prepared: "prepared" },
-  bard: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
-  sorcerer: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
-  wizard: { tradition: "arcane", ability: "int", prepared: "prepared" },
   alchemist: { tradition: "arcane", ability: "int", prepared: "prepared" },
-  summoner: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
-  bloodrager: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
-  skald: { tradition: "arcane", ability: "int", prepared: "spontaneous" },
   investigator: { tradition: "arcane", ability: "int", prepared: "prepared" },
   witch: { tradition: "arcane", ability: "int", prepared: "prepared" },
 
+  bard: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  sorcerer: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  summoner: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  bloodrager: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  skald: { tradition: "arcane", ability: "int", prepared: "spontaneous" },
+
+  // All various sub-classes of wizard too
+  wizard: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  abjurer: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  conjurer: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  diviner: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  enchanter: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  evoker: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  illusionist: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  necromancer: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  transmuter: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  universalist: { tradition: "arcane", ability: "int", prepared: "prepared" },
+
+  // Divine spellcasting
   cleric: { tradition: "divine", ability: "wis", prepared: "prepared" },
-  hunter: { tradition: "divine", ability: "wis", prepared: "spontaneous" },
-  oracle: { tradition: "divine", ability: "wis", prepared: "spontaneous" },
   paladin: { tradition: "divine", ability: "wis", prepared: "prepared" },
   shaman: { tradition: "divine", ability: "wis", prepared: "prepared" },
   inquisitor: { tradition: "divine", ability: "wis", prepared: "prepared" },
   warpriest: { tradition: "divine", ability: "wis", prepared: "prepared" },
 
+  hunter: { tradition: "divine", ability: "wis", prepared: "spontaneous" },
+  oracle: { tradition: "divine", ability: "wis", prepared: "spontaneous" },
+
+  // Primal spellcasting
   druid: { tradition: "primal", ability: "wis", prepared: "prepared" },
   ranger: { tradition: "primal", ability: "wis", prepared: "prepared" },
-
-  evoker: { tradition: "arcane", ability: "cha", prepared: "innate" },
 
   // kineticist, medium, mesmerist, occultist, psychic, spiritualist
 
   // Innate spells
   innate: { tradition: "arcane", ability: "cha", prepared: "innate" },
+  spelllike: { tradition: "arcane", ability: "cha", prepared: "innate" },
 }
 function classTradition(cls) {
   const data = CASTER_CLASS[cls];
@@ -180,7 +199,13 @@ const REMASTERED_SPELLS = {
   ["Comprehend Language"]: "Translate",
   ["Continual Flame"]: "Everlight",
   ["Crushing Despair"]: "Wave of Despair",
+  ["Heal"]: "Heal|6",                  // PF1 remap (poor choice)
+  ["Cure Light Wounds"]: "Heal|1",     // PF1 remap
+  ["Cure Moderate Wounds"]: "Heal|2",  // PF1 remap
+  ["Cure Serious Wounds"]: "Heal|3",   // PF1 remap
   ["Dancing Lights"]: "Light",
+  ["Daze Monster"]: "Daze",         // PF1 remap
+  //["Deep Slumber"]: "Sleep|4",   // PF1 remap (not exactly the same result)
   ["Dimension Door"]: "Translocate",
   ["Dimensional Anchor"]: "Planar Tether",
   ["Dimensional Lock"]: "Planar Seal",
@@ -216,6 +241,9 @@ const REMASTERED_SPELLS = {
   ["Horrid Wilting"]: "Desiccate",
   ["Hyperfocus"]: "Clouded Focus",
   ["Hypnotic Pattern"]: "Hypnotize",
+  ["Inflict Light Wounds"]: "Harm|1",      // PF1 remap
+  ["Inflict Moderate Wounds"]: "Harm|2",   // PF1 remap
+  ["Inflict Critical Wounds"]: "Harm|4",   // PF1 remap
   ["Inspire Competence"]: "Uplifting Overture",
   ["Inspire Courage"]: "Courageous Anthem",
   ["Inspire Defense"]: "Rallying Anthem",
@@ -300,6 +328,8 @@ const REMASTERED_SPELLS = {
   ["Zone of Truth"]: "Ring of Truth",
 };
 
+const wizard_subclasses = ['Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Evoker', 'Illusionist', 'Necromancer', 'Transmuter', 'Universalist'];
+
 export default class RWPF1to2Actor {
 
   // Do we need the translated name for these categories?
@@ -342,8 +372,6 @@ export default class RWPF1to2Actor {
   static once;
   static skill_mapping = {};
   static ability_names = {}
-
-  static wizard_subclasses = ['Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Evoker', 'Illusionist', 'Necromancer', 'Transmuter', 'Universalist'];
 
   static item_packs;
   static feat_packs;
@@ -552,7 +580,6 @@ export default class RWPF1to2Actor {
     //		<favoredclass name="Rogue (Unchained)"/>  <-- to set fc.hp.value, fc.skill.value, fc.alt.value/notes
     //	</favoredclasses>
     let classnames = [];
-    let spellmaps = new Map();
 
     // <types><type name="Humanoid" active="yes"/>
     // <subtypes><subtype name="Human"/>
@@ -626,7 +653,7 @@ export default class RWPF1to2Actor {
         // possible: 1d6+2 plus 1d6 fire and grab
         let dmgparts = attack.damage.split(" plus ").map(p => p.split(" and ")).flat();
         for (const ipart of dmgparts) {
-          const part = ipart.trim().replaceAll(/  +/g," ").toLowerCase();  // remove multiple spaces
+          const part = ipart.trim().replaceAll(/  +/g, " ").toLowerCase();  // remove multiple spaces
           if (CONFIG.PF2E.attackEffects[part]) {
             dmgtraits.push(part);
           } else {
@@ -639,7 +666,7 @@ export default class RWPF1to2Actor {
                 console.warn(`${character.name}: Unknown damage modifier "${tag}" in "${attack.damage}"`)
             }
             // Convert 1d3 to 1d4 (since 1d3 isn't a valid dice type for PF2e)
-            let damage = words[0].replace("1d3","1d4");
+            let damage = words[0].replace("1d3", "1d4");
             damageRolls[foundry.utils.randomID()] = {
               category: null,
               damage,
@@ -670,9 +697,7 @@ export default class RWPF1to2Actor {
 
       if (attack.rangedattack && !Number.isNaN()) {
         let range = parseInt(attack.rangedattack.rangeinctext);
-        if (Number.isNaN(range))
-          console.warn(`${character.name} has invalid rangeinctext '${attack.rangedattack.rangeinctext}'`);
-        else
+        if (Number.isInteger(range))
           itemdata.system.traits.value.push(`range-increment-${parseInt(attack.rangedattack.rangeinctext)}`);
       }
 
@@ -1098,17 +1123,17 @@ export default class RWPF1to2Actor {
     //
     // Add SpellPF2e for each spell
     //    location: { value : "uuid-of-spellcastingentry" }
+    let spells = [];
+    let spellcasting = new Map();
 
     function addSpellcasting(spellclass, slots = {}, memorized = undefined) {
       const lowersc = spellclass.toLowerCase();
-      const bookid = foundry.utils.randomID();
 
-      actor.items.push({
-        _id: bookid,
+      spellcasting.set(lowersc, {
+        _id: foundry.utils.randomID(),
         type: "spellcastingEntry",
         name: spellclass,
         img: "systems/pf2e/icons/default-icons/spellcastingEntry.svg",
-        // prepared.flexible ?
         system: {
           prepared: {   // Spellcasting Type
             value: memorized ?? spellPrepared(lowersc),
@@ -1121,28 +1146,45 @@ export default class RWPF1to2Actor {
           //autoHeightenLevel : { value : null }, // Auto Heighten Rank [null = default]
         }
       });
-      spellmaps.set(lowersc, bookid);
     }
 
-    async function addSpells(nodes, memorized = undefined) {
+    async function addSpells(nodes, memorized = undefined, spellbook = undefined) {
       if (!nodes) return false; // TODO
+
+      console.info(`${character.name} has spells`);
 
       // <spell name="Eagle's Splendor" level="2" class="Sorcerer" casttime="1 action" range="touch" target="creature touched" area="" effect="" duration="1 min./level" 
       //		save="Will negates (harmless)" resist="yes" dc="18" casterlevel="7" componenttext="Verbal, Somatic, Material or Divine Focus"
       //		schooltext="Transmutation" subschooltext="" descriptortext="" savetext="Harmless, Will negates" resisttext="Yes" spontaneous="yes">
       // <special name="Serpentfriend (At will) (Ex)" shortname="Serpentfriend (At will)" type="Extraordinary Ability" sourcetext="Sorcerer">
       for (const spell of toArray(nodes)) {
-        const spellname = REMASTERED_SPELLS[spell.name] || spell.name;
-        const lowername = spellname.toLowerCase();
-        const shortname = trimParam(lowername);
+        // Retain any parentheses in spell name (but strip a "/day" usage information)
+        let spellname = trimPerDay(spell.name);
+        let remastered = REMASTERED_SPELLS[trimParam(spellname)];
+        let remlevel;
+        if (remastered) {
+          const part = remastered.split("|");
+          spellname = part[0];
+          if (part.length > 1) remlevel = +part[1];
+        }
+        const shortname = trimParam(spellname.toLowerCase());
 
         // SPELLCASTING ENTRY
-        let spellclass = spell['class'] || "Innate";   // class is a JS reserved word
+        let spellclass = spell['class'] || spellbook || "Innate";   // class is a JS reserved word
         let lowersc = spellclass.toLowerCase();
-        if (!spellmaps.has(lowersc)) {
-          addSpellcasting(spellclass)
+        // Handle the wizard spellbooks sometimes being named by the subtype of wizard
+        let book = spellcasting.get(lowersc);
+        if (!book && lowersc === "wizard") {
+          for (const subwiz of wizard_subclasses) {
+            book = spellcasting.get(subwiz.toLowerCase());
+            if (book) break;
+          }
         }
-        const bookid = spellmaps.get(lowersc);
+        if (!book) {
+          console.warn(`${character.name}: Creating spellbook "${spellclass}" for "${spell.name}"`)
+          addSpellcasting(spellclass)
+          book = spellcasting.get(lowersc);
+        }
 
         let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['spell'], itemname => itemname == shortname);
         if (!itemdata) {
@@ -1176,7 +1218,7 @@ export default class RWPF1to2Actor {
               itemdata.system.traits.value.push("concentrate");
               //if (comps.includes('Verbal')) itemdata.system.traits.value.push("audible");
               if (comps.includes('Somatic')) itemdata.system.traits.value.push("concentrate");
-              if (comps.includes('Material')) itemdata.system.traits.value.push("manipulate");
+              if (comps.includes('Material') || comps.includes("Divine Focus")) itemdata.system.traits.value.push("manipulate");
 
               itemdata.system.time = { value: spell.casttime };
               itemdata.system.target = { value: spell.effect };
@@ -1201,31 +1243,44 @@ export default class RWPF1to2Actor {
             console.error(`Failed to create custom version of '${spellname}' for '${actor.name}' due to ${e}`);
             continue;
           }
+        } else {
+          // Maybe Remaster conversion has a specific level for the spell
+          if (remlevel) itemdata.system.level.value = remlevel;
         }
-        itemdata.system.location = { value: bookid };
-        /*
-        if (memorized && memorized.has(shortname)) {
-          itemdata.system.preparation = {
-            maxAmount: memorized.get(shortname),
-            preparedAmount: spell.castsleft || 1,
-            spontaneousPrepared: false
-          };
-        }*/
+
+        itemdata.name = spellname;  // Retain any parentheses on remastered/found spells
+        itemdata.system.location = { value: book._id };
+
+        if (memorized && book.system.prepared.value === "prepared") {
+          // memorized map contains original spell name, not remapped
+          const origshortname = trimParam(spell.name.toLowerCase());
+          if (memorized.has(origshortname)) {
+            console.info(`${character.name} has PREPARED spell: level ${itemdata.system.level.value}, "${itemdata.name}"`);
+            // We need an ID for the spell NOW
+            if (!itemdata._id) itemdata._id = foundry.utils.randomID();
+            if (!book.system.slots) book.system.slots = {};
+            const slotname = `slot${itemdata.system.level.value}`;
+            if (!book.system.slots[slotname]) book.system.slots[slotname] = { prepared: [] };
+            // Maybe memorized more than once
+            let count = memorized.get(origshortname);
+            while (count-- > 0) {
+              book.system.slots[slotname].prepared.push({
+                id: itemdata._id,
+                expended: false
+              })
+            }
+          }
+        }
+
         itemdata.slug = itemdata.name.slugify();
-        //if (lowername.indexOf('at will)') >= 0) itemdata.system.atWill = true;
-        const perday = lowername.match(/([\d]+)\/day/);
+        //if (spell.name.indexOf('at will)') >= 0) itemdata.system.atWill = true;
+        const perday = spell.name.match(/([\d]+)\/day/);
         if (perday) {
           let uses = +perday[1];
-          // TODO - setting uses doesn't do anything
           itemdata.system.location.uses = { max: uses, value: uses };
-
-          //itemdata.system.preparation = {
-          //  preparedAmount: uses,
-          //  maxAmount: uses,
-          //}
         }
         //itemdata.system.learnedAt = { 'class': [  };
-        actor.items.push(itemdata);
+        spells.push(itemdata);
       }
       return true;
     }
@@ -1237,30 +1292,40 @@ export default class RWPF1to2Actor {
       //  slots: { slot0: { prepared: array (spells), value: 0, max: 5 } }
       let slots = {};
       for (const level of caster.spelllevel) {
-        slots[`slot${level.level}`] = { value: Number(level.maxcasts), max: Number(level.maxcasts) }
+        slots[`slot${level.level}`] = { value: Number(level.maxcasts), max: Number(level.maxcasts), prepared: [] }
       }
       // Remove any trailing subtype from the spellcasting name
-      addSpellcasting(trimParam(caster.name), slots, (caster.spells === "Memorized") ? "prepared" : "spontaneous");
+      // caster.spells = Spontaneous | Memorized | Spellbook
+      addSpellcasting(trimParam(caster.name), slots, (["Memorized","Spellbook"].includes(caster.spells)) ? "prepared" : "spontaneous");
     }
 
-    // Technically, we should process spellsmemorized to mark which spells in spellbook are prepared
+    if (character.spellbook.spell /*  || character.spellsmemorized.spell ||
+        character.spellsknown.spell || character.spelllike.special*/)
+      console.info(`SPELLS for ${character.name}:`, character);
+
+    // Collect any possible list of spells which have been memorized from the spellbook
     let memorized;
     for (const spell of toArray(character.spellsmemorized?.spell)) {
       const lowername = spell.name.toLowerCase();
       const shortpos = lowername.indexOf(' (');
       let count = 1;
       if (shortpos > 0 && shortpos + 4 < lowername.length && lowername.at(shortpos + 2) == 'x') {
+        // need to store the (x2) to know how many times it was memorized
         let matches = lowername.slice(shortpos).match(numberpattern);
-        if (matches) count = +matches[0];
+        if (matches) count = +matches[0] - 1;
       }
-      // need to store the (x2) to know how many times it was memorized
+      // Maybe a count already exists in the memorized map for this spell
+      const key = trimParam(lowername);
       if (!memorized) memorized = new Map();
-      memorized.set(trimParam(lowername), count);
+      if (memorized.has(key)) count += memorized.get(key);
+      memorized.set(key, count);
     }
-    if (character.spellbook.spell)
+
+    if (character.spellbook.spell) {
       await addSpells(character.spellbook.spell, memorized);		// e.g. Wizard (spellsmemorized contains spells actually prepared from the spellbook)
-    else if (character.spellsmemorized.spell)
-      await addSpells(character.spellsmemorized.spell);  			// e.g. Cleric, Ranger
+
+    } else if (character.spellsmemorized.spell)
+      await addSpells(character.spellsmemorized.spell, memorized);  			// e.g. Cleric, Ranger
 
     if (character.spellsknown.spell)
       await addSpells(character.spellsknown.spell); 				// e.g. Bard, Summoner
@@ -1269,7 +1334,10 @@ export default class RWPF1to2Actor {
     // <special name="Blur (1/day)" shortname="Blur">
     // <special name="Serpentfriend (At will) (Ex)" shortname="Serpentfriend (At will)" type="Extraordinary Ability" sourcetext="Sorcerer">
     if (character.spelllike.special)
-      await addSpells(character.spelllike.special, "spelllike");  // force into the book 'spelllike'
+      await addSpells(character.spelllike.special, undefined, "spelllike");  // force into the book 'spelllike'
+
+    if (spellcasting.size) actor.items.push(...spellcasting.values());
+    if (spells.length) actor.items.push(...spells);
 
     //
     // NOTES tab
