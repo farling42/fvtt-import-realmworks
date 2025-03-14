@@ -360,9 +360,9 @@ export default class RWPF1to2Actor {
   // Items whose name doesn't fit into one of the pattern matches.
   // Mithral => Dawnsilver
   static item_name_mapping = new Map([
-    ["thieves' tools", "tools, thieves' (common)"],
-    ["thieves' tools, masterwork", "tools, thieves' (masterwork)"],
-    ["thieves' tools, concealable", "tools, thieves' (concealable)"],
+    ["thieves' tools", "thieves' toolkit"],
+    ["thieves' tools, masterwork", "thieves' toolkit (infiltrator)"],
+    ["thieves' tools, concealable", "thieves' tools (concealable)"],
     ["pot", "pot, cooking (iron)"],
     ["feed", "feed, animal"],
     ["riding saddle", "saddle (riding)"],
@@ -387,6 +387,44 @@ export default class RWPF1to2Actor {
     ["heavy wooden shield", "wooden shield"],
     ["pistol", "flintlock pistol"],
     ["musket", "flintlock musket"],
+    ["hand axe", "hatchet"],
+    ["throwing axe", "hatchet"],
+    ["tanglefoot bag", "glue bomb"],
+    ["bag of holding", "spacious pouch"],
+    ["bracers of armor", "bands of force"],
+    ["broom of flying", "flying broomstick"],
+    ["goggles of night", "obsidian goggles"],
+    ["hat of disguise", "masquerade scarf"],
+    ["holy avenger", "chalice of justice"],
+    ["potion of expeditious retreat", "potion of emergency escape"],
+    ["purple worm venom", "cave worm venom"],
+    ["smokestick", "smoke ball (lesser)"],
+    ["staff of abjuration", "staff of protection"],
+    ["staff of conjuration", "staff of summoning"],
+    ["staff of divination", "staff od the unblinking eye"],
+    ["staff of enchantment", "staff of control"],
+    ["staff of evocation", "staff of elemental power"],
+    ["staff of illusion", "staff of phantasms"],
+    ["staff of necromancy", "staff of the dead"],
+    ["staff of transmutation", "fluid form staff"],
+    ["sunrod", "glow rod"],
+    ["thunderstone", "blasting stone"],
+    ["tindertwig", "matchstick"],
+    ["universal solvent", "absolute solvent"],
+    ["winged boots", "winged sandals"],
+    ["feather token (chest)", "marvelous miniature (chest)"],
+    ["feather token (ladder)", "marvelous miniature (ladder)"],
+    ["feather token (swan boat)", "marvelous miniature (boat)"],
+    ["potion of barkskin", "oak potion"],
+    ["elixir of swimming", "potion of swimming (greater)"],
+    ["cutlass", "scimitar"],    // since Cutlass doesn't exist in PF2, and PF1 says cutlass==scimitar
+    ["mithral shirt", "duskwood chain shirt"],
+    ["dwarven plate", "adamantine full plate"],
+    ["holy symbol, silver", "religious symbol (silver)"],
+    ["ioun stone", "aeon stone"],
+    ["climber's kit", "climbing kit"],
+    ["manacles", "manacles (simple)"],
+    
   ]);
 
   static once;
@@ -822,8 +860,8 @@ export default class RWPF1to2Actor {
       // Remove plurals
       if (lower.endsWith('s')) singular = lower.slice(0, -1);
       // Handle names like "bear trap" => "trap, bear"
-      //const words = lower.split(' ');
-      //if (words.length == 2) reversed = words[1] + ', ' + words[0];
+      const rwords = lower.split(' ');
+      if (rwords.length == 2) reversed = rwords[1] + ', ' + rwords[0];
 
       // Finally, some name changes aren't simple re-mappings
       if (RWPF1to2Actor.item_name_mapping.has(lower)) lower = RWPF1to2Actor.item_name_mapping.get(lower);
