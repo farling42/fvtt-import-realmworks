@@ -46,7 +46,7 @@ function ignoredFeat(featname) {
   return false;
 }
 
-function trimParam(value) {
+function trimParen(value) {
   const shortpos = value.indexOf(' (');
   return (shortpos > 0) ? value.slice(0, shortpos) : value;
 }
@@ -63,11 +63,14 @@ const ITEM_TYPES = [
   //'implant'
   //'race'
   //'spell',
+  'armor',
+  'book',
   'consumable',
   'backpack',
   'equipment',
+  'shield',
   'treasure',
-  'weapon'
+  'weapon',
 ];
 
 const LEVEL_DC = [
@@ -180,155 +183,158 @@ const REMASTERED_FEATURES = {
 }
 
 const REMASTERED_SPELLS = {
-  ["Abundant Step"]: "Shrink the Span",
-  ["Abyssal Wrath"]: "Chthonian Wrath",
-  ["Animate Dead"]: "Summon Undead",
-  ["Augment Summoning"]: "Fortify Summoning",
-  ["Baleful Polymorph"]: "Cursed Metamorphosis",
-  ["Barkskin"]: "Oaken Resilience",
-  ["Bind Soul"]: "Seize Soul",
-  ["Blind Ambition"]: "Ignite Ambition",
-  ["Blink"]: "Flicker",
-  ["Burning Hands"]: "Breathe Fire",
-  ["Calm Emotions"]: "Calm",
-  ["Charming Words"]: "Charming Push",
-  ["Chill Touch"]: "Void Warp",
-  ["Cloudkill"]: "Toxic Cloud",
-  ["Color Spray"]: "Dizzying Colors",
-  ["Commune with Nature"]: "Commune",
-  ["Comprehend Language"]: "Translate",
-  ["Continual Flame"]: "Everlight",
-  ["Crushing Despair"]: "Wave of Despair",
-  ["Heal"]: "Heal|6",                  // PF1 remap (poor choice)
-  ["Cure Light Wounds"]: "Heal|1",     // PF1 remap
-  ["Cure Moderate Wounds"]: "Heal|2",  // PF1 remap
-  ["Cure Serious Wounds"]: "Heal|3",   // PF1 remap
-  ["Dancing Lights"]: "Light",
-  ["Daze Monster"]: "Daze",         // PF1 remap
-  //["Deep Slumber"]: "Sleep|4",   // PF1 remap (not exactly the same result)
-  ["Dimension Door"]: "Translocate",
-  ["Dimensional Anchor"]: "Planar Tether",
-  ["Dimensional Lock"]: "Planar Seal",
-  ["Discern Location"]: "Pinpoint",
-  ["Disrupt Undead"]: "Vitality Lash",
-  ["Disrupting Weapon"]: "Infuse Vitality",
-  ["Dragon Claws"]: "Flurry of Claws",
-  ["Efficient Apport"]: "Reclined Apport",
-  ["Empty Body"]: "Embrace Nothingness",
-  ["Endure Elements"]: "Environmental Endurance",
-  ["Entangle"]: "Entangling Flora",
-  ["Faerie Fire"]: "Revealing Light",
-  ["False Life"]: "False Vitality",
-  ["Feather Fall"]: "Gentle Landing",
-  ["Feeblemind"]: "Never Mind",
-  ["Finger of Death"]: "Execute",
-  ["Flaming Sphere"]: "Floating Flame",
-  ["Flesh To Stone"]: "Petrify",
-  ["Floating Disk"]: "Carryall",
-  ["Force Cage"]: "Lifewood Cage",
-  ["Freedom of Movement"]: "Unfettered Movement",
-  ["Gaseous Form"]: "Vapor Form",
-  ["Gentle Repose"]: "Peaceful Rest",
-  ["Glibness"]: "Honeyed Words",
-  ["Glitterdust"]: "Revealing Light",
-  ["Globe of Invulnerability"]: "Dispelling Globe",
-  ["Glutton's Jaw"]: "Glutton's Jaws",
-  ["Glyph of Warding"]: "Rune Trap",
-  ["Goodberry"]: "Cornucopia",
-  ["Hallucinatory Terrain"]: "Mirage",
-  ["Heroes' Feast"]: "Fortifying Brew",
-  ["Hideous Laughter"]: "Laughing Fit",
-  ["Horrid Wilting"]: "Desiccate",
-  ["Hyperfocus"]: "Clouded Focus",
-  ["Hypnotic Pattern"]: "Hypnotize",
-  ["Inflict Light Wounds"]: "Harm|1",      // PF1 remap
-  ["Inflict Moderate Wounds"]: "Harm|2",   // PF1 remap
-  ["Inflict Critical Wounds"]: "Harm|4",   // PF1 remap
-  ["Inspire Competence"]: "Uplifting Overture",
-  ["Inspire Courage"]: "Courageous Anthem",
-  ["Inspire Defense"]: "Rallying Anthem",
-  ["Inspire Heroics"]: "Fortissimo Composition",
-  ["Invisibility Sphere"]: "Shared Invisibility",
-  ["Ki Strike"]: "Inner Upheaval",
-  ["Ki Blast"]: "Qi Blast",
-  ["Ki Form"]: "Qi Form",
-  ["Ki Rush"]: "Qi Rush",
-  ["Know Direction"]: "Know the Way",
-  ["Legend Lore"]: "Collective Memories",
-  ["Longstrider"]: "Tailwind",
-  ["Mage Armor"]: "Mystic Armor",
-  ["Mage Hand"]: "Telekinetic Hand",
-  ["Magic Aura"]: "Disguise Magic",
-  ["Magic Fang"]: "Runic Body",
-  ["Magic Missile"]: "Force Barrage",
-  ["Magic Mouth"]: "Embed Message",
-  ["Magic Weapon"]: "Runic Weapon",
-  ["Magnificent Mansion"]: "Planar Palace",
-  ["Maze"]: "Quandary",
-  ["Meld into Stone"]: "One with Stone",
-  ["Meteor Swarm"]: "Falling Stars",
-  ["Mind Blank"]: "Hidden Mind",
-  ["Misdirection"]: "Disguise Magic",
-  ["Modify Memory"]: "Rewrite Memory",
-  ["Neutralize Poison"]: "Cleanse Affliction",
-  ["Nondetection"]: "Veil of Privacy",
-  ["Obscuring Mist"]: "Mist",
-  ["Pass Without Trace"]: "Vanishing Tracks",
-  ["Passwall"]: "Magic Passage",
-  ["Phantom Mount"]: "Marvelous Mount",
-  ["Planar Binding"]: "Planar Servitor",
-  ["Plane Shift"]: "Interplanar Teleport",
-  ["Positive Luminance"]: "Vital Luminance",
-  ["Private Sanctum"]: "Peaceful Bubble",
-  ["Prying Eye"]: "Scouting Eye",
-  ["Pulse of the City"]: "Pulse of Civilization",
-  ["Purify Food And Drink"]: "Cleanse Cuisine",
-  ["Quivering Palm"]: "Touch of Death",
-  ["Ray of Enfeeblement"]: "Enfeeble",
-  ["Remove Curse"]: "Cleanse Affliction",
-  ["Remove Diease"]: "Cleanse Affliction",
-  ["Remove Fear"]: "Clear Mind",
-  ["Remove Paralysis"]: "Sure Footing",
-  ["Resilient Sphere"]: "Containment",
-  ["Restore Senses"]: "Sound Body",
-  ["Righteous Might"]: "Sacred Form",
-  ["Roar of the Wyrm"]: "Roar of the Dragon",
-  ["Scorching Ray"]: "Blazing Bolt",
-  ["Searing Light"]: "Holy Light",
-  ["Scintillating Pattern"]: "Confusing Colors",
-  ["See Invisibility"]: "See the Unseen",
-  ["Shadow Walk"]: "Umbral Journey",
-  ["Shapechange"]: "Metamorphosis",
-  ["Shield Other"]: "Share Life",
-  ["Simulacrum"]: "Shadow Double",
-  ["Sound Burst"]: "Noise Blast",
-  ["Spectral Hand"]: "Ghostly Carrier",
-  ["Spider Climb"]: "Gecko Grip",
-  ["Splash of Art"]: "Creative Splash",
-  ["Stone Tell"]: "Speak with Stones",
-  ["Stoneskin"]: "Mountain Resilience",
-  ["Tanglefoot"]: "Tangle Vine",
-  ["Time Stop"]: "Freeze Time",
-  ["Tongues"]: "Truespeech",
-  ["Touch of Corruption"]: "Touch of the Void",
-  ["Touch of Idiocy"]: "Stupefy",
-  ["Tree Shape"]: "One with Plants",
-  ["Tree Stride"]: "Nature's Pathway",
-  ["Trueseeing"]: "Truesight",
-  ["True Strike"]: "Sure Strike",
-  ["Unseen Custodians"]: "Phantasmal Custodians",
-  ["Unseen Servant"]: "Phantasmal Minion",
-  ["Vampiric Touch"]: "Vampiric Feast",
-  ["Veil"]: "Illusory Disguise",
-  ["Vigilant Eye"]: "Rune of Observation",
-  ["Wail of the Banshee"]: "Wails of the Damned",
-  ["Wind Walk"]: "Migration",
-  ["Wholeness of Body"]: "Harmonize Self",
-  ["Word of Recall"]: "Gathering Call",
-  ["Zone of Truth"]: "Ring of Truth",
+  ["abundant step"]: "shrink the span",
+  ["abyssal wrath"]: "chthonian wrath",
+  ["animate dead"]: "summon undead",
+  ["augment summoning"]: "fortify summoning",
+  ["baleful polymorph"]: "cursed metamorphosis",
+  ["barkskin"]: "oaken resilience",
+  ["bind soul"]: "seize soul",
+  ["blind ambition"]: "ignite ambition",
+  ["blink"]: "flicker",
+  ["burning hands"]: "breathe fire",
+  ["calm emotions"]: "calm",
+  ["charming words"]: "charming push",
+  ["chill touch"]: "void warp",
+  ["cloudkill"]: "toxic cloud",
+  ["color spray"]: "dizzying colors",
+  ["commune with nature"]: "commune",
+  ["comprehend language"]: "translate",
+  ["continual flame"]: "everlight",
+  ["crushing despair"]: "wave of despair",
+  ["heal"]: "heal|6",                  // PF1 remap (poor choice)
+  ["cure light wounds"]: "heal|1",     // PF1 remap
+  ["cure moderate wounds"]: "heal|2",  // PF1 remap
+  ["cure serious wounds"]: "heal|3",   // PF1 remap
+  ["cure critical wounds"]: "heal|4",   // PF1 remap
+  ["dancing lights"]: "light",
+  ["daze monster"]: "daze",         // PF1 remap
+  //["deep slumber"]: "sleep|4",   // PF1 remap (not exactly the same result)
+  ["dimension door"]: "translocate",
+  ["dimensional anchor"]: "planar tether",
+  ["dimensional lock"]: "planar seal",
+  ["discern location"]: "pinpoint",
+  ["disrupt undead"]: "vitality lash",
+  ["disrupting weapon"]: "infuse vitality",
+  ["dragon claws"]: "flurry of claws",
+  ["efficient apport"]: "reclined apport",
+  ["empty body"]: "embrace nothingness",
+  ["endure elements"]: "environmental endurance",
+  ["entangle"]: "entangling flora",
+  ["faerie fire"]: "revealing light",
+  ["false life"]: "false vitality",
+  ["feather fall"]: "gentle landing",
+  ["feeblemind"]: "never mind",
+  ["finger of death"]: "execute",
+  ["flaming sphere"]: "floating flame",
+  ["flesh to stone"]: "petrify",
+  ["floating disk"]: "carryall",
+  ["force cage"]: "lifewood cage",
+  ["freedom of movement"]: "unfettered movement",
+  ["gaseous form"]: "vapor form",
+  ["gentle repose"]: "peaceful rest",
+  ["glibness"]: "honeyed words",
+  ["glitterdust"]: "revealing light",
+  ["globe of invulnerability"]: "dispelling globe",
+  ["glutton's jaw"]: "glutton's jaws",
+  ["glyph of warding"]: "rune trap",
+  ["goodberry"]: "cornucopia",
+  ["hallucinatory terrain"]: "mirage",
+  ["heroes' feast"]: "fortifying brew",
+  ["hideous laughter"]: "laughing fit",
+  ["horrid wilting"]: "desiccate",
+  ["hyperfocus"]: "clouded focus",
+  ["hypnotic pattern"]: "hypnotize",
+  ["inflict light wounds"]: "harm|1",      // PF1 remap
+  ["inflict moderate wounds"]: "harm|2",   // PF1 remap
+  ["inflict critical wounds"]: "harm|4",   // PF1 remap
+  ["inspire competence"]: "uplifting overture",
+  ["inspire courage"]: "courageous anthem",
+  ["inspire defense"]: "rallying anthem",
+  ["inspire heroics"]: "fortissimo composition",
+  ["invisibility sphere"]: "shared invisibility",
+  ["ki strike"]: "inner upheaval",
+  ["ki blast"]: "qi blast",
+  ["ki form"]: "qi form",
+  ["ki rush"]: "qi rush",
+  ["know direction"]: "know the way",
+  ["legend lore"]: "collective memories",
+  ["longstrider"]: "tailwind",
+  ["mage armor"]: "mystic armor",
+  ["mage hand"]: "telekinetic hand",
+  ["magic aura"]: "disguise magic",
+  ["magic fang"]: "runic body",
+  ["magic missile"]: "force barrage",
+  ["magic mouth"]: "embed message",
+  ["magic weapon"]: "runic weapon",
+  ["magnificent mansion"]: "planar palace",
+  ["maze"]: "quandary",
+  ["meld into stone"]: "one with stone",
+  ["meteor swarm"]: "falling stars",
+  ["mind blank"]: "hidden mind",
+  ["misdirection"]: "disguise magic",
+  ["modify memory"]: "rewrite memory",
+  ["neutralize poison"]: "cleanse affliction",
+  ["nondetection"]: "veil of privacy",
+  ["obscuring mist"]: "mist",
+  ["pass without trace"]: "vanishing tracks",
+  ["passwall"]: "magic passage",
+  ["phantom mount"]: "marvelous mount",
+  ["planar binding"]: "planar servitor",
+  ["plane shift"]: "interplanar teleport",
+  ["positive luminance"]: "vital luminance",
+  ["private sanctum"]: "peaceful bubble",
+  ["prying eye"]: "scouting eye",
+  ["pulse of the city"]: "pulse of civilization",
+  ["purify food and drink"]: "cleanse cuisine",
+  ["quivering palm"]: "touch of death",
+  ["ray of enfeeblement"]: "enfeeble",
+  ["remove curse"]: "cleanse affliction",
+  ["remove diease"]: "cleanse affliction",
+  ["remove fear"]: "clear mind",
+  ["remove paralysis"]: "sure footing",
+  ["resilient sphere"]: "containment",
+  ["restore senses"]: "sound body",
+  ["righteous might"]: "sacred form",
+  ["roar of the wyrm"]: "roar of the dragon",
+  ["scorching ray"]: "blazing bolt",
+  ["searing light"]: "holy light",
+  ["scintillating pattern"]: "confusing colors",
+  ["see invisibility"]: "see the unseen",
+  ["shadow walk"]: "umbral journey",
+  ["shapechange"]: "metamorphosis",
+  ["shield other"]: "share life",
+  ["simulacrum"]: "shadow double",
+  ["sound burst"]: "noise blast",
+  ["spectral hand"]: "ghostly carrier",
+  ["spider climb"]: "gecko grip",
+  ["splash of art"]: "creative splash",
+  ["stone tell"]: "speak with stones",
+  ["stoneskin"]: "mountain resilience",
+  ["tanglefoot"]: "tangle vine",
+  ["time stop"]: "freeze time",
+  ["tongues"]: "truespeech",
+  ["touch of corruption"]: "touch of the void",
+  ["touch of idiocy"]: "stupefy",
+  ["tree shape"]: "one with plants",
+  ["tree stride"]: "nature's pathway",
+  ["trueseeing"]: "truesight",
+  ["true strike"]: "sure strike",
+  ["unseen custodians"]: "phantasmal custodians",
+  ["unseen servant"]: "phantasmal minion",
+  ["vampiric touch"]: "vampiric feast",
+  ["veil"]: "illusory disguise",
+  ["vigilant eye"]: "rune of observation",
+  ["wail of the banshee"]: "wails of the damned",
+  ["wind walk"]: "migration",
+  ["wholeness of body"]: "harmonize self",
+  ["word of recall"]: "gathering call",
+  ["zone of truth"]: "ring of truth",
 };
 
 const wizard_subclasses = ['Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Evoker', 'Illusionist', 'Necromancer', 'Transmuter', 'Universalist'];
+
+//import { createConsumableFromSpell } from "../../../systems/pf2e/pf2e.mjs";
 
 export default class RWPF1to2Actor {
 
@@ -352,6 +358,7 @@ export default class RWPF1to2Actor {
   ]);
 
   // Items whose name doesn't fit into one of the pattern matches.
+  // Mithral => Dawnsilver
   static item_name_mapping = new Map([
     ["thieves' tools", "tools, thieves' (common)"],
     ["thieves' tools, masterwork", "tools, thieves' (masterwork)"],
@@ -361,12 +368,17 @@ export default class RWPF1to2Actor {
     ["riding saddle", "saddle (riding)"],
     ["military saddle", "saddle (military)"],
     ["exotic saddle", "saddle (exotic)"],
-  ]);
-
-  static feat_name_mapping = new Map([
-    ["Armor Proficiency (Light)", "Armor Proficiency, Light"],
-    ["Armor Proficiency (Medium)", "Armor Proficiency, Medium"],
-    ["Armor Proficiency (Heavy)", "Armor Proficiency, Heavy"],
+    ["potion of cure light wounds",    "healing potion (minor)"],
+    ["potion of cure moderate wounds", "healing potion (lesser)"],
+    ["potion of cure serious wounds",  "healing potion (moderate)"],
+    ["potion of cure critical wounds", "healing potion (greater)"],   // one dice difference!
+    ["chainmail", "chain mail"],
+    ["studded leather", "studded leather armor"],
+    ["short sword", "shortsword"],
+    ["battleaxe", "battle axe"],
+    ["half-plate", "half plate"],
+    ["alchemist's fire", "alchemist's fire (lesser)"],
+    ["crossbow bolts", "bolts"],
   ]);
 
   static once;
@@ -743,153 +755,184 @@ export default class RWPF1to2Actor {
     }
     // system.altCurrency.pp/gp/sp/cp  (weightless coins) - count as weightless
 
+
+    // Item:Gear
+    //  type: "equipment"    // Object.keys(CONFIG.PF2E.Item.documentClasses)
+    //  system:
+    //    bulk: { heldOrStowed: 0.1, value: 0.1, per: 1} 
+    //    containerId: null
+    //    description: { value : }
+    //    equipped: { carryType: "worn", invested:null, handsHeld: 0}
+    //    hardness: 0
+    //    hp: { value: 0, max: 0, brokenThreshold: 0 }
+    //    identification: { status: "identified" }
+    //    level: { value : 0 }
+    //    material: { type: null|"dawnsilver"|CONFIG.PF2E.preciousMetals, grade: null|"low"|"standard"|"high", effects: [] }
+    //    price: { value: { cp: 0, gp: 0, pp: 0, sp: 0 }, per: 1, sizeSensitive: true }
+    //    publication: { title: "" }
+    //    quantity: 1
+    //    size: "med"
+    //    slug: null
+    //    traits: { value: [], rarity: "common" }  // CONFIG.PF2E.equipmentTraits
+    //    usage: { value: "held-in-one-hand"|CONFIG.PF2E.usages, type: "held", hands: 1 }
+
     // gear.[item.name/quantity/weight/cost/description
-    if (false)  // TODO
-      for (const item of toArray(character.gear?.item).concat(toArray(character.magicitems?.item))) {
-        // Get all forms of item's name once, since we search each pack.
-        let lower = noType(item.name).toLowerCase();
-        let singular, reversed, pack, entry, noparen;
-        // Firstly deal with masterwork and enhancement bonuses on weapons.
-        let masterwork, enh;
-        if (lower.startsWith("masterwork ")) {
-          masterwork = true;
-          lower = lower.slice(11);
-        }
-        if (lower.length > 3 && lower[0] === "+" && lower[2] === " ") {
-          enh = parseInt(lower[1]);
-          if (!isNaN(enh)) lower = lower.slice(3);
-        }
-        // Handle "Something (else)" -> "Something, else"
-        if (lower.endsWith(')')) {
-          let pos = lower.lastIndexOf(' (');
-          noparen = lower.slice(0, pos) + ', ' + lower.slice(pos + 2, -1);
-          //console.error(`'${item.name}' has noparen = '${noparen}'`)
-        }
-        // Remove container "(x @ y lbs)"
-        //if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)') || lower.endsWith('/day)')))
-        if (lower.endsWith(')'))
-          lower = lower.slice(0, lower.lastIndexOf(' ('));
-        // Remove plurals
-        if (lower.endsWith('s')) singular = lower.slice(0, -1);
-        // Handle names like "bear trap" => "trap, bear"
-        const words = lower.split(' ');
-        if (words.length == 2) reversed = words[1] + ', ' + words[0];
+    for (const item of toArray(character.gear?.item).concat(toArray(character.magicitems?.item))) {
+      // Get all forms of item's name once, since we search each pack.
+      let lower = noType(item.name).toLowerCase();
+      let singular, reversed, pack, entry, noparen;
+      // Firstly deal with masterwork and enhancement bonuses on weapons.
+      let masterwork, enh;
+      if (lower.startsWith("masterwork ")) {
+        masterwork = true;
+        lower = lower.slice(11);
+      }
+      if (lower.length > 3 && lower[0] === "+" && lower[2] === " ") {
+        enh = parseInt(lower[1]);
+        if (!isNaN(enh)) lower = lower.slice(3);
+      }
+      // Handle "Something (else)" -> "Something, else"
+      if (lower.endsWith(')')) {
+        let pos = lower.lastIndexOf(' (');
+        noparen = lower.slice(0, pos) + ', ' + lower.slice(pos + 2, -1);
+        //console.error(`'${item.name}' has noparen = '${noparen}'`)
+      }
+      // Remove container "(x @ y lbs)"
+      //if (lower.endsWith(')') && (lower.endsWith('lbs)') || lower.endsWith('empty)') || lower.endsWith('per day)') || lower.endsWith('/day)')))
+      if (lower.endsWith(')'))
+        lower = lower.slice(0, lower.lastIndexOf(' ('));
+      // Remove plurals
+      if (lower.endsWith('s')) singular = lower.slice(0, -1);
+      // Handle names like "bear trap" => "trap, bear"
+      const words = lower.split(' ');
+      if (words.length == 2) reversed = words[1] + ', ' + words[0];
 
-        // Finally, some name changes aren't simple re-mappings
-        if (RWPF1to2Actor.item_name_mapping.has(lower)) lower = RWPF1to2Actor.item_name_mapping.get(lower);
+      // Finally, some name changes aren't simple re-mappings
+      if (RWPF1to2Actor.item_name_mapping.has(lower)) lower = RWPF1to2Actor.item_name_mapping.get(lower);
 
-        // Match items of any type
-        let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ITEM_TYPES, itemname =>
-          itemname === lower ||
-          (singular && itemname === singular) ||
-          (reversed && itemname === reversed) ||
-          (noparen && itemname === noparen))
+      // Match items of any type
+      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ITEM_TYPES, itemname =>
+        itemname === lower ||
+        (singular && itemname === singular) ||
+        (reversed && itemname === reversed) ||
+        (noparen && itemname === noparen))
 
-        // Potions, Scrolls and Wands
-        if (!itemdata) {
-          let type;
-          if (lower.startsWith('potion of '))
-            type = 'potion';
-          else if (lower.startsWith('scroll of '))
-            type = 'scroll';
-          else if (lower.startsWith('wand of '))
-            type = 'wand';
-          if (type) {
-            let found;
-            let pos = lower.indexOf(' of ');
-            let spells = lower.slice(pos + 4).split(', ');
-            for (const spellname of spells) {
-              let spelldata = await searchPacks(RWPF1to2Actor.item_packs, ['spell'], itemname => itemname == spellname);
-              if (!spelldata) {
-                console.warn(`Failed to find spell '${spellname}' for item '${item.name}'`)
-                continue;
-              }
-              let itemdata = await CONFIG.Item.documentClasses.spell.toConsumable(spelldata, type);
-              if (itemdata) {
-                // Check uses
-                for (const tracked of toArray(character.trackedresources?.trackedresource)) {
-                  if (tracked.name.toLowerCase().startsWith(lower)) {
-                    const left = +tracked.left;
-                    if (type === 'wand')
-                      itemdata.system.uses.value = +tracked.left;
-                    if (!left) itemdata.system.quantity = +tracked.left;
-                  }
+      // Potions, Scrolls and Wands
+      if (!itemdata) {
+        let type;
+        if (lower.startsWith('potion of '))   // No Potions of spells in PF2E
+          type = 'potion';
+        else if (lower.startsWith('scroll of '))
+          type = 'scroll';
+        else if (lower.startsWith('wand of '))
+          type = 'wand';
+        if (type) {
+          let found;
+          let pos = lower.indexOf(' of ');
+          let spells = lower.slice(pos + 4).split(', ');
+          for (const spellname of spells) {
+            const remastered = REMASTERED_SPELLS[spellname];
+            const checkname = remastered ? remastered.split("|")[0] : spellname;
+            if (remastered) lower = lower.replace(spellname, checkname);
+            let spelldata = await searchPacks(RWPF1to2Actor.item_packs, ['spell'], itemname => itemname == checkname);
+            if (!spelldata) {
+              console.warn(`Failed to find spell '${spellname}' [${checkname}] for item '${item.name}'`)
+              continue;
+            }
+            let itemdata /*= await createConsumableFromSpell (spelldata, { // from PF2E game system
+              type: lower.startsWith(scroll) ? "scroll" : lower.startWith("wand") ? "wand" : "potion",  // "scroll" | "wand"
+              //heightenedLevel: currentSource.system.spell.system.location.heightenedLevel,
+            });*/
+            if (itemdata) {
+              // Check uses
+              for (const tracked of toArray(character.trackedresources?.trackedresource)) {
+                if (tracked.name.toLowerCase().startsWith(lower)) {
+                  const left = +tracked.left;
+                  if (type === 'wand')
+                    itemdata.system.uses.value = +tracked.left;
+                  if (!left) itemdata.system.quantity = +tracked.left;
                 }
-                actor.items.push(itemdata);
-                // Abort the rest of creation for this item
-                found = true;
               }
-              else
-                console.error(`Failed to create ${type} for '${item.name}'`);
+              actor.items.push(itemdata);
+              // Abort the rest of creation for this item
+              found = true;
             }
-            if (found) continue;
-          }
-        }
-        if (!itemdata) {
-          // Maybe this item contains a longer description, so look for an item whose name
-          // appears at the end of this item's name
-          itemdata = await searchPacks(RWPF1to2Actor.item_packs, ITEM_TYPES, itemname =>
-            lower.endsWith(itemname) ||
-            (singular && singular.endsWith(itemname)) ||
-            (reversed && reversed.endsWith(itemname)) ||
-            (noparen && noparen.endsWith(itemname)))
-          if (itemdata)
-            console.log(`Found item (${itemdata.name}) which ENDS with the creature's item name (${item.name})`)
-        }
-
-        if (itemdata) {
-          itemdata.system.quantity = +item.quantity;
-          if (masterwork) itemdata.system.masterwork = true;
-          if (enh) {
-            if (itemdata.system.armor)
-              itemdata.system.armor.enh = enh;
             else
-              itemdata.system.enh = enh;
+              console.error(`Failed to create ${type} for '${item.name}'`);
           }
-          // Restore original POR name if there is information in brackets at the end of the name
-          if (masterwork || enh || item.name.endsWith(')')) {
-            itemdata.name = item.name;
-            itemdata.system.identifiedName = item.name;
-          }
-          // Special modifier for armor
-          if (itemdata.type === 'equipment' &&
-            itemdata.system.equipmentType === 'armor') {
-            if (lower.includes('mithral ')) {
-              // armor check penalty reduced by 3
-              // max dex increased by 2
-              // weight set to 50%
-              itemdata.system.armor.acp = (itemdata.system.armor.acp < 3) ? 0 : (itemdata.system.armor.acp - 3);
-              itemdata.system.armor.dex += 2;
-              itemdata.system.weight.value /= 2;
-            }
-          }
-          actor.items.push(itemdata);
-        } else {
-
-          // TODO: Consumable items which contain a spell..
-          //if (item.name.startsWith('Potion of'))
-          //if (item.name.startsWith('Scroll of'))
-          //if (item.name.startsWith('Wand of'))
-
-          // Create our own placemarker item.
-          const itemdata = {
-            name: item.name,
-            type: item.name.includes(' lbs)') ? 'container' : 'loot',
-            img: 'systems/pf2e/icons/default-icons/weapon.svg',   // make it clear that we created it manually
-            system: {
-              quantity: +item.quantity,
-              weight: { value: +item.weight.value },
-              price: +item.cost.value,
-              description: {
-                value: addParas(item.description['#text'])
-              },
-              identified: true,
-              carried: true,
-            },
-          };
-          actor.items.push(itemdata);
+          if (found) continue;
         }
       }
+      if (!itemdata) {
+        // Maybe this item contains a longer description, so look for an item whose name
+        // appears at the end of this item's name
+        itemdata = await searchPacks(RWPF1to2Actor.item_packs, ITEM_TYPES, itemname =>
+          lower.endsWith(itemname) ||
+          (singular && singular.endsWith(itemname)) ||
+          (reversed && reversed.endsWith(itemname)) ||
+          (noparen && noparen.endsWith(itemname)))
+        if (itemdata)
+          console.log(`Found item (${itemdata.name}) which ENDS with the creature's item name (${item.name})`)
+      }
+
+      if (itemdata) {
+        itemdata.system.quantity = +item.quantity;
+        /*if (masterwork) itemdata.system.masterwork = true;
+        if (enh) {
+          if (itemdata.system.armor)
+            itemdata.system.armor.enh = enh;
+          else
+            itemdata.system.enh = enh;
+        }*/
+        // Restore original POR name if there is information in brackets at the end of the name
+        /*if (masterwork || enh || item.name.endsWith(')')) {
+          itemdata.name = item.name;
+          itemdata.system.identifiedName = item.name;
+        }*/
+        // Special modifier for armor
+        /*if (itemdata.type === 'equipment' &&
+          itemdata.system.equipmentType === 'armor') {
+          if (lower.includes('mithral ')) {
+            // armor check penalty reduced by 3
+            // max dex increased by 2
+            // weight set to 50%
+            itemdata.system.armor.acp = (itemdata.system.armor.acp < 3) ? 0 : (itemdata.system.armor.acp - 3);
+            itemdata.system.armor.dex += 2;
+            itemdata.system.weight.value /= 2;
+          }
+        }*/
+        actor.items.push(itemdata);
+
+      } else {
+
+        // TODO: Consumable items which contain a spell..
+        //if (item.name.startsWith('Potion of'))
+        //if (item.name.startsWith('Scroll of'))
+        //if (item.name.startsWith('Wand of'))
+
+        // Create our own placemarker item.
+        const itemdata = {
+          name: item.name,
+          type: item.name.includes(' lbs)') ? 'backpack' : 'equipment',   // type: "backpack" ==> Container
+          img: 'systems/pf2e/icons/default-icons/equipment.svg',   // make it clear that we created it manually
+          system: {
+            quantity: +item.quantity,
+            //weight: { value: +item.weight.value },
+            price: {
+              value: {
+                gp: +item.cost.value,
+              }
+            },
+            description: {
+              value: addParas(item.description['#text'])
+            },
+            //identification: { status: "identified" },
+            //carried: true,
+          },
+        };
+        actor.items.push(itemdata);
+      }
+    }
 
     //
     // SKILLS tab
@@ -1151,8 +1194,6 @@ export default class RWPF1to2Actor {
     async function addSpells(nodes, memorized = undefined, spellbook = undefined) {
       if (!nodes) return false; // TODO
 
-      console.info(`${character.name} has spells`);
-
       // <spell name="Eagle's Splendor" level="2" class="Sorcerer" casttime="1 action" range="touch" target="creature touched" area="" effect="" duration="1 min./level" 
       //		save="Will negates (harmless)" resist="yes" dc="18" casterlevel="7" componenttext="Verbal, Somatic, Material or Divine Focus"
       //		schooltext="Transmutation" subschooltext="" descriptortext="" savetext="Harmless, Will negates" resisttext="Yes" spontaneous="yes">
@@ -1160,14 +1201,14 @@ export default class RWPF1to2Actor {
       for (const spell of toArray(nodes)) {
         // Retain any parentheses in spell name (but strip a "/day" usage information)
         let spellname = trimPerDay(spell.name);
-        let remastered = REMASTERED_SPELLS[trimParam(spellname)];
+        let remastered = REMASTERED_SPELLS[trimParen(spellname).toLowerCase()];
         let remlevel;
         if (remastered) {
           const part = remastered.split("|");
           spellname = part[0];
           if (part.length > 1) remlevel = +part[1];
         }
-        const shortname = trimParam(spellname.toLowerCase());
+        const shortname = trimParen(spellname.toLowerCase());
 
         // SPELLCASTING ENTRY
         let spellclass = spell['class'] || spellbook || "Innate";   // class is a JS reserved word
@@ -1181,7 +1222,7 @@ export default class RWPF1to2Actor {
           }
         }
         if (!book) {
-          console.warn(`${character.name}: Creating spellbook "${spellclass}" for "${spell.name}"`)
+          //console.info(`${character.name}: Creating spellbook "${spellclass}" for "${spell.name}"`)
           addSpellcasting(spellclass)
           book = spellcasting.get(lowersc);
         }
@@ -1253,9 +1294,9 @@ export default class RWPF1to2Actor {
 
         if (memorized && book.system.prepared.value === "prepared") {
           // memorized map contains original spell name, not remapped
-          const origshortname = trimParam(spell.name.toLowerCase());
+          const origshortname = trimParen(spell.name.toLowerCase());
           if (memorized.has(origshortname)) {
-            console.info(`${character.name} has PREPARED spell: level ${itemdata.system.level.value}, "${itemdata.name}"`);
+            //console.info(`${character.name} has PREPARED spell: level ${itemdata.system.level.value}, "${itemdata.name}"`);
             // We need an ID for the spell NOW
             if (!itemdata._id) itemdata._id = foundry.utils.randomID();
             if (!book.system.slots) book.system.slots = {};
@@ -1296,12 +1337,8 @@ export default class RWPF1to2Actor {
       }
       // Remove any trailing subtype from the spellcasting name
       // caster.spells = Spontaneous | Memorized | Spellbook
-      addSpellcasting(trimParam(caster.name), slots, (["Memorized","Spellbook"].includes(caster.spells)) ? "prepared" : "spontaneous");
+      addSpellcasting(trimParen(caster.name), slots, (["Memorized", "Spellbook"].includes(caster.spells)) ? "prepared" : "spontaneous");
     }
-
-    if (character.spellbook.spell /*  || character.spellsmemorized.spell ||
-        character.spellsknown.spell || character.spelllike.special*/)
-      console.info(`SPELLS for ${character.name}:`, character);
 
     // Collect any possible list of spells which have been memorized from the spellbook
     let memorized;
@@ -1315,7 +1352,7 @@ export default class RWPF1to2Actor {
         if (matches) count = +matches[0] - 1;
       }
       // Maybe a count already exists in the memorized map for this spell
-      const key = trimParam(lowername);
+      const key = trimParen(lowername);
       if (!memorized) memorized = new Map();
       if (memorized.has(key)) count += memorized.get(key);
       memorized.set(key, count);
