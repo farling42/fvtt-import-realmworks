@@ -33,12 +33,16 @@ function noType(name) {
 const FEAT_IGNORE = [   // partial strings
   "Armor Proficiency",
   "Skill Focus",
-  "Weapon Proficiency",
+  "Weapon Proficienc",  // proficiency or proficiencies
   "Shield Proficiency",
+  "Toughness",
+  "Will Expertise",
+  "Reflex Expertise",
+  "Fortitude Expertise",
 ]
-function ignoredFeat(feat) {
+function ignoredFeat(featname) {
   for (const entry of FEAT_IGNORE)
-    if (feat.includes(entry)) return true;
+    if (featname.includes(entry)) return true;
   return false;
 }
 
@@ -63,31 +67,44 @@ const ITEM_TYPES = [
   'weapon'
 ];
 
+const LEVEL_DC = [
+  14, 15, 16, 18, 19, 20, 22, 23, 24, 26, 27, 28, 30,  // 0-12
+  31, 32, 34, 35, 36, 38, 39, 40, 42, 44, 46, 48, 50,  // 13-25
+]
+const SPELL_DC = [
+  0,
+  15, 18, 20, 23, 26, 28, 31, 34, 36, 39, // 1-10
+]
+
 const CASTER_CLASS = {
-  arcanist   : { tradition: "arcane", ability : "int", prepared: "prepared" },
-  bard       : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
-  sorcerer   : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
-  wizard     : { tradition: "arcane", ability : "int", prepared: "prepared" },
-  alchemist  : { tradition: "arcane", ability : "int", prepared: "prepared" },
-  summoner   : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
-  bloodrager : { tradition: "arcane", ability : "cha", prepared: "spontaneous" },
-  skald      : { tradition: "arcane", ability : "int", prepared: "spontaneous" },
-  investigator  : { tradition: "arcane", ability : "int", prepared: "prepared" },
-  witch   : { tradition: "arcane", ability : "int", prepared: "prepared" },
+  arcanist: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  bard: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  sorcerer: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  wizard: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  alchemist: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  summoner: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  bloodrager: { tradition: "arcane", ability: "cha", prepared: "spontaneous" },
+  skald: { tradition: "arcane", ability: "int", prepared: "spontaneous" },
+  investigator: { tradition: "arcane", ability: "int", prepared: "prepared" },
+  witch: { tradition: "arcane", ability: "int", prepared: "prepared" },
 
-  cleric  : { tradition: "divine", ability : "wis", prepared: "prepared" },
-  hunter  : { tradition: "divine", ability : "wis", prepared: "spontaneous" },
-  oracle  : { tradition: "divine", ability : "wis", prepared: "spontaneous" },
-  paladin : { tradition: "divine", ability : "wis", prepared: "prepared" },
-  shaman  : { tradition: "divine", ability : "wis", prepared: "prepared" },
-  inquisitor : { tradition: "divine", ability : "wis", prepared: "prepared" },
-  warpriest  : { tradition: "divine", ability : "wis", prepared: "prepared" },
+  cleric: { tradition: "divine", ability: "wis", prepared: "prepared" },
+  hunter: { tradition: "divine", ability: "wis", prepared: "spontaneous" },
+  oracle: { tradition: "divine", ability: "wis", prepared: "spontaneous" },
+  paladin: { tradition: "divine", ability: "wis", prepared: "prepared" },
+  shaman: { tradition: "divine", ability: "wis", prepared: "prepared" },
+  inquisitor: { tradition: "divine", ability: "wis", prepared: "prepared" },
+  warpriest: { tradition: "divine", ability: "wis", prepared: "prepared" },
 
-  druid  : { tradition: "primal", ability : "wis", prepared: "prepared" },
-  ranger : { tradition: "primal", ability : "wis", prepared: "prepared" },
+  druid: { tradition: "primal", ability: "wis", prepared: "prepared" },
+  ranger: { tradition: "primal", ability: "wis", prepared: "prepared" },
+
+  evoker: { tradition: "arcane", ability: "cha", prepared: "innate" },
+
+  // kineticist, medium, mesmerist, occultist, psychic, spiritualist
 
   // Innate spells
-  innate : { tradition: "arcane", ability: "cha", prepared: "innate" },
+  innate: { tradition: "arcane", ability: "cha", prepared: "innate" },
 }
 function classTradition(cls) {
   const data = CASTER_CLASS[cls];
@@ -487,7 +504,7 @@ export default class RWPF1to2Actor {
       },
       items: []		// add items with :   items.push(new Item(itemdata).system)
     };
-    if (character.settings.summary) actor.system.details.publication = character.settings.summary;
+    if (character.settings.summary) actor.system.details.publication = { title: character.settings.summary };
 
     // system.traits.size - fine|dim|tiny|med|lg|huge|grg|col
     switch (character.size.name) {
@@ -513,6 +530,14 @@ export default class RWPF1to2Actor {
     // system.details.cr.base/total
     const cr = +character.challengerating.value;
     actor.system.details.level = { value: (cr < 1) ? Math.floor(cr * 2 - 1) : cr };
+
+    // gender race subrace class level
+    let blurb = [];
+    if (character.gender) blurb.push(character.gender);
+    if (character.race.name) blurb.push(character.race.name);
+    if (character.race.ethnicity) blurb.push(character.race.ethnicity);
+    for (const cls of toArray(character.classes)) blurb.push(cls.summary);
+    actor.system.details.blurb = blurb.join(" ");
 
     //
     // CLASSES sub-tab (before RACE, in case we need to adjust HD by number of class levels)
@@ -582,130 +607,103 @@ export default class RWPF1to2Actor {
     //
     // COMBAT tab
     //
-    // (Items in the Inventory will be added later by postCreateActors)
-    //
 
-    if (false)
-      for (const attack of toArray(character.melee?.weapon).concat(toArray(character.ranged?.weapon))) {
-        if (attack?.useradded === "no") {
-          // decode crit: either "x2" or "17-20/x2"
-          let x = attack.crit.indexOf("×");
-          let critrange = (x === 0) ? 20 : parseInt(attack.crit);
-          let critmult = +attack.crit.slice(x + 1);
-          let primaryAttack = parseInt(attack.attack) >= (attack.rangedattack ? attackrange : attackmelee);
+    for (const attack of toArray(character.melee?.weapon).concat(toArray(character.ranged?.weapon))) {
+      console.debug(`ATTACK: ${character.name} - ${attack.name} - ${attack.typetext}`)
 
-          console.debug(`ATTACK: ${character.name} - ${attack.name} - ${attack.typetext}`)
-          let itemdata = {
-            // item
-            name: attack.name,
-            type: "weapon",
-            //subType: "weapon",
-            hasAttack: true,
-            img: 'systems/pf2e/icons/default-icons/weapon.svg',   // make it clear that we created it manually
-            system: {
-              // TEMPLATE: itemDescription
-              description: { value: attack.description["#text"], chat: "", unidentified: "" },
-              attackNotes: (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [],
-              subType: "natural",		// or weapon?
-              primaryAttack: primaryAttack,	// TODO : very coarse (if false, then -5 to attack)
-            }
-          }
-          if (attack.rangedattack) {
-            itemdata.system.range = {
-              value: attack.rangedattack.rangeinctext,
-              units: "ft",
-              maxIncrements: 1,
-              //minValue: null,
-              //minUnits: "",
-            };
-          } else {
-            itemdata.system.range = {
-              //value: null,
-              units: "melee",
-              //maxIncrements: 1,
-              //minValue: null,
-              //minUnits: "",
-            };
-          }
-
-          // Build the actual attack action
-          let atkdata = {};
-          atkdata.activation = { cost: 1, type: "weapon" };
-          atkdata.duration = { value: null, units: "inst" };
-          atkdata.attackName = game.i18n.localize("PF2.Attack");
-          atkdata.actionType = (attack.rangedattack ? "rwak" : "mwak");		// eg "rwak" or "mwak"
-          atkdata.attackBonus = (parseInt(attack.attack) - +character.attack.baseattack).toString();		// use FIRST number, remove BAB (since FVTT-PF1 will add it)
-          let dmgparts = []; // convert 'B/P/S' to array of damage types
-          for (const part of attack.typetext.split('/')) {
-            switch (part) {
-              case 'B': dmgparts.push('bludgeoning'); break;
-              case 'P': dmgparts.push('piercing'); break;
-              case 'S': dmgparts.push('slashing'); break;
-            }
-          }
-          if (attack.typetext) dmgparts.push(attack.typetext);
-          atkdata.damage = {
-            parts: [{  // array of DamagePartModel
-              formula: attack.damage.split(' ')[0],
-              types: dmgparts,
-              type: {
-                custom: "",
-                values: dmgparts
-              }
-            }]
-          };			//   [ [ "sizeRoll(1, 4, @size)", "B" ] ]
-          atkdata.enh = { override: false, value: 0 };
-          atkdata.attackName = 'Attack';
-          atkdata.ability = {
-            // attackBonus and damage already include attackBonus/damage.parts above, so don't let FVTT-PF1 add it again
-            //attack: (attack.rangedattack ? "dex" : "str"),		// "str" or "dex"
-            //damage: (attack.rangedattack ? null  : "str"),		// "str" or "dex" or null (ranged weapons might always have null)
-            attack: '',  // don't apply stat
-            damage: '',  // don't apply stat
-            // max: '',
-            damageMult: 1,
-            critRange: critrange,
-            critMult: critmult,
-          };
-          atkdata.attackNotes = (attack.damage.indexOf(" ") > 0) ? [attack.damage] : [];
-          if (!atkdata.range) atkdata.range = {};
-          atkdata.range = {
-            units: attack.categorytext.includes('Reach Weapon') ? 'reach' : 'melee'
-          };
-          atkdata.attackType = "natural";		// or weapon?
-          atkdata.nonlethal = (attack.damage.indexOf("nonlethal") != -1);
-
-          /*atkdata.save = {
-            dc: "25",
-            description: "",
-            harmless: false,
-            type: "fort"
-          }*/
-          // TODO
-          //itemdata.system.actions = [ new pf1.components.ItemAction(atkdata).toObject() ];
-
-          actor.items.push(itemdata);
+      let damageType = "bludgeoning"; // convert 'B/P/S' to array of damage types
+      for (const part of attack.typetext.split('/')) {
+        switch (part) {
+          case 'B': damageType = 'bludgeoning'; break;
+          case 'P': damageType = 'piercing'; break;
+          case 'S': damageType = 'slashing'; break;
         }
       }
-    // COMBAT - MISCELLANEOUS
-    if (false)
-      for (const miscatk of toArray(character.attack.special)) {
-        let atkdata = {
-          name: "Special Attack: " + miscatk.name,
-          type: "weapon",
-          //subType: "misc",  // ability, item, misc, natural, racialAbility, weapon
-          img: "systems/pf2e/icons/default-icons/weapon.svg",
-          system: {
-            description: {
-              value: miscatk.description["#text"],
-              chat: "",
-              unidentified: ""
-            },
-            subType: "misc",
-          },
-        };
-        actor.items.push(atkdata);
+
+      let dmgtraits = [];
+      let damageRolls = {};
+      if (attack.damage) {
+        // possible: 1d6+2 plus 1d6 fire and grab
+        let dmgparts = attack.damage.split(" plus ").map(p => p.split(" and ")).flat();
+        for (const ipart of dmgparts) {
+          const part = ipart.trim().replaceAll(/  +/g," ").toLowerCase();  // remove multiple spaces
+          if (CONFIG.PF2E.attackEffects[part]) {
+            dmgtraits.push(part);
+          } else {
+            let words = part.split(' ');
+            if (words.length > 1) {
+              let tag = words[1];
+              if (CONFIG.PF2E.damageTypes[tag])
+                damageType = tag;
+              else
+                console.warn(`${character.name}: Unknown damage modifier "${tag}" in "${attack.damage}"`)
+            }
+            // Convert 1d3 to 1d4 (since 1d3 isn't a valid dice type for PF2e)
+            let damage = words[0].replace("1d3","1d4");
+            damageRolls[foundry.utils.randomID()] = {
+              category: null,
+              damage,
+              damageType
+            }
+          }
+        }
       }
+
+      let itemdata = {
+        // item
+        name: attack.name,
+        type: "melee",
+        img: 'systems/pf2e/icons/default-icons/melee.svg',
+        system: {  // MeleeSystemData
+          attackEffects: { value: dmgtraits },
+          bonus: { value: parseInt(attack.attack) },
+          damageRolls,
+          description: { value: attack.description["#text"] },
+          //material: {},
+          //publication: {},
+          //rules: [],
+          //runes: [],
+          //slug: [],
+          traits: { value: [] },
+        }
+      }
+
+      if (attack.rangedattack && !Number.isNaN()) {
+        let range = parseInt(attack.rangedattack.rangeinctext);
+        if (Number.isNaN(range))
+          console.warn(`${character.name} has invalid rangeinctext '${attack.rangedattack.rangeinctext}'`);
+        else
+          itemdata.system.traits.value.push(`range-increment-${parseInt(attack.rangedattack.rangeinctext)}`);
+      }
+
+      actor.items.push(itemdata);
+    }
+
+    // character.attack.special are more feat entries, not actual attacks
+    for (const attack of toArray(character.attack.special)) {
+      let itemdata = {
+        name: REMASTERED_FEATURES[attack.name] || attack.name,
+        type: 'action',
+        img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
+        system: {
+          //featType: (attack.categorytext == 'Racial') ? 'racial' : 'trait',	// attack, classFeat, trait, racial, misc, template
+          actionType: { value: "passive" },
+          // actions:
+          category: "interaction",
+          // deathNote: false
+          description: {
+            // addenda: [],
+            // gm: [],
+            value: addParas(attack.description['#text'])
+          }
+          // publication:
+          // selfEffect: null
+          // slug: null
+          // traits:
+        }
+      }
+      actor.items.push(itemdata);
+    }
 
     //
     // INVENTORY tab
@@ -883,18 +881,18 @@ export default class RWPF1to2Actor {
       let baseskill = this.skill_mapping[skill.name.toLowerCase()];
       actor.system.skills[baseskill] = {
         attribute: RWPF1to2Actor.ability_names[skill.attrname.toLowerCase()],  // "cha"
-        base: +skill.value,
+        base: Number(skill.value),
         // breakdown:
         // dc:
         // itemId:
         // label: "Deception"
         // lore: false
-        mod: +skill.value,
+        mod: Number(skill.value),
         // modifiers: []
         // slug: "deception"
         // special: []
         // totalModifier: number
-        value: +skill.value,
+        value: Number(skill.value),
         // visible: true
       };
     }
@@ -908,26 +906,29 @@ export default class RWPF1to2Actor {
 
     for (const feat of toArray(character.feats?.feat)) {
       if (ignoredFeat(feat.name)) continue;
+      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == feat.name);
 
-      let itemdata = {
-        name: feat.name,
-        type: 'action',
-        img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
-        system: {
-          //featType: (feat.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-          actionType: { value: "passive" },
-          // actions:
-          category: "interaction",
-          // deathNote: false
-          description: {
-            // addenda: [],
-            // gm: [],
-            value: addParas(feat.description['#text'])
+      if (!itemdata) {
+        itemdata = {
+          name: REMASTERED_FEATURES[feat.name] || feat.name,
+          type: 'action',
+          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
+          system: {
+            //featType: (feat.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+            actionType: { value: "passive" },
+            // actions:
+            category: "interaction",
+            // deathNote: false
+            description: {
+              // addenda: [],
+              // gm: [],
+              value: addParas(feat.description['#text'])
+            }
+            // publication:
+            // selfEffect: null
+            // slug: null
+            // traits:
           }
-          // publication:
-          // selfEffect: null
-          // slug: null
-          // traits:
         }
       }
       // maybe handle itemdata.system.uses?.max
@@ -939,25 +940,28 @@ export default class RWPF1to2Actor {
     for (const trait of toArray(character.traits?.trait)) {
       if (ignoredFeat(trait.name)) continue;
 
-      let itemdata = {
-        name: trait.name,
-        type: 'action',
-        img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
-        system: {
-          //featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-          actionType: { value: "passive" },
-          // actions:
-          category: "interaction",
-          // deathNote: false
-          description: {
-            // addenda: [],
-            // gm: [],
-            value: addParas(trait.description['#text'])
+      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == trait.name);
+      if (!itemdata) {
+        itemdata = {
+          name: trait.name,
+          type: 'action',
+          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
+          system: {
+            //featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+            actionType: { value: "passive" },
+            // actions:
+            category: "offensive",
+            // deathNote: false
+            description: {
+              // addenda: [],
+              // gm: [],
+              value: addParas(trait.description['#text'])
+            }
+            // publication:
+            // selfEffect: null
+            // slug: null
+            // traits:
           }
-          // publication:
-          // selfEffect: null
-          // slug: null
-          // traits:
         }
       }
       // maybe handle itemdata.system.uses?.max
@@ -973,25 +977,28 @@ export default class RWPF1to2Actor {
       // Ignore anything in parentheses
       if (ignoredFeat(special.name)) continue;
 
-      let itemdata = {
-        name: special.name,
-        type: 'action',
-        img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
-        system: {
-          //featType: (special.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-          actionType: { value: "passive" },
-          // actions:
-          category: "interaction",
-          // deathNote: false
-          description: {
-            // addenda: [],
-            // gm: [],
-            value: addParas(special.description['#text'])
+      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == special.name);
+      if (!itemdata) {
+        itemdata = {
+          name: special.name,
+          type: 'action',
+          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
+          system: {
+            //featType: (special.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+            actionType: { value: "passive" },
+            // actions:
+            category: "defensive",
+            // deathNote: false
+            description: {
+              // addenda: [],
+              // gm: [],
+              value: addParas(special.description['#text'])
+            }
+            // publication:
+            // selfEffect: null
+            // slug: null
+            // traits:
           }
-          // publication:
-          // selfEffect: null
-          // slug: null
-          // traits:
         }
       }
       // maybe handle itemdata.system.uses?.max
@@ -1092,7 +1099,7 @@ export default class RWPF1to2Actor {
     // Add SpellPF2e for each spell
     //    location: { value : "uuid-of-spellcastingentry" }
 
-    function addSpellcasting(spellclass, slots={}, memorized=undefined) {
+    function addSpellcasting(spellclass, slots = {}, memorized = undefined) {
       const lowersc = spellclass.toLowerCase();
       const bookid = foundry.utils.randomID();
 
@@ -1110,7 +1117,7 @@ export default class RWPF1to2Actor {
           slots: slots,
           showSlotlessLevels: { value: false },
           tradition: { value: classTradition(lowersc) }, // Magic Tradition
-          ability:   { value: spellAbility(lowersc)   }, // Key Attribute
+          ability: { value: spellAbility(lowersc) }, // Key Attribute
           //autoHeightenLevel : { value : null }, // Auto Heighten Rank [null = default]
         }
       });
@@ -1171,9 +1178,9 @@ export default class RWPF1to2Actor {
               if (comps.includes('Somatic')) itemdata.system.traits.value.push("concentrate");
               if (comps.includes('Material')) itemdata.system.traits.value.push("manipulate");
 
-              itemdata.system.time   = { value: spell.casttime };
+              itemdata.system.time = { value: spell.casttime };
               itemdata.system.target = { value: spell.effect };
-              itemdata.system.area   = { value: spell.area };
+              itemdata.system.area = { value: spell.area };
               itemdata.system.duration = (spell.duration === "Concentration") ?
                 { value: "sustained", sustained: true } : { value: spell.duration };
 
@@ -1228,7 +1235,7 @@ export default class RWPF1to2Actor {
     if (caster?.spelllevel) {
       // Collect slot information
       //  slots: { slot0: { prepared: array (spells), value: 0, max: 5 } }
-      let slots={};
+      let slots = {};
       for (const level of caster.spelllevel) {
         slots[`slot${level.level}`] = { value: Number(level.maxcasts), max: Number(level.maxcasts) }
       }
