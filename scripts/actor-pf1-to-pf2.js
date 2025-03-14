@@ -368,9 +368,9 @@ export default class RWPF1to2Actor {
     ["riding saddle", "saddle (riding)"],
     ["military saddle", "saddle (military)"],
     ["exotic saddle", "saddle (exotic)"],
-    ["potion of cure light wounds",    "healing potion (minor)"],
+    ["potion of cure light wounds", "healing potion (minor)"],
     ["potion of cure moderate wounds", "healing potion (lesser)"],
-    ["potion of cure serious wounds",  "healing potion (moderate)"],
+    ["potion of cure serious wounds", "healing potion (moderate)"],
     ["potion of cure critical wounds", "healing potion (greater)"],   // one dice difference!
     ["chainmail", "chain mail"],
     ["studded leather", "studded leather armor"],
@@ -379,6 +379,14 @@ export default class RWPF1to2Actor {
     ["half-plate", "half plate"],
     ["alchemist's fire", "alchemist's fire (lesser)"],
     ["crossbow bolts", "bolts"],
+    ["quarterstaff", "staff"],
+    ["light crossbow", "crossbow"],
+    ["light steel shield", "steel shield"],
+    ["heavy steel shield", "steel shield"],
+    ["light wooden shield", "wooden shield"],
+    ["heavy wooden shield", "wooden shield"],
+    ["pistol", "flintlock pistol"],
+    ["musket", "flintlock musket"],
   ]);
 
   static once;
@@ -779,18 +787,28 @@ export default class RWPF1to2Actor {
     // gear.[item.name/quantity/weight/cost/description
     for (const item of toArray(character.gear?.item).concat(toArray(character.magicitems?.item))) {
       // Get all forms of item's name once, since we search each pack.
-      let lower = noType(item.name).toLowerCase();
+      let lower = noType(item.name).toLowerCase().replace("mithral", "dawnsilver").replace("cold iron", "cold-iron");
       let singular, reversed, pack, entry, noparen;
       // Firstly deal with masterwork and enhancement bonuses on weapons.
-      let masterwork, enh;
-      if (lower.startsWith("masterwork ")) {
+      let words = lower.replaceAll(/  +/g, " ").split(" ");
+      let masterwork, enhance, material;
+      if (words[0] === "masterwork") {
         masterwork = true;
-        lower = lower.slice(11);
+        words.shift();
       }
-      if (lower.length > 3 && lower[0] === "+" && lower[2] === " ") {
-        enh = parseInt(lower[1]);
-        if (!isNaN(enh)) lower = lower.slice(3);
+      // Maybe an enhancement bonus
+      if (words[0].startsWith("+")) {
+        enhance = parseInt(words[0]);
+        if (enhance === 5) enhance = 4;
+        words.shift();
       }
+      // Maybe a material next
+      if (Object.keys(CONFIG.PF2E.preciousMaterials).includes(words[0])) {
+        material = words[0];
+        words.shift();
+      }
+      lower = words.join(" ");
+
       // Handle "Something (else)" -> "Something, else"
       if (lower.endsWith(')')) {
         let pos = lower.lastIndexOf(' (');
@@ -804,8 +822,8 @@ export default class RWPF1to2Actor {
       // Remove plurals
       if (lower.endsWith('s')) singular = lower.slice(0, -1);
       // Handle names like "bear trap" => "trap, bear"
-      const words = lower.split(' ');
-      if (words.length == 2) reversed = words[1] + ', ' + words[0];
+      //const words = lower.split(' ');
+      //if (words.length == 2) reversed = words[1] + ', ' + words[0];
 
       // Finally, some name changes aren't simple re-mappings
       if (RWPF1to2Actor.item_name_mapping.has(lower)) lower = RWPF1to2Actor.item_name_mapping.get(lower);
@@ -875,48 +893,13 @@ export default class RWPF1to2Actor {
           console.log(`Found item (${itemdata.name}) which ENDS with the creature's item name (${item.name})`)
       }
 
-      if (itemdata) {
-        itemdata.system.quantity = +item.quantity;
-        /*if (masterwork) itemdata.system.masterwork = true;
-        if (enh) {
-          if (itemdata.system.armor)
-            itemdata.system.armor.enh = enh;
-          else
-            itemdata.system.enh = enh;
-        }*/
-        // Restore original POR name if there is information in brackets at the end of the name
-        /*if (masterwork || enh || item.name.endsWith(')')) {
-          itemdata.name = item.name;
-          itemdata.system.identifiedName = item.name;
-        }*/
-        // Special modifier for armor
-        /*if (itemdata.type === 'equipment' &&
-          itemdata.system.equipmentType === 'armor') {
-          if (lower.includes('mithral ')) {
-            // armor check penalty reduced by 3
-            // max dex increased by 2
-            // weight set to 50%
-            itemdata.system.armor.acp = (itemdata.system.armor.acp < 3) ? 0 : (itemdata.system.armor.acp - 3);
-            itemdata.system.armor.dex += 2;
-            itemdata.system.weight.value /= 2;
-          }
-        }*/
-        actor.items.push(itemdata);
-
-      } else {
-
-        // TODO: Consumable items which contain a spell..
-        //if (item.name.startsWith('Potion of'))
-        //if (item.name.startsWith('Scroll of'))
-        //if (item.name.startsWith('Wand of'))
-
-        // Create our own placemarker item.
-        const itemdata = {
+      if (!itemdata) {
+        let slot = item.itemslot?.['#text'];
+        itemdata = {
           name: item.name,
-          type: item.name.includes(' lbs)') ? 'backpack' : 'equipment',   // type: "backpack" ==> Container
+          type: item.name.includes(' lbs)') ? 'backpack' : (slot === 'Armor') ? 'armor' : 'equipment',   // type: "backpack" ==> Container
           img: 'systems/pf2e/icons/default-icons/equipment.svg',   // make it clear that we created it manually
           system: {
-            quantity: +item.quantity,
             //weight: { value: +item.weight.value },
             price: {
               value: {
@@ -930,9 +913,21 @@ export default class RWPF1to2Actor {
             //carried: true,
           },
         };
-        actor.items.push(itemdata);
       }
+
+      // Common stuff about the item
+      itemdata.system.quantity = +item.quantity;
+      // if (masterwork) itemdata.system.masterwork = true;
+      if (enhance) itemdata.system.runes = { potency: enhance };
+      if (material) itemdata.system.material = { type: material, grade: "standard" }
+
+      if (enhance || material) {
+        console.info(`${character.name} has a ${item.name}`);
+        //itemdata.name = item.name;
+      }
+      actor.items.push(itemdata);
     }
+
 
     //
     // SKILLS tab
@@ -1076,7 +1071,7 @@ export default class RWPF1to2Actor {
       let lowername = special.shortname.toLowerCase();
       let shortname;
       if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf(' ('));
-
+    
       // Ignore abilities which were auto-entered by the class processing above,
       // or which were added from a magic item.
       let found=false;
@@ -1091,7 +1086,7 @@ export default class RWPF1to2Actor {
         console.log(`ignoring ${special.name} since it already exists in items[]`);
         continue;
       }
-
+    
       let specname = special.name;
       let itemdata = await searchPacks(classnames.includes(special?.sourcetext) ? RWPF1to2Actor.classability_packs : RWPF1to2Actor.feat_packs, ['feat'], 
         itemname => itemname == lowername || (shortname && itemname == shortname));
