@@ -77,6 +77,39 @@ const ITEM_TYPES = [
   'weapon',
 ];
 
+// PF2E system doesn't expose  or ARMOR_PROPERTY_RUNE_TYPES
+// we only need the PF1 equivalents anyway
+const PROPERTY_RUNE_TYPES = {
+  // WEAPON_PROPERTY_RUNE_TYPES
+  // if value is an array, first element is second word (e.g. "brilliant energy")
+  "bane": "bane",
+  "brilliant": ["energy", "brilliant"],
+  "dancing": "dancing",
+  "disruption": "disrupting",
+  "flaming": "flaming",
+  "frost": "frost",  
+  "ghost": ["touch", "ghostTouch"],
+  "holy": "holy",
+  "keen": "keen",
+  "merciful": "merciful",
+  "returning": "returning",
+  "shock": "shock",
+  "speed": "speed",
+  "spell": ["storing", "spellStoring"],
+  "thundering": "thundering",
+  "unholy": "unholy",
+  "vorpal": "vorpal",
+  "wounding": "wounding",
+
+  // ARMOR_PROPERTY_RUNE_TYPES
+  //"acidResistant", // Energy Resistance
+  "etherealness": "ethereal",
+  //"fireResistant",
+  "fortification": "fortification",
+  "glamered": "glamered",
+  "slick": "slick",
+};
+
 // The next few for the local version of PF2E createConsumableFromSpell
 const SPELL_CONSUMABLE_NAME_TEMPLATES = {
   scroll: "PF2E.Item.Physical.FromSpell.Scroll",
@@ -984,37 +1017,65 @@ export default class RWPF1to2Actor {
     if (!RWPF1to2Actor.itemtraits) {
       RWPF1to2Actor.itemtraits    = new Set(Object.keys(CONFIG.PF2E.armorTraits).concat(Object.keys(CONFIG.PF2E.weaponTraits)));
       RWPF1to2Actor.itemmaterials = new Set(Object.keys(CONFIG.PF2E.preciousMaterials));
+      RWPF1to2Actor.itemtraits.delete("light");  // don't want to match "light crossbow"
+      RWPF1to2Actor.itemtraits.delete("wand");  // don't want to match "wand of X"
     }
 
     // gear.[item.name/quantity/weight/cost/description
     for (const obj of toArray(character.gear?.item).concat(toArray(character.magicitems?.item))) {
       // Get all forms of item's name once, since we search each pack.
-      let lower = noType(obj.name).toLowerCase().replace("mithral", "dawnsilver").replace("cold iron", "cold-iron");
+      let lower = noType(obj.name).toLowerCase()
+        .replace("mithral", "dawnsilver")
+        .replace("cold iron", "cold-iron");
       // Firstly deal with masterwork and enhancement bonuses on weapons.
       let words = lower.replaceAll(/  +/g, " ").split(" ");
       // Check for special keywords before the item's name
-      let masterwork, enhance, material;
+      let masterwork, potency, material;
       let traits=[];
+      let property=[];
       if (words.length > 1 && words[0] === "masterwork") {
         masterwork = true;
         words.shift();
       }
       // Maybe an enhancement bonus
       if (words.length > 1 && words[0].startsWith("+")) {
-        enhance = parseInt(words[0]);
-        if (enhance === 5) enhance = 4;
+        const key = words[0];
+        potency = parseInt(key);
+        if (potency > 4) potency = 4;
+        console.warn(`${character.name}: POTENCY RUNE = "${key}" for "${obj.name}"`);
         words.shift();
       }
-      // Maybe a material next
-      while (words.length > 1 && RWPF1to2Actor.itemmaterials.has(words[0])) {
-        material = words[0];
-        words.shift();
+      // Maybe traits (other than material)
+      while (words.length > 1) {
+        const key = words[0];
+        if (PROPERTY_RUNE_TYPES[key]) {
+          let value = PROPERTY_RUNE_TYPES[key];
+          if (Array.isArray(value)) {
+            // second word of item name must match first entry in array
+            // Must "break" not "continue" - since we haven't removed it from words[0]
+            if (words[1] !== value[0]) break;
+            // Second entry in array = PF2 term
+            value = value[1];
+            // Remove one of the words now
+            words.shift();
+          }
+          console.warn(`${character.name}: PROPERTY RUNE = PF1:"${key}", PF2:"${value}" for "${obj.name}"`);
+          property.push(value);
+          if (!potency || potency < property.length) potency = property.length;
+          words.shift();
+        } else if (RWPF1to2Actor.itemtraits.has(key)) {
+          // Too many weapons might be light (e.g. light crossbow)
+          console.warn(`${character.name}: TRAIT = "${key}" for "${obj.name}"`);
+          traits.push(key);
+          words.shift();
+        } else if (RWPF1to2Actor.itemmaterials.has(key)) {
+          console.warn(`${character.name}: MATERIAL = "${key}" for "${obj.name}"`);
+          material = key;
+          words.shift();
+        }
+        else break;
       }
-      // Maybe other item traits
-      while (words.length > 1 && RWPF1to2Actor.itemtraits.has(words[0])) {
-        traits.push(words[0]);
-        words.shift();
-      }
+      
       lower = words.join(" ");
 
       let singular, reversed, noparen;
@@ -1045,6 +1106,7 @@ export default class RWPF1to2Actor {
         (noparen && itemname === noparen))
 
       // Potions, Scrolls and Wands
+      let skipvague;  // if the vague name matching should be skipped (i.e. go directly to new item creation)
       if (!itemdata) {
         let type;
         /*if (lower.startsWith('potion of '))   // No Potions of spells in PF2E
@@ -1053,7 +1115,9 @@ export default class RWPF1to2Actor {
           type = 'scroll';
         else if (lower.startsWith('wand of '))
           type = 'wand';
+
         if (type) {
+          skipvague=true;
           let found;
           let pos = lower.indexOf(' of ');
           let spells = lower.slice(pos + 4).split(', ');
@@ -1129,7 +1193,7 @@ export default class RWPF1to2Actor {
         }
       }
 
-      if (!itemdata) {
+      if (!itemdata && !skipvague) {
         // Maybe this item contains a longer description, so look for an item whose name
         // appears at the end of this item's name
         itemdata = await searchPacks(RWPF1to2Actor.item_packs, ITEM_TYPES, itemname =>
@@ -1158,6 +1222,7 @@ export default class RWPF1to2Actor {
             description: {
               value: addParas(obj.description['#text'])
             },
+            runes: {}
             //identification: { status: "identified" },
             //carried: true,
           },
@@ -1167,17 +1232,13 @@ export default class RWPF1to2Actor {
       // Common stuff about the item
       itemdata.system.quantity = +obj.quantity;
       // if (masterwork) itemdata.system.masterwork = true;
-      if (enhance) itemdata.system.runes = { potency: enhance };
+      // one Property per level of potency rune
+      if (potency) itemdata.system.runes = { potency, property };  // missing resilient (for armour)
       if (material) itemdata.system.material = { type: material, grade: "standard" };
       if (traits.length) itemdata.system.traits = { value: traits };
 
-      if (enhance || material) {
-        //console.info(`ENHANCE/MATERIAL: ${character.name} has a ${item.name}`);
-        //itemdata.name = item.name;
-      }
       actor.items.push(itemdata);
     }
-
 
     //
     // SKILLS tab
