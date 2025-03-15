@@ -54,6 +54,10 @@ function trimPerDay(value) {
   return value.replace(/ \(\d+\/day\)/, "");
 }
 
+function toSlug(value) {
+  return trimParen(value).slugify({strict:true});
+}
+
 // The types of Item which appear on the Inventory tab of Actors
 const ITEM_TYPES = [
   //'attack',
@@ -160,19 +164,19 @@ const CASTER_CLASS = {
 function classTradition(cls) {
   const data = CASTER_CLASS[cls];
   if (data) return data.tradition;
-  console.info(`No known spellcasting tradition for '${cls}'`)
+  console.debug(`No known spellcasting tradition for '${cls}' (assuming arcane)`)
   return "arcane";
 }
 function spellAbility(cls) {
   const data = CASTER_CLASS[cls];
   if (data) return data.ability;
-  console.info(`No known spellcasting ability for '${cls}'`)
+  console.debug(`No known spellcasting ability for '${cls}' (assuming cha)`)
   return "cha";
 }
 function spellPrepared(cls) {
   const data = CASTER_CLASS[cls];
   if (data) return data.prepared;
-  console.info(`No known spellcasting prepared for '${cls}'`)
+  console.debug(`No known spellcasting prepared for '${cls}' (assuming innate)`)
   return "innate";
 }
 
@@ -258,6 +262,7 @@ const REMASTERED_SPELLS = {
   ["flaming sphere"]: "floating flame",
   ["flesh to stone"]: "petrify",
   ["floating disk"]: "carryall",
+  ["fog cloud"]: "mist",
   ["force cage"]: "lifewood cage",
   ["freedom of movement"]: "unfettered movement",
   ["gaseous form"]: "vapor form",
@@ -416,6 +421,7 @@ export default class RWPF1to2Actor {
     ["heavy wooden shield", "wooden shield"],
     ["pistol", "flintlock pistol"],
     ["musket", "flintlock musket"],
+    ["handaxe", "hatchet"],
     ["hand axe", "hatchet"],
     ["throwing axe", "hatchet"],
     ["tanglefoot bag", "glue bomb"],
@@ -465,10 +471,15 @@ export default class RWPF1to2Actor {
   static classability_packs;
   static bestiary_packs;
   static parser;
+  static spell_pack;
+  static equipment_pack;
+  static itemtraits;
+  static itemmaterials;
 
   static async initModule() {
     // Delete any previous stored data first.
     RWPF1to2Actor.item_packs = [];
+    RWPF1to2Actor.spell_packs = [];
     RWPF1to2Actor.feat_packs = [];
     RWPF1to2Actor.classability_packs = [];
     RWPF1to2Actor.bestiary_packs = [];
@@ -478,6 +489,7 @@ export default class RWPF1to2Actor {
     // Get a list of the compendiums to search,
     // using compendiums in the two support modules first (if loaded)
     let items = { core: [], modules: [] };
+    let spells = { core: [], modules: [] };
     let feats = { core: [], modules: [] };
     let classfeats = { core: [], modules: [] };
     let worldpacks = [];
@@ -500,6 +512,8 @@ export default class RWPF1to2Actor {
           stuff = feats;
         else if (pack.metadata.name.includes('class-abilities'))
           stuff = classfeats;
+        else if (pack.metadata.name.includes('spell'))
+          stuff = spells;
 
         if (pack.metadata.packageType === 'world') {
           // We can't be sure what is actually in a WORLD compendium, so use the pack for all three types of things.
@@ -520,6 +534,7 @@ export default class RWPF1to2Actor {
 
     // WORLD compendiums first, then SYSTEM compendiums, then MODULE compendiums
     RWPF1to2Actor.item_packs = [].concat(worldpacks, items.core, items.modules);
+    RWPF1to2Actor.spell_packs = [].concat(worldpacks, spells.core, spells.modules);
     RWPF1to2Actor.feat_packs = [].concat(worldpacks, feats.core, feats.modules);
     RWPF1to2Actor.classability_packs = [].concat(worldpacks, classfeats.core, classfeats.modules);
 
@@ -633,7 +648,7 @@ export default class RWPF1to2Actor {
       case 'Gargantuan': actor.system.traits.size.value = 'grg'; break;
       case 'Colossal': actor.system.traits.size.value = 'col'; break;
       default:
-        console.warn(`Unknown actor size ${character.size.name}`);
+        console.warn(`"${character.name}" has unknown size "${character.size.name}" for `);
     }
 
     //let hp = +character.health.hitpoints;
@@ -643,7 +658,7 @@ export default class RWPF1to2Actor {
     };
 
     // system.details.cr.base/total
-    const cr = +character.challengerating.value;
+    const cr = +character.challengerating?.value ?? character.classes?.level ?? 1;
     actor.system.details.level = { value: (cr < 1) ? Math.floor(cr * 2 - 1) : cr };
 
     // gender race subrace class level
@@ -719,11 +734,127 @@ export default class RWPF1to2Actor {
     };
 
     //
-    // COMBAT tab
+    // PASSIVES and ACTIONS
+    //
+
+    // system.items (includes feats) - must be done AFTER skills
+
+    for (const obj of toArray(character.feats?.feat)) {
+      if (ignoredFeat(obj.name)) continue;
+      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == obj.name);
+
+      if (!itemdata) {
+        itemdata = {
+          name: REMASTERED_FEATURES[obj.name] || obj.name,
+          type: 'action',
+          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
+          system: {
+            //featType: (feat.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+            actionType: { value: "passive" },
+            // actions:
+            category: "interaction",
+            // deathNote: false
+            description: { value: addParas(obj.description['#text']) },
+            // publication:
+            // selfEffect: null
+            slug: toSlug(obj.shortname ?? obj.name),   // needed to match with attacks that trigger it
+            // traits:
+          }
+        }
+      }
+      // maybe handle itemdata.system.uses?.max
+      actor.items.push(itemdata);
+    }
+
+    // Traits (on FEATURES tab)
+    // <trait name="Dangerously Curious" categorytext="Magic">
+    for (const obj of toArray(character.traits?.trait)) {
+      if (ignoredFeat(obj.name)) continue;
+
+      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == obj.name);
+      if (!itemdata) {
+        itemdata = {
+          name: obj.name,
+          type: 'action',
+          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
+          system: {
+            //featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
+            actionType: { value: "passive" },
+            // actions:
+            category: "offensive",
+            // deathNote: false
+            description: { value: addParas(obj.description['#text']) },
+            // publication:
+            // selfEffect: null
+            slug: toSlug(obj.shortname ?? obj.name),   // needed to match with attacks that trigger it
+            // traits:
+          }
+        }
+      }
+      // maybe handle itemdata.system.uses?.max
+      actor.items.push(itemdata);
+    }
+    // and otherspecials.special with sourcetext attribute set to one of the classes
+    // find items in "class-abilities"
+
+
+    // defensive.[special.shortname]  from 'class abilities'
+    for (const obj of toArray(character.defensive.special).concat(toArray(character.otherspecials.special))) {
+      // Special abilities such as class abilities have a type of 'feat'
+      // Ignore anything in parentheses
+      if (ignoredFeat(obj.name)) continue;
+
+      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == obj.name);
+      if (!itemdata) {
+        itemdata = {
+          name: obj.name,
+          type: 'action',
+          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
+          system: {
+            actionType: { value: "passive" },
+            // actions:
+            category: "defensive",
+            // deathNote: false
+            description: { value: addParas(obj.description['#text']) },
+            // publication:
+            // selfEffect: null
+            slug: toSlug(obj.shortname ?? obj.name),   // needed to match with attacks that trigger it
+            // traits:
+          }
+        }
+      }
+      // maybe handle itemdata.system.uses?.max
+      actor.items.push(itemdata);
+    }
+
+    // character.attack.special are more feat entries, not actual attacks,
+    // but might be referenced by other attacks.
+    for (const obj of toArray(character.attack.special)) {
+      let itemdata = {
+        name: REMASTERED_FEATURES[obj.name] || obj.name,
+        type: 'action',
+        img: 'systems/pf2e/icons/default-icons/action.svg',
+        system: {
+          actionType: { value: "passive" },
+          // actions:
+          category: "interaction",
+          // deathNote: false
+          description: { value: addParas(obj.description['#text']) },
+          // publication:
+          // selfEffect: null
+          slug: toSlug(obj.shortname ?? obj.name),   // needed to match with attacks that trigger it
+          // traits:
+        }
+      }
+      actor.items.push(itemdata);
+    }
+
+    //
+    // ATTACKS section (might use PASSIVES added earlier)
     //
 
     for (const attack of toArray(character.melee?.weapon).concat(toArray(character.ranged?.weapon))) {
-      console.debug(`ATTACK: ${character.name} - ${attack.name} - ${attack.typetext}`)
+      //console.debug(`ATTACK: ${character.name} - ${attack.name} - ${attack.typetext}`)
 
       let damageType = "bludgeoning"; // convert 'B/P/S' to array of damage types
       for (const part of attack.typetext.split('/')) {
@@ -734,26 +865,42 @@ export default class RWPF1to2Actor {
         }
       }
 
-      let dmgtraits = [];
       let damageRolls = {};
+      let attackEffects = { value: [] };
+      let traits = { value: [] };
       if (attack.damage) {
         // possible: 1d6+2 plus 1d6 fire and grab
-        let dmgparts = attack.damage.split(" plus ").map(p => p.split(" and ")).flat();
-        for (const ipart of dmgparts) {
-          const part = ipart.trim().replaceAll(/  +/g, " ").toLowerCase();  // remove multiple spaces
+        let dmgparts = attack.damage.trim().toLowerCase()
+          .replaceAll(/  +/g, " ")
+          .replaceAll(/ \+(\dd)/g, " + $1")
+          .replaceAll(/negative energy|negative/g, "void")
+          .replaceAll(/positive energy|positive/g, "vitality")
+          .replaceAll("non-lethal", "nonlethal")
+          .split(/ plus | and | \+ /g);
+        for (const part of dmgparts) {
           if (CONFIG.PF2E.attackEffects[part]) {
-            dmgtraits.push(part);
+            attackEffects.value.push(part);
+          } else if (isNaN(part[0])) {
+            const partslug = toSlug(part);
+            // Check passives for matching name, then put the SLUG of that item into attackEffects.value
+            const action = actor.items.find(item => item.type === "action" && item.system.slug?.startsWith(partslug));
+            if (action) {
+              attackEffects.value.push(action.system.slug);
+            } else
+              console.warn(`${character.name}: unknown component '${part}' in damage "${attack.damage}"`)
           } else {
             let words = part.split(' ');
-            if (words.length > 1) {
-              let tag = words[1];
+            let damage = words.shift().replace("1d3", "1d4");
+
+            for (const tag of words) {
               if (CONFIG.PF2E.damageTypes[tag])
                 damageType = tag;
+              else if (CONFIG.PF2E.npcAttackTraits[tag])
+                traits.value.push(tag);
               else
                 console.warn(`${character.name}: Unknown damage modifier "${tag}" in "${attack.damage}"`)
             }
             // Convert 1d3 to 1d4 (since 1d3 isn't a valid dice type for PF2e)
-            let damage = words[0].replace("1d3", "1d4");
             damageRolls[foundry.utils.randomID()] = {
               category: null,
               damage,
@@ -763,55 +910,38 @@ export default class RWPF1to2Actor {
         }
       }
 
+      // Check name for any additional traits
+      if (attack.rangedattack) {
+        let range = parseInt(attack.rangedattack.rangeinctext);
+        if (Number.isInteger(range))
+          traits.value.push(`range-increment-${parseInt(attack.rangedattack.rangeinctext)}`);
+      }
+      // ignore "light" from "light crossbow"
+      for (const word of attack.name.toLowerCase().replace("cold iron", "cold-iron").replace("light ", "").split(" "))
+        if (CONFIG.PF2E.npcAttackTraits[word]) {
+          console.debug(`ATTACK: ${character.name}: adding "${word}" trait to attack "${attack.name}"`)
+          traits.value.push(word);
+        }
+
+      let description = { value: "" };
+      if (attack.damage) description.value += `<p><strong>${game.i18n.localize("PF2E.DamageRoll")} </strong>${attack.damage}</p><hr>`;
+      description.value += addParas(attack.description["#text"]);
+
       let itemdata = {
-        // item
         name: attack.name,
         type: "melee",
         img: 'systems/pf2e/icons/default-icons/melee.svg',
         system: {  // MeleeSystemData
-          attackEffects: { value: dmgtraits },
+          attackEffects,
           bonus: { value: parseInt(attack.attack) },
           damageRolls,
-          description: { value: attack.description["#text"] },
+          description,
           //material: {},
           //publication: {},
           //rules: [],
           //runes: [],
           //slug: [],
-          traits: { value: [] },
-        }
-      }
-
-      if (attack.rangedattack && !Number.isNaN()) {
-        let range = parseInt(attack.rangedattack.rangeinctext);
-        if (Number.isInteger(range))
-          itemdata.system.traits.value.push(`range-increment-${parseInt(attack.rangedattack.rangeinctext)}`);
-      }
-
-      actor.items.push(itemdata);
-    }
-
-    // character.attack.special are more feat entries, not actual attacks
-    for (const attack of toArray(character.attack.special)) {
-      let itemdata = {
-        name: REMASTERED_FEATURES[attack.name] || attack.name,
-        type: 'action',
-        img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
-        system: {
-          //featType: (attack.categorytext == 'Racial') ? 'racial' : 'trait',	// attack, classFeat, trait, racial, misc, template
-          actionType: { value: "passive" },
-          // actions:
-          category: "interaction",
-          // deathNote: false
-          description: {
-            // addenda: [],
-            // gm: [],
-            value: addParas(attack.description['#text'])
-          }
-          // publication:
-          // selfEffect: null
-          // slug: null
-          // traits:
+          traits,
         }
       }
       actor.items.push(itemdata);
@@ -851,31 +981,43 @@ export default class RWPF1to2Actor {
     //    traits: { value: [], rarity: "common" }  // CONFIG.PF2E.equipmentTraits
     //    usage: { value: "held-in-one-hand"|CONFIG.PF2E.usages, type: "held", hands: 1 }
 
+    if (!RWPF1to2Actor.itemtraits) {
+      RWPF1to2Actor.itemtraits    = new Set(Object.keys(CONFIG.PF2E.armorTraits).concat(Object.keys(CONFIG.PF2E.weaponTraits)));
+      RWPF1to2Actor.itemmaterials = new Set(Object.keys(CONFIG.PF2E.preciousMaterials));
+    }
+
     // gear.[item.name/quantity/weight/cost/description
-    for (const item of toArray(character.gear?.item).concat(toArray(character.magicitems?.item))) {
+    for (const obj of toArray(character.gear?.item).concat(toArray(character.magicitems?.item))) {
       // Get all forms of item's name once, since we search each pack.
-      let lower = noType(item.name).toLowerCase().replace("mithral", "dawnsilver").replace("cold iron", "cold-iron");
-      let singular, reversed, pack, entry, noparen;
+      let lower = noType(obj.name).toLowerCase().replace("mithral", "dawnsilver").replace("cold iron", "cold-iron");
       // Firstly deal with masterwork and enhancement bonuses on weapons.
       let words = lower.replaceAll(/  +/g, " ").split(" ");
+      // Check for special keywords before the item's name
       let masterwork, enhance, material;
-      if (words[0] === "masterwork") {
+      let traits=[];
+      if (words.length > 1 && words[0] === "masterwork") {
         masterwork = true;
         words.shift();
       }
       // Maybe an enhancement bonus
-      if (words[0].startsWith("+")) {
+      if (words.length > 1 && words[0].startsWith("+")) {
         enhance = parseInt(words[0]);
         if (enhance === 5) enhance = 4;
         words.shift();
       }
       // Maybe a material next
-      if (Object.keys(CONFIG.PF2E.preciousMaterials).includes(words[0])) {
+      while (words.length > 1 && RWPF1to2Actor.itemmaterials.has(words[0])) {
         material = words[0];
+        words.shift();
+      }
+      // Maybe other item traits
+      while (words.length > 1 && RWPF1to2Actor.itemtraits.has(words[0])) {
+        traits.push(words[0]);
         words.shift();
       }
       lower = words.join(" ");
 
+      let singular, reversed, noparen;
       // Handle "Something (else)" -> "Something, else"
       if (lower.endsWith(')')) {
         let pos = lower.lastIndexOf(' (');
@@ -923,26 +1065,28 @@ export default class RWPF1to2Actor {
               const remsplit = remastered?.split("|");
               checkname = remsplit[0];
               lower = lower.replace(spellname, checkname);
-              if (remsplit.length>1) remlevel = +remsplit[1];
+              if (remsplit.length > 1) remlevel = +remsplit[1];
             }
-            // simpler than searchPack
-            const spellpack = game.packs.find(p2 => p2.collection === "pf2e.spells-srd");
-            const spellentry = await spellpack?.index.find(item => item.name.toLowerCase() === checkname);
+            // Only find the relevant packs one
+            if (!RWPF1to2Actor.spell_pack) RWPF1to2Actor.spell_pack = game.packs.find(p2 => p2.collection === "pf2e.spells-srd");
+            if (!RWPF1to2Actor.equipment_pack) RWPF1to2Actor.equipment_pack = game.packs.find(p2 => p2.collection === "pf2e.equipment-srd");
+
+            // simpler than searchPack (we don't need a complete copy of the spell, we only need it's id)
+            const spellentry = await RWPF1to2Actor.spell_pack?.index.find(item => item.name.toLowerCase() === checkname);
             if (!spellentry) {
-              console.warn(`WAND/SCROLL: ${character.name} failed to find spell '${spellname}' [${checkname}] for item '${item.name}'`)
+              console.warn(`WAND/SCROLL: ${character.name} failed to find spell '${spellname}' [${checkname}] for item '${obj.name}'`)
               continue;
             }
-            const spelldata = await spellpack?.getDocument(spellentry._id);
+            const spelldata = await RWPF1to2Actor.spell_pack?.getDocument(spellentry._id);
             let heightenedLevel = remlevel ?? spelldata.system.level.value;  // maybe heightened?
 
             // as per PF2E utility function, createConsumableFromSpell
             // Get scroll/wand template from compendium
             let itemId = ((type === 'scroll') ? scrollCompendiumIds : wandCompendiumIds)[heightenedLevel] ?? null;
 
-            const itempack = game.packs.find(p2 => p2.collection === "pf2e.equipment-srd");
-            const consumable = await itempack?.getDocument(itemId ?? "");
+            const consumable = await RWPF1to2Actor.equipment_pack?.getDocument(itemId ?? "");
             if (!consumable) {
-              console.error(`Failed to create ${type} for '${item.name}'`);
+              console.error(`Failed to create ${type} for '${obj.name}'`);
               continue;
             }
 
@@ -960,8 +1104,8 @@ export default class RWPF1to2Actor {
 
             const templateId = SPELL_CONSUMABLE_NAME_TEMPLATES[type] || `${type} of {name} (Rank {level})`;
             itemdata.name = game.i18n.format(templateId, {
-                  name: spelldata.name,
-                  level: heightenedLevel
+              name: spelldata.name,
+              level: heightenedLevel
             })
 
             const desc = itemdata.system.description;
@@ -976,7 +1120,7 @@ export default class RWPF1to2Actor {
               }
             }, { inplace: false })
 
-            console.info(`WAND/SCROLL: ${character.name} has a ${itemdata.name}`);
+            console.debug(`WAND/SCROLL: ${character.name} has a ${itemdata.name}`);
             actor.items.push(itemdata);
             // Abort the rest of creation for this item
             found = true;
@@ -984,6 +1128,7 @@ export default class RWPF1to2Actor {
           if (found) continue;
         }
       }
+
       if (!itemdata) {
         // Maybe this item contains a longer description, so look for an item whose name
         // appears at the end of this item's name
@@ -993,24 +1138,25 @@ export default class RWPF1to2Actor {
           (reversed && reversed.endsWith(itemname)) ||
           (noparen && noparen.endsWith(itemname)))
         if (itemdata)
-          console.log(`Found item (${itemdata.name}) which ENDS with the creature's item name (${item.name})`)
+          console.log(`${character.name}: Found PF2 Item "${itemdata.name}" which has the END of the creature's item name "${obj.name}"`)
       }
 
       if (!itemdata) {
-        let slot = item.itemslot?.['#text'];
+        // Not found, so create our own version
+        let slot = obj.itemslot?.['#text'];
         itemdata = {
-          name: item.name,
-          type: item.name.includes(' lbs)') ? 'backpack' : (slot === 'Armor') ? 'armor' : 'equipment',   // type: "backpack" ==> Container
+          name: obj.name,
+          type: obj.name.includes(' lbs)') ? 'backpack' : (slot === 'Armor') ? 'armor' : 'equipment',   // type: "backpack" ==> Container
           img: 'systems/pf2e/icons/default-icons/equipment.svg',   // make it clear that we created it manually
           system: {
             //weight: { value: +item.weight.value },
             price: {
               value: {
-                gp: +item.cost.value,
+                gp: +obj.cost.value,
               }
             },
             description: {
-              value: addParas(item.description['#text'])
+              value: addParas(obj.description['#text'])
             },
             //identification: { status: "identified" },
             //carried: true,
@@ -1019,10 +1165,11 @@ export default class RWPF1to2Actor {
       }
 
       // Common stuff about the item
-      itemdata.system.quantity = +item.quantity;
+      itemdata.system.quantity = +obj.quantity;
       // if (masterwork) itemdata.system.masterwork = true;
       if (enhance) itemdata.system.runes = { potency: enhance };
-      if (material) itemdata.system.material = { type: material, grade: "standard" }
+      if (material) itemdata.system.material = { type: material, grade: "standard" };
+      if (traits.length) itemdata.system.traits = { value: traits };
 
       if (enhance || material) {
         //console.info(`ENHANCE/MATERIAL: ${character.name} has a ${item.name}`);
@@ -1062,115 +1209,6 @@ export default class RWPF1to2Actor {
         // visible: true
       };
     }
-
-
-    //
-    // FEATURES tab
-    //
-
-    // system.items (includes feats) - must be done AFTER skills
-
-    for (const feat of toArray(character.feats?.feat)) {
-      if (ignoredFeat(feat.name)) continue;
-      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == feat.name);
-
-      if (!itemdata) {
-        itemdata = {
-          name: REMASTERED_FEATURES[feat.name] || feat.name,
-          type: 'action',
-          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
-          system: {
-            //featType: (feat.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-            actionType: { value: "passive" },
-            // actions:
-            category: "interaction",
-            // deathNote: false
-            description: {
-              // addenda: [],
-              // gm: [],
-              value: addParas(feat.description['#text'])
-            }
-            // publication:
-            // selfEffect: null
-            // slug: null
-            // traits:
-          }
-        }
-      }
-      // maybe handle itemdata.system.uses?.max
-      actor.items.push(itemdata);
-    }
-
-    // Traits (on FEATURES tab)
-    // <trait name="Dangerously Curious" categorytext="Magic">
-    for (const trait of toArray(character.traits?.trait)) {
-      if (ignoredFeat(trait.name)) continue;
-
-      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == trait.name);
-      if (!itemdata) {
-        itemdata = {
-          name: trait.name,
-          type: 'action',
-          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
-          system: {
-            //featType: (trait.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-            actionType: { value: "passive" },
-            // actions:
-            category: "offensive",
-            // deathNote: false
-            description: {
-              // addenda: [],
-              // gm: [],
-              value: addParas(trait.description['#text'])
-            }
-            // publication:
-            // selfEffect: null
-            // slug: null
-            // traits:
-          }
-        }
-      }
-      // maybe handle itemdata.system.uses?.max
-      actor.items.push(itemdata);
-    }
-    // and otherspecials.special with sourcetext attribute set to one of the classes
-    // find items in "class-abilities"
-
-
-    // defensive.[special.shortname]  from 'class abilities'
-    for (const special of toArray(character.defensive.special).concat(toArray(character.otherspecials.special))) {
-      // Special abilities such as class abilities have a type of 'feat'
-      // Ignore anything in parentheses
-      if (ignoredFeat(special.name)) continue;
-
-      let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['feat'], itemname => itemname == special.name);
-      if (!itemdata) {
-        itemdata = {
-          name: special.name,
-          type: 'action',
-          img: 'systems/pf2e/icons/default-icons/action.svg',   // make it clear that we created it manually
-          system: {
-            //featType: (special.categorytext == 'Racial') ? 'racial' : 'trait',	// feat, classFeat, trait, racial, misc, template
-            actionType: { value: "passive" },
-            // actions:
-            category: "defensive",
-            // deathNote: false
-            description: {
-              // addenda: [],
-              // gm: [],
-              value: addParas(special.description['#text'])
-            }
-            // publication:
-            // selfEffect: null
-            // slug: null
-            // traits:
-          }
-        }
-      }
-      // maybe handle itemdata.system.uses?.max
-      actor.items.push(itemdata);
-    }
-
 
     //
     // BUFFS tab
@@ -1273,12 +1311,12 @@ export default class RWPF1to2Actor {
           }
         }
         if (!book) {
-          //console.info(`${character.name}: Creating spellbook "${spellclass}" for "${spell.name}"`)
+          //console.info(SPELLBOOK: `${character.name}: Creating spellbook "${spellclass}" for "${spell.name}"`)
           addSpellcasting(spellclass)
           book = spellcasting.get(lowersc);
         }
 
-        let itemdata = await searchPacks(RWPF1to2Actor.item_packs, ['spell'], itemname => itemname == shortname);
+        let itemdata = await searchPacks(RWPF1to2Actor.spell_packs, ['spell'], itemname => itemname == shortname);
         if (!itemdata) {
           // Manually create a spell item
           console.debug(`Manually creating spell '${shortname}'`);
@@ -1347,7 +1385,7 @@ export default class RWPF1to2Actor {
           // memorized map contains original spell name, not remapped
           const origshortname = trimParen(spell.name.toLowerCase());
           if (memorized.has(origshortname)) {
-            //console.info(`${character.name} has PREPARED spell: level ${itemdata.system.level.value}, "${itemdata.name}"`);
+            //console.info(`PREPARED: ${character.name} has spell: level ${itemdata.system.level.value}, "${itemdata.name}"`);
             // We need an ID for the spell NOW
             if (!itemdata._id) itemdata._id = foundry.utils.randomID();
             if (!book.system.slots) book.system.slots = {};
@@ -1364,7 +1402,7 @@ export default class RWPF1to2Actor {
           }
         }
 
-        itemdata.slug = itemdata.name.slugify();
+        itemdata.slug = toSlug(itemdata.name);
         //if (spell.name.indexOf('at will)') >= 0) itemdata.system.atWill = true;
         const perday = spell.name.match(/([\d]+)\/day/);
         if (perday) {
