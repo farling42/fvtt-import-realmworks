@@ -916,22 +916,26 @@ export default class RWPF1to2Actor {
           let pos = lower.indexOf(' of ');
           let spells = lower.slice(pos + 4).split(', ');
           for (const spellname of spells) {
+            let checkname = spellname;
+            let remlevel;
             const remastered = REMASTERED_SPELLS[spellname];
-            const remsplit = remastered.split("|");
-            const checkname = remastered ? remsplit[0] : spellname;
-            const remlevel = remsplit.length>1 ? remsplit[1]: undefined;
-            if (remastered) lower = lower.replace(spellname, checkname);
+            if (remastered) {
+              const remsplit = remastered?.split("|");
+              checkname = remsplit[0];
+              lower = lower.replace(spellname, checkname);
+              if (remsplit.length>1) remlevel = +remsplit[1];
+            }
             // simpler than searchPack
             const spellpack = game.packs.find(p2 => p2.collection === "pf2e.spells-srd");
             const spellentry = await spellpack?.index.find(item => item.name.toLowerCase() === checkname);
             if (!spellentry) {
-              console.warn(`Failed to find spell '${spellname}' [${checkname}] for item '${item.name}'`)
+              console.warn(`WAND/SCROLL: ${character.name} failed to find spell '${spellname}' [${checkname}] for item '${item.name}'`)
               continue;
             }
             const spelldata = await spellpack?.getDocument(spellentry._id);
+            let heightenedLevel = remlevel ?? spelldata.system.level.value;  // maybe heightened?
 
             // as per PF2E utility function, createConsumableFromSpell
-            let heightenedLevel = remlevel || spelldata.system.level.value;  // maybe heightened?
             // Get scroll/wand template from compendium
             let itemId = ((type === 'scroll') ? scrollCompendiumIds : wandCompendiumIds)[heightenedLevel] ?? null;
 
