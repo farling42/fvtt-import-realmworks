@@ -989,9 +989,9 @@ class RealmWorksImporter extends Application {
           .catch(e => console.warn(`Failed to upload '${filename}': ${e}`));
       } else {
         if (filename === validname)
-          console.warn(`Unable to upload '${filename}' since it does not have a supported file extension (see CONST.UPLOADABLE_FILE_EXTENSIONS)`)
+          console.info(`Unable to upload '${filename}' since it does not have a supported file extension (see CONST.UPLOADABLE_FILE_EXTENSIONS)`)
         else
-          console.warn(`Unable to upload '${filename}' as '${validname}' since it does not have a supported file extension (see CONST.UPLOADABLE_FILE_EXTENSIONS)`)
+          console.info(`Unable to upload '${filename}' as '${validname}' since it does not have a supported file extension (see CONST.UPLOADABLE_FILE_EXTENSIONS)`)
       }
     }
   }
@@ -2150,7 +2150,7 @@ class RealmWorksImporter extends Application {
                     result.push(actor);
                   }
                 })
-                .catch(e => console.warn(`createActorData for '${character.name}' in '${topicname}':\nFailed in ${filename} due to ${e}`));
+                .catch(e => console.warn(`createActorData for '${character.name}' in '${topicname}':\nFailed in ${filename} due to ${e} from ${e.stack}`));
             }
           }
         } else {
