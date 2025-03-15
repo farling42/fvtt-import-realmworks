@@ -73,6 +73,35 @@ const ITEM_TYPES = [
   'weapon',
 ];
 
+// The next few for the local version of PF2E createConsumableFromSpell
+const SPELL_CONSUMABLE_NAME_TEMPLATES = {
+  scroll: "PF2E.Item.Physical.FromSpell.Scroll",
+  wand: "PF2E.Item.Physical.FromSpell.Wand"
+}
+const scrollCompendiumIds = {
+  1: "RjuupS9xyXDLgyIr",
+  2: "Y7UD64foDbDMV9sx",
+  3: "ZmefGBXGJF3CFDbn",
+  4: "QSQZJ5BC3DeHv153",
+  5: "tjLvRWklAylFhBHQ",
+  6: "4sGIy77COooxhQuC",
+  7: "fomEZZ4MxVVK3uVu",
+  8: "iPki3yuoucnj7bIt",
+  9: "cFHomF3tty8Wi1e5",
+  10: "o1XIHJ4MJyroAHfF"
+}
+const wandCompendiumIds = {
+  1: "UJWiN0K3jqVjxvKk",
+  2: "vJZ49cgi8szuQXAD",
+  3: "wrDmWkGxmwzYtfiA",
+  4: "Sn7v9SsbEDMUIwrO",
+  5: "5BF7zMnrPYzyigCs",
+  6: "kiXh4SUWKr166ZeM",
+  7: "nmXPj9zuMRQBNT60",
+  8: "Qs8RgNH6thRPv2jt",
+  9: "Fgv722039TVM5JTc"
+};
+
 const LEVEL_DC = [
   14, 15, 16, 18, 19, 20, 22, 23, 24, 26, 27, 28, 30,  // 0-12
   31, 32, 34, 35, 36, 38, 39, 40, 42, 44, 46, 48, 50,  // 13-25
@@ -424,7 +453,7 @@ export default class RWPF1to2Actor {
     ["ioun stone", "aeon stone"],
     ["climber's kit", "climbing kit"],
     ["manacles", "manacles (simple)"],
-    
+
   ]);
 
   static once;
@@ -876,9 +905,9 @@ export default class RWPF1to2Actor {
       // Potions, Scrolls and Wands
       if (!itemdata) {
         let type;
-        if (lower.startsWith('potion of '))   // No Potions of spells in PF2E
+        /*if (lower.startsWith('potion of '))   // No Potions of spells in PF2E
           type = 'potion';
-        else if (lower.startsWith('scroll of '))
+        else*/ if (lower.startsWith('scroll of '))
           type = 'scroll';
         else if (lower.startsWith('wand of '))
           type = 'wand';
@@ -888,33 +917,65 @@ export default class RWPF1to2Actor {
           let spells = lower.slice(pos + 4).split(', ');
           for (const spellname of spells) {
             const remastered = REMASTERED_SPELLS[spellname];
-            const checkname = remastered ? remastered.split("|")[0] : spellname;
+            const remsplit = remastered.split("|");
+            const checkname = remastered ? remsplit[0] : spellname;
+            const remlevel = remsplit.length>1 ? remsplit[1]: undefined;
             if (remastered) lower = lower.replace(spellname, checkname);
-            let spelldata = await searchPacks(RWPF1to2Actor.item_packs, ['spell'], itemname => itemname == checkname);
-            if (!spelldata) {
+            // simpler than searchPack
+            const spellpack = game.packs.find(p2 => p2.collection === "pf2e.spells-srd");
+            const spellentry = await spellpack?.index.find(item => item.name.toLowerCase() === checkname);
+            if (!spellentry) {
               console.warn(`Failed to find spell '${spellname}' [${checkname}] for item '${item.name}'`)
               continue;
             }
-            let itemdata /*= await createConsumableFromSpell (spelldata, { // from PF2E game system
-              type: lower.startsWith(scroll) ? "scroll" : lower.startWith("wand") ? "wand" : "potion",  // "scroll" | "wand"
-              //heightenedLevel: currentSource.system.spell.system.location.heightenedLevel,
-            });*/
-            if (itemdata) {
-              // Check uses
-              for (const tracked of toArray(character.trackedresources?.trackedresource)) {
-                if (tracked.name.toLowerCase().startsWith(lower)) {
-                  const left = +tracked.left;
-                  if (type === 'wand')
-                    itemdata.system.uses.value = +tracked.left;
-                  if (!left) itemdata.system.quantity = +tracked.left;
+            const spelldata = await spellpack?.getDocument(spellentry._id);
+
+            // as per PF2E utility function, createConsumableFromSpell
+            let heightenedLevel = remlevel || spelldata.system.level.value;  // maybe heightened?
+            // Get scroll/wand template from compendium
+            let itemId = ((type === 'scroll') ? scrollCompendiumIds : wandCompendiumIds)[heightenedLevel] ?? null;
+
+            const itempack = game.packs.find(p2 => p2.collection === "pf2e.equipment-srd");
+            const consumable = await itempack?.getDocument(itemId ?? "");
+            if (!consumable) {
+              console.error(`Failed to create ${type} for '${item.name}'`);
+              continue;
+            }
+
+            // Build the wand/scroll Item
+            itemdata = {
+              ...consumable.toObject(),
+              _id: null
+            }
+            const traits = itemdata.system.traits;
+            traits.value = [...traits.value, ...spelldata.system.traits.value];
+            traits.rarity = spelldata.rarity;
+            if (traits.value.includes("magical") && traits.value.some(t2 => CONFIG.PF2E.magicTraditions[t2] !== undefined))
+              traits.value.splice(traits.value.indexOf("magical"), 1);
+            traits.value.sort();
+
+            const templateId = SPELL_CONSUMABLE_NAME_TEMPLATES[type] || `${type} of {name} (Rank {level})`;
+            itemdata.name = game.i18n.format(templateId, {
+                  name: spelldata.name,
+                  level: heightenedLevel
+            })
+
+            const desc = itemdata.system.description;
+            desc.value = `<p>@UUID[${spelldata.uuid}]{${spelldata.name}}</p><hr>${desc.value}`;
+            itemdata.system.spell = foundry.utils.mergeObject(spelldata._source, {
+              _id: foundry.utils.randomID(),
+              system: {
+                location: {
+                  value: null,
+                  heightenedLevel
                 }
               }
-              actor.items.push(itemdata);
-              // Abort the rest of creation for this item
-              found = true;
-            }
-            else
-              console.error(`Failed to create ${type} for '${item.name}'`);
+            }, { inplace: false })
+
+            console.info(`WAND/SCROLL: ${character.name} has a ${itemdata.name}`);
+            actor.items.push(itemdata);
+            // Abort the rest of creation for this item
+            found = true;
           }
           if (found) continue;
         }
@@ -960,7 +1021,7 @@ export default class RWPF1to2Actor {
       if (material) itemdata.system.material = { type: material, grade: "standard" }
 
       if (enhance || material) {
-        console.info(`${character.name} has a ${item.name}`);
+        //console.info(`ENHANCE/MATERIAL: ${character.name} has a ${item.name}`);
         //itemdata.name = item.name;
       }
       actor.items.push(itemdata);
@@ -1104,53 +1165,6 @@ export default class RWPF1to2Actor {
       }
       // maybe handle itemdata.system.uses?.max
       actor.items.push(itemdata);
-
-      /*
-      let lowername = special.shortname.toLowerCase();
-      let shortname;
-      if (lowername.endsWith(')')) shortname = lowername.slice(0, lowername.lastIndexOf(' ('));
-    
-      // Ignore abilities which were auto-entered by the class processing above,
-      // or which were added from a magic item.
-      let found=false;
-      for (const item of actor.items) {
-        let itemname = item.name.toLowerCase();
-        if (itemname == lowername || (shortname && itemname == shortname)) {
-          found=true;
-          break;
-        }
-      }
-      if (found) {
-        console.log(`ignoring ${special.name} since it already exists in items[]`);
-        continue;
-      }
-    
-      let specname = special.name;
-      let itemdata = await searchPacks(classnames.includes(special?.sourcetext) ? RWPF1to2Actor.classability_packs : RWPF1to2Actor.feat_packs, ['feat'], 
-        itemname => itemname == lowername || (shortname && itemname == shortname));
-      if (!itemdata) {
-        itemdata = {
-          type: 'feat',
-          img:  'systems/pf2e/icons/default-icons/weapon.svg',   // make it clear that we created it manually
-          system: {
-            featType: (special?.sourcetext == 'Trait') ? 'trait' : (classnames.includes(special?.sourcetext)) ? 'classFeat' : 
-              actor.type === 'racial'
-          }
-        }
-        if (special.sourcetext) itemdata.system.associations = {classes: [[special.sourcetext]]};
-        // maybe add uses
-        let uses = specname.match(/ \((\d+)\/([\w]+)\)/);
-        if (uses) {
-          itemdata.system.uses = { max : +uses[1], per: uses[2], value: 0}
-          specname = specname.slice(0,uses.index);
-        }
-      }
-      itemdata.name = noType(specname);
-      //itemdata.system.featType = 'racial';
-      itemdata.system.description = { value: addParas(special.description['#text'])};
-      if (special.type) itemdata.system.abilityType = special.type.slice(0,2).toLowerCase();
-      actor.items.push(itemdata);
-      */
     }
 
 
