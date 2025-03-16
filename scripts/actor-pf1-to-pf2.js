@@ -1364,7 +1364,8 @@ export default class RWPF1to2Actor {
     function addSpellcasting(spellclass, slots = {}, memorized = undefined) {
       const lowersc = spellclass.toLowerCase();
 
-      const casting = CASTING_DC[actor.system.details.level.value];
+      // Fallback to level 1 casting stats
+      const casting = CASTING_DC[actor.system.details.level.value] ?? [14,6];
       const castmod = CASTING_EXTREME.has(spellclass) ? 6 : CASTING_HIGH.has(spellclass) ? 3 : 0;
       console.log(`${character.name}: SPELLCASTING: ${spellclass} : DC ${casting[0]}, ATK ${casting[1]}`)
 

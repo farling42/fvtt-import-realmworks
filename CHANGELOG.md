@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 12.1.0
+
+- PF2: Attempt to perform basic conversion of PF1 HeroLab portfolios into PF2 NPC actors.
+
 ## 12.0.0
 
 - Change minimum supported version to Foundry V12.
