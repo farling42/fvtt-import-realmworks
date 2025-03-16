@@ -148,6 +148,48 @@ const SPELL_DC = [
   15, 18, 20, 23, 26, 28, 31, 34, 36, 39, // 1-10
 ]
 
+const CASTING_DC = {   // +3 for High, +6 for Extreme
+    // [Level]: { dc, attack }
+    ["-1"]: [13, 5],
+    ["0"]:  [13, 5],
+    ["1"]:  [14, 6],
+    ["2"]:  [15, 7],
+    ["3"]:  [17, 9],
+    ["4"]:  [18, 10],
+    ["5"]:  [19, 11],
+    ["6"]:  [21, 13],
+    ["7"]:  [22, 14],
+    ["8"]:  [23, 15],
+    ["9"]:  [25, 17],
+    ["10"]: [26, 18],
+    ["11"]: [27, 19],
+    ["12"]: [29, 21],
+    ["13"]: [30, 22],
+    ["14"]: [31, 23],
+    ["15"]: [33, 25],
+    ["16"]: [34, 26],
+    ["17"]: [35, 27],
+    ["18"]: [37, 29],
+    ["19"]: [38, 30],
+    ["20"]: [39, 31],
+    ["21"]: [41, 33],
+    ["22"]: [42, 34],
+    ["23"]: [43, 35],
+    ["24"]: [45, 37],
+}
+const CASTING_HIGH = new Set([
+  // primary casters +
+  // Secondary spellcasters can go up to high numbers if they’re above 15th level and have offensive spells.
+  "sorcerer",
+  "witch",
+  "wizard",
+
+])
+const CASTING_EXTREME = new Set([
+  // At 15th level and higher, the extreme numbers become standard for spellcasters.
+  // A few creatures might use the extreme numbers at lower levels, but they tend to be highly specialized, with very weak defenses and Strikes.
+])
+
 const CASTER_CLASS = {
 
   // Arcane spellcaster
@@ -1322,6 +1364,10 @@ export default class RWPF1to2Actor {
     function addSpellcasting(spellclass, slots = {}, memorized = undefined) {
       const lowersc = spellclass.toLowerCase();
 
+      const casting = CASTING_DC[actor.system.details.level.value];
+      const castmod = CASTING_EXTREME.has(spellclass) ? 6 : CASTING_HIGH.has(spellclass) ? 3 : 0;
+      console.log(`${character.name}: SPELLCASTING: ${spellclass} : DC ${casting[0]}, ATK ${casting[1]}`)
+
       spellcasting.set(lowersc, {
         _id: foundry.utils.randomID(),
         type: "spellcastingEntry",
@@ -1336,6 +1382,11 @@ export default class RWPF1to2Actor {
           showSlotlessLevels: { value: false },
           tradition: { value: classTradition(lowersc) }, // Magic Tradition
           ability: { value: spellAbility(lowersc) }, // Key Attribute
+          spelldc: {
+            dc: casting[0]+castmod,
+            //mod: 0,
+            value: casting[1]+castmod
+          }
           //autoHeightenLevel : { value : null }, // Auto Heighten Rank [null = default]
         }
       });
