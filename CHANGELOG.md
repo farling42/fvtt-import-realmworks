@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 12.1.1
+
+- PF1: Search for an exact match of the class before fuzzy matching (since "summonerUnchained" is found before "summoner")
+
 ## 12.1.0
 
 - PF2: Attempt to perform basic conversion of PF1 HeroLab portfolios into PF2 NPC actors.

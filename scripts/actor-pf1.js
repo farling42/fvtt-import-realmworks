@@ -2,18 +2,18 @@
  * 
  * @param {*} packs     An array of packs to check
  * @param {*} typematch array of strings that must match the 'type' of the Item's to be passed to testfunc
- * @param {*} testfunc  A function to check the name supplied as the only parameter
+ * @param {*} testfunc   A function to check the name supplied as the only parameter
  * @returns {*} A copy of the data from the pack, or null
  */
 async function searchPacks(packs, typematch, testfunc) {
 	for (const pack of packs) {
-		const entry = pack.index.find(item => typematch.includes(item.type) && testfunc (item.name.toLowerCase()));
+    const entry = pack.index.find(item => typematch.includes(item.type) && testfunc (item.name.toLowerCase()));
 		if (entry) {
 			let result = (await pack.getDocument(entry._id)).toObject();
 			delete result._id;
 			return result;
 		}
-	}
+  }
 	return null;
 }
 
@@ -369,6 +369,7 @@ export default class RWPF1Actor {
 		}
 		let classnames = [];
     let classbab = 0;
+		let spellbooks = [ 'primary', 'secondary', 'tertiary' ];
 		let spellmaps = new Map();
     actor.system.attributes.spells = {
       spellbooks: {
@@ -394,7 +395,11 @@ export default class RWPF1Actor {
 			//console.debug(`Looking for class called '${name}'`);
 			// Strip trailing (...)  from class.name
 			let lowername=name.toLowerCase();
-			let classdata = await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => itemname.includes(lowername) || lowername.includes(itemname));
+      // Exact match first, then best match (summonerUnchained is found before summoner)
+			let classdata = 
+        await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => (itemname === lowername)) ||
+        await searchPacks(RWPF1Actor.item_packs, ['class'], itemname => (itemname.includes(lowername) || lowername.includes(itemname)));
+
 			if (classdata) {
 				//console.debug(`Class ${entry.name} at level ${cclass.levels}`);
 
@@ -1264,9 +1269,6 @@ export default class RWPF1Actor {
 		//			<spellsubschool>Figment</spellsubschool>
 		//		</spell>
     /*
-		let spellbooks = [ 'primary', 'secondary', 'tertiary' ];
-		let spellmaps = new Map();
-
 		actor.system.attributes.spells = { spellbooks : {}}
 		for (const sclass of toArray(character.spellclasses?.spellclass)) {
 
@@ -1295,7 +1297,7 @@ export default class RWPF1Actor {
       if (ppos > 0) spellmaps.set(classname.slice(0,ppos), book);
 		}
 		*/
-		async function addSpells(nodes, memorized=undefined) {
+    async function addSpells(nodes, memorized=undefined) {
 			if (!nodes) return false;
 			
 			let fixedbook;
