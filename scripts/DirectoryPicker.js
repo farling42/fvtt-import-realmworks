@@ -6,7 +6,7 @@
 
 const GS_MODULE_NAME = "realm-works-import";
 
-export class RWDirectoryPicker extends FilePicker {
+export class RWDirectoryPicker extends foundry.applications.apps.FilePicker {
   constructor(options = {}) {
     super(options);
   }
@@ -26,7 +26,7 @@ export class RWDirectoryPicker extends FilePicker {
 
   static async uploadToPath(path, file) {
     const options = RWDirectoryPicker.parse(path);
-    return FilePicker.upload(options.activeSource, options.current, file, { bucket: options.bucket });
+    return super.upload(options.activeSource, options.current, file, { bucket: options.bucket });
   }
 
   // returns the type "Directory" for rendering the SettingsConfig
@@ -125,7 +125,7 @@ export class RWDirectoryPicker extends FilePicker {
     if (typeof ForgeVTT !== "undefined" && ForgeVTT?.usingTheForge) {
       return RWDirectoryPicker.forgeCreateDirectory(target);
     }
-    return FilePicker.createDirectory(source, target, options);
+    return super.createDirectory(source, target, options);
   }
 
   /**

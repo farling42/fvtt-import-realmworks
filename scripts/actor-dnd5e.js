@@ -37,11 +37,10 @@ export default class RWDND5EActor {
 			RWDND5EActor.ability_names[value.fullKey] = key;
 			RWDND5EActor.ability_names[key] = key;
 		}
-		const tools = CONFIG.DND5E.toolIds;
-		let item_pack = await game.packs.find(p => p.metadata.name === 'items');
+		const tools = CONFIG.DND5E.tools;
 		for (const [key,value] of Object.entries(tools)) {
 			// Find name from Items compendium
-			RWDND5EActor.tool_proficiencies[item_pack.index.get(value).name.toLowerCase()] = key;
+			RWDND5EActor.tool_proficiencies[fromUuidSync(value.id).name.toLowerCase()] = key;
 		}
 		const armorprofs = CONFIG.DND5E.armorProficiencies;
 		for (const [key,value] of Object.entries(armorprofs)) {

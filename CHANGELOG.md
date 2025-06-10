@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 13.0.0
+
+- Foundry 13 only release, verified with 13.345.
+- Reinstate button at the bottom of the Compendium tab.
+- Fix an deprecation issue with DND5E import.
+
 ## 12.1.1
 
 - PF1: Search for an exact match of the class before fuzzy matching (since "summonerUnchained" is found before "summoner")

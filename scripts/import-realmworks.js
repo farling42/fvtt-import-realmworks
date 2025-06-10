@@ -331,6 +331,21 @@ Hooks.on("renderSidebarTab", async (app, html) => {
   }
 })
 
+Hooks.on("renderCompendiumDirectory", async (app, html) => {
+  if (!game.user.isGM) return;
+  if (html.querySelector(`button[id=${GS_MODULE_NAME}]`)) return;
+
+  let button = document.createElement("button");
+  button.style = "flex: 0; height: 1.5em";
+  button.innerHTML = `<i class='fas fa-file-import'></i> Realm Works Import`;
+  button.id = GS_MODULE_NAME;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    new RealmWorksImporter().render(true);
+  });
+  html.append(button);
+})
+
 //
 // Utility functions which aren't required inside the class
 //
@@ -694,7 +709,7 @@ class RealmWorksImporter extends Application {
           this.init_actors = RWPF1to2Actor.initModule;
           this.create_actor_data = RWPF1to2Actor.createActorData;
           this.actor_data_func = function (html) { return { details: { privateNotes: html } } };
-          this.item_data_func  = function (html) { return { description: { value: html } } };
+          this.item_data_func = function (html) { return { description: { value: html } } };
           break;
 
         case 'wfrp4e':
@@ -1047,7 +1062,7 @@ class RealmWorksImporter extends Application {
 
     // The file was uploaded when the TOPIC was processed, so can simply read it here.
     const imagename = this.imageFilename(filename);
-    const tex = await loadTexture(imagename);	// when previously uploaded, bmp/tif/tiff files were converted to png.
+    const tex = await foundry.canvas.loadTexture(imagename);	// when previously uploaded, bmp/tif/tiff files were converted to png.
     let scenedata = {
       name: scenename,
       background: {
@@ -1179,7 +1194,7 @@ class RealmWorksImporter extends Application {
         pages: [{
           name: page.name,
           type: "text",
-          text: { 
+          text: {
             format: CONST.JOURNAL_ENTRY_PAGE_FORMATS.HTML,
             // Need to embed to a specific page (which might not have been created yet!)
             content: `<p>@Embed[${page.uuid} inline]</p>`
