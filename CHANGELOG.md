@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 13.0.1
+## 13.0.2
 
 - Fix import of SWADE characters.
 

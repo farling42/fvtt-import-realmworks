@@ -5,7 +5,7 @@
 	"version": "2.7",
 	"compatibility": {
 		"minimum" : 13,
-		"verified": 13.345
+		"verified": 13.348
 	},
 	"esmodules": [
 		"scripts/libwrapper-shim.js",
