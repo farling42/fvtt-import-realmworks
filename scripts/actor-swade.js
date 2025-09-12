@@ -58,9 +58,9 @@ export default class RWSWADEActor {
 			let max = (plus>minus) ? plus : minus;
 			
 			if (max < 0)
-				return { sides: +string.slice(1), modifier: 0 };
+				return { sides: parseInt(string.slice(1)), modifier: 0 };
 			else
-				return { sides: +string.slice(1,max), modifier: +string.slice(max) };
+				return { sides: parseInt(string.slice(1,max)), modifier: parseInt(string.slice(max)) };
 		}
 		async function searchPack(pack,name) {
 			if (!pack) return undefined;
@@ -134,17 +134,17 @@ export default class RWSWADEActor {
 			switch (trait.name) {
 				case 'Running Die':
 					if (!actor.system.stats.speed) actor.system.stats.speed = {};
-					actor.system.stats.speed.runningDie = +trait.value.slice(1);
+					actor.system.stats.speed.runningDie = parseInt(trait.value.slice(1));
 					break;
 				case 'Pace':
 					if (!actor.system.stats.speed) actor.system.stats.speed = {};
-					actor.system.stats.speed.value = +trait.value;
+					actor.system.stats.speed.value = parseInt(trait.value);
 					break;
 				case 'Size':
-					actor.system.stats.size = +trait.value;
+					actor.system.stats.size = parseInt(trait.value);
 					break;
 				default:
-					actor.system.stats[trait.name.toLowerCase()] = { value : trait.value };
+					actor.system.stats[trait.name.toLowerCase()] = { value : parseInt(trait.value) };
 			}
 		}
 		
@@ -163,7 +163,7 @@ export default class RWSWADEActor {
 		//actor.system.fatigue = { value : 0, min: 0, max: 2 };
 		//actor.system.wounds  = { value: 0, min: 0, max: 3, ignored: 0 };
 		actor.system.advances = {
-			value: +character.xp.total,
+			value: parseInt(character.xp.total),
 			rank : character.rank.name,
 			details: "",
 		};
@@ -394,7 +394,7 @@ export default class RWSWADEActor {
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, gear.name);
 			if (itemdata) {
-				itemdata.system.quantity = +gear.quantity;
+				itemdata.system.quantity = parseInt(gear.quantity);
 			} else {
 				itemdata = {
 					name: gear.name,
@@ -406,9 +406,9 @@ export default class RWSWADEActor {
 						notes: "",
 						additionalStats: "",
 						// physicalItem template
-						quantity: +gear.quantity,
-						weight: +gear.weight.value,
-						price: +gear.cost.value,
+						quantity: parseInt(gear.quantity),
+						weight: parseInt(gear.weight.value),
+						price: parseInt(gear.cost.value),
 						// equipable template
 						euippable: false,
 						equipped: false,
@@ -425,7 +425,7 @@ export default class RWSWADEActor {
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, magicitem.name);
 			if (itemdata) {
-				itemdata.system.quantity = +attack.quantity;
+				itemdata.system.quantity = parseInt(attack.quantity);
 			} else {
 				itemdata = {
 					name: gear.name,
@@ -437,7 +437,7 @@ export default class RWSWADEActor {
 						notes: "",
 						additionalStats: "",
 						// physicalItem template
-						quantity: +attack.quantity,
+						quantity: parseInt(attack.quantity),
 						weight: 0,
 						price: 0,
 						// equipable template
@@ -461,7 +461,7 @@ export default class RWSWADEActor {
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, attack.name);
 			if (itemdata) {
 				// Transfer quantity + equipped to found items
-				itemdata.system.quantity = +attack.quantity;
+				itemdata.system.quantity = parseInt(attack.quantity);
 				itemdata.system.equipped = attack.equipped ? true : false;
 				//itemdata.damage = dmg;   // TODO - do we need this?
 			} else {
@@ -475,9 +475,9 @@ export default class RWSWADEActor {
 						notes: attack.description["#text"], // plain text
 						additionalStats: "",
 						// physicalItem template
-						quantity: +attack.quantity,
-						weight: +attack.weight.value,
-						price: +attack.cost.value,
+						quantity: parseInt(attack.quantity),
+						weight: parseInt(attack.weight.value),
+						price: parseInt(attack.cost.value),
 						// equipable template
 						euippable: true,
 						equipped: attack.equipped ? true : false,
@@ -507,11 +507,13 @@ export default class RWSWADEActor {
 		for (const defense of toArray(character.defenses.defense)) {
 			let itemdata;
 			if (swade_equipment_pack) itemdata = await searchPack(swade_equipment_pack, defense.name);
+            const equipStatus = defense.equipped ? CONFIG.SWADE.CONST.EQUIP_STATE.EQUIPPED : CONFIG.SWADE.CONST.EQUIP_STATE.CARRIED;
 			if (itemdata) {
 				// Transfer quantity + equipped to found items
-				itemdata.system.quantity = +defense.quantity;
-				itemdata.system.equipped = defense.equipped ? true : false;
+				itemdata.system.quantity = parseInt(defense.quantity);
+				itemdata.system.equipStatus = equipStatus;
 			} else if (defense.name.indexOf('Shield') == -1) {
+                const isNatural = defense.name.toLowerCase().includes('natural');
 				itemdata = {
 					name: defense.name,
 					type: 'armor',
@@ -522,22 +524,22 @@ export default class RWSWADEActor {
 						notes: defense.description["#text"], // plain text
 						additionalStats: "",
 						// physicalItem template
-						quantity: +defense.quantity,
-						weight: +defense.weight.value,
-						price: +defense.cost.value,
+						quantity: parseInt(defense.quantity),
+						weight: parseInt(defense.weight.value),
+						price: parseInt(defense.cost.value),
 						// equipable template
-						euippable: true,
-						equipped: defense.equipped ? true : false,
+						equippable: true,
+						equipStatus: equipStatus,
 						// armor
 						minStr: "",
-						armor: +defense.defense,
-						isNaturalArmor: false,
+						armor: parseInt(defense.defense),
+						isNaturalArmor: isNatural,
 						// TODO - determine locations for homebrew items
 						locations: {
-							head: false,
+							head: isNatural,
 							torso: true,
-							arms: false,
-							legs: false,
+							arms: isNatural,
+							legs: isNatural,
 						}
 						// shield (instead of armor), but also has actions template
 						//minStr: "",
@@ -557,12 +559,12 @@ export default class RWSWADEActor {
 						notes: defense.description["#text"], // plain text
 						additionalStats: "",
 						// physicalItem template
-						quantity: +defense.quantity,
-						weight: +defense.weight.value,
-						price: +defense.cost.value,
+						quantity: parseInt(defense.quantity),
+						weight: parseInt(defense.weight.value),
+						price: parseInt(defense.cost.value),
 						// equipable template
-						euippable: true,
-						equipped: defense.equipped ? true : false,
+						equippable: true,
+						equipStatus: equipStatus,
 						// actions template
 						skill: "",
 						skillMod: "",
@@ -570,8 +572,8 @@ export default class RWSWADEActor {
 						additional: {},
 						// shield
 						minStr: "",
-						parry: +defense.parry,
-						cover: +defense.defense,
+						parry: parseInt(defense.parry),
+						cover: parseInt(defense.defense),
 					}
 				}
 			}

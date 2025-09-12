@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 13.0.1
+
+- Fix import of SWADE characters.
+
 ## 13.0.0
 
 - Foundry 13 only release, verified with 13.345.
